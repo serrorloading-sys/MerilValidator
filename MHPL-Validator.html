@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAP Inventory Validator (v13 - Pro + Smart Logic)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style id="columnVisibilityStyles"></style>
+</head>
+
+<body class="p-4 text-gray-800">
+
+    <div class="w-full max-w-[99%] mx-auto">
+        <header
+            class="glass-header p-4 rounded-xl flex flex-col md:flex-row justify-between items-center mb-6 gap-4 border border-white/50">
+            <div class="flex items-center gap-5">
+                <img src="logo.png" alt="Meril-V" class="h-12 w-auto object-contain drop-shadow-sm">
+                <div class="border-l-2 border-slate-200 pl-4">
+                    <h1 class="text-xl font-bold text-slate-800 tracking-tight leading-none">Inventory Validator</h1>
+                    <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mt-1">Warehouse Management
+                        System</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <a href="index.html"
+                    class="group bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg hover:shadow-slate-500/50 transition-all duration-300 transform hover:-translate-y-1 hover:scale-105 flex items-center decoration-none border border-white/20 relative overflow-hidden">
+                    <div
+                        class="absolute inset-0 bg-white/10 group-hover:translate-x-full transition-transform duration-500 -skew-x-12 -translate-x-full">
+                    </div>
+                    <i class="fas fa-th-large mr-2"></i> Switch Entity
+                </a>
+                <button onclick="toggleSettingsPage()"
+                    class="bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-2 rounded text-sm font-bold border border-purple-200 transition">
+                    <i class="fas fa-cog mr-1"></i> Settings
+                </button>
+                <button
+                    onclick="document.getElementById('layoutModal').classList.remove('hidden'); loadLayoutToEditor(activeLayoutId);"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition">
+                    <i class="fas fa-table mr-1"></i> Layout Manager
+                </button>
+                <button onclick="runDiagnostics()"
+                    class="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 px-4 py-2 rounded text-sm font-bold border border-yellow-200 transition">
+                    <i class="fas fa-vial mr-1"></i> Test
+                </button>
+                <button onclick="showAbout()"
+                    class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded text-sm font-bold border border-blue-200 transition">
+                    <i class="fas fa-info-circle mr-1"></i> Help
+                </button>
+                <button onclick="location.reload()"
+                    class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-sm font-bold text-gray-700 transition">
+                    <i class="fas fa-sync-alt mr-1"></i> Reset
+                </button>
+            </div>
+        </header>
+
+        <div id="settingsPage"
+            class="hidden w-full max-w-[98%] mx-auto pb-10 bg-white p-6 rounded shadow border-t-4 border-purple-600 animate-fade">
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <h2 class="text-2xl font-bold text-gray-800"><i
+                        class="fas fa-cogs text-purple-600 mr-2"></i>Configuration & Settings</h2>
+                <button onclick="toggleSettingsPage()"
+                    class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded text-sm font-bold text-gray-800 transition">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Dashboard
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                <div class="bg-gray-50 p-5 rounded border border-gray-200">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i
+                            class="fas fa-user-tie text-blue-600 mr-2"></i>Customer Configuration</h3>
+                    <div class="mb-3">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Customer Name</label>
+                        <input type="text" id="custName" placeholder="Enter Customer Name"
+                            class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="mb-3">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Project / Site ID</label>
+                        <input type="text" id="custProject" placeholder="E.g. WH-DXB-01"
+                            class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div class="bg-purple-50 p-5 rounded border border-purple-200">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i
+                            class="fas fa-database text-purple-600 mr-2"></i>Master Data Management</h3>
+                    <div class="mb-3">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Upload Material Master (Excel)</label>
+                        <div class="text-[10px] text-gray-500 mb-2">Required Columns: <b>Material</b>,
+                            <b>Description</b>
+                        </div>
+                        <input type="file" id="fileMaster" onchange="loadMasterData()"
+                            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-white file:text-purple-700 hover:file:bg-purple-100 cursor-pointer border rounded bg-white p-1" />
+                    </div>
+                    <div class="bg-white p-3 rounded border h-24 overflow-auto">
+                        <div class="flex justify-between items-center mb-1 text-xs border-b pb-1">
+                            <span class="font-bold text-gray-500">Loaded Items</span>
+                            <span id="masterCount" class="bg-purple-200 text-purple-800 px-2 rounded font-bold">0</span>
+                        </div>
+                        <ul id="masterList" class="text-xs text-gray-600 space-y-1">
+                            <li class="italic text-gray-400">No master data loaded...</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 p-5 rounded border border-blue-200">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i
+                            class="fas fa-users text-blue-600 mr-2"></i>Customer Master Data</h3>
+                    <div class="mb-3">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Upload Customer Master (Excel)</label>
+                        <div class="text-[10px] text-gray-500 mb-2">Required Columns: <b>Customer Code</b>,
+                            <b>Customer Name</b>
+                        </div>
+                        <input type="file" id="fileCustomerMaster" onchange="loadCustomerMasterData()"
+                            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-white file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border rounded bg-white p-1" />
+                    </div>
+                    <div class="bg-white p-3 rounded border h-24 overflow-auto">
+                        <div class="flex justify-between items-center mb-1 text-xs border-b pb-1">
+                            <span class="font-bold text-gray-500">Loaded Customers</span>
+                            <span id="custMasterCount" class="bg-blue-200 text-blue-800 px-2 rounded font-bold">0</span>
+                        </div>
+                        <ul id="custMasterList" class="text-xs text-gray-600 space-y-1">
+                            <li class="italic text-gray-400">No customer data loaded...</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded border border-gray-300">
+                    <h4 class="text-sm font-bold text-gray-800 mb-3"><i class="fas fa-barcode mr-1"></i> GS1 AI Code
+                        Configuration</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Material Code</label>
+                            <select id="aiMaterial"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
+                                <option value="240">(240) Additional Product ID</option>
+                                <option value="01">(01) GTIN</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Batch Code</label>
+                            <select id="aiBatch"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
+                                <option value="10">(10) Batch/Lot Number</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Serial Code</label>
+                            <select id="aiSerial"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
+                                <option value="21">(21) Serial Number</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-indigo-50 p-5 rounded border border-indigo-200">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i
+                            class="fas fa-table text-indigo-600 mr-2"></i>Export Layout Manager</h3>
+                    <div class="mb-3">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Define Export Columns (Order
+                            Matters)</label>
+                        <textarea id="exportLayout" rows="4"
+                            class="w-full border p-2 text-xs rounded font-mono focus:ring-2 focus:ring-indigo-500"
+                            onchange="saveSettings()" placeholder="Enter column keys separated by comma..."></textarea>
+                        <p class="text-[10px] text-gray-500 mt-1">Keys: Status, Logic, Material, Description, Customer,
+                            P_ID, S.Loc, Plant, Phy Batch, Phy Serial, Sys Batch, Sys Serial, Condition, Expiry Date,
+                            Sys Expiry, Days Left, Stock Status, Comment</p>
+                    </div>
+                </div>
+
+                <div class="bg-purple-50 p-3 rounded border border-purple-200 mt-3">
+                    <h4 class="text-xs font-bold text-purple-800 mb-2"><i class="fas fa-warehouse mr-1"></i> Storage
+                        Locations</h4>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-600">Good Stock S.Loc</label>
+                            <input type="text" id="txtGoodSloc" value="RT01"
+                                class="w-full text-xs p-1 border rounded text-purple-700 font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-600">Damage/Expired S.Loc</label>
+                            <input type="text" id="txtDmgSloc" value="DMG1"
+                                class="w-full text-xs p-1 border rounded text-purple-700 font-bold">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-100 p-5 rounded border border-gray-300">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i
+                            class="fas fa-sliders-h text-gray-600 mr-2"></i>Advanced Settings</h3>
+                    <div class="mb-3">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Plant Search Priority</label>
+                        <input type="text" id="plantPriority" placeholder="e.g. WGJ1, WGJ7, WGJ4"
+                            class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-gray-500"
+                            onchange="saveSettings()">
+                        <p class="text-[10px] text-gray-500 mt-1">Comma-separated list used for matching logic.</p>
+                    </div>
+
+                    <div class="mt-4 border-t pt-4">
+                        <label class="flex items-center mb-2">
+                            <input type="checkbox" id="smartZero" checked class="mr-2">
+                            <span class="text-xs font-bold text-blue-800">Enable Smart "Leading Zero" Match (Matches
+                                '123' with '000123')</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="useScanQty" checked class="mr-2">
+                            <span class="text-xs font-bold text-blue-800">Read "Qty" column from Scan File (Deducts
+                                actual quantity)</span>
+                        </label>
+                        <label class="flex items-center mt-2">
+                            <input type="checkbox" id="autoSloc" checked class="mr-2">
+                            <span class="text-xs font-bold text-purple-700">Enable Auto S.Loc Allocation (Use
+                                DMG1/RT01)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded border border-gray-300">
+                    <h4 class="text-sm font-bold text-gray-800 mb-3"><i class="fas fa-link mr-1"></i> Serial
+                        Concatenation</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="flex items-center mt-4">
+                                <input type="checkbox" id="enableConcat" checked class="mr-2">
+                                <span class="text-xs font-bold text-gray-700">Enable Batch+Serial Concatenation</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Delimiter</label>
+                            <select id="concatDelimiter"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
+                                <option value="">None (ABC123)</option>
+                                <option value="-">Hyphen (ABC-123)</option>
+                                <option value="_">Underscore (ABC_123)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded border border-gray-300">
+                    <h4 class="text-sm font-bold text-gray-800 mb-3"><i class="fas fa-calendar-times mr-1"></i> Expiry
+                        Thresholds</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-orange-700 mb-1">Near Expiry (months)</label>
+                            <input type="number" id="nearExpiryMonths" value="5" min="1" max="12"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-orange-500"
+                                onchange="saveExpirySettings()">
+                            <p class="text-[10px] text-gray-500 mt-1">Items expiring within this period</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-yellow-700 mb-1">Short Expiry (months)</label>
+                            <input type="number" id="shortExpiryMonths" value="12" min="6" max="24"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-yellow-500"
+                                onchange="saveExpirySettings()">
+                            <p class="text-[10px] text-gray-500 mt-1">Items expiring between Near and this period</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded border border-gray-300 md:col-span-2">
+                    <h4 class="text-sm font-bold text-gray-800 mb-3"><i class="fas fa-comment-dots mr-1"></i> Custom
+                        Status Comments</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-green-700 mb-1">Perfect Match</label>
+                            <input type="text" id="txtMatch" value="Matched OK"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-yellow-700 mb-1">Batch Only</label>
+                            <input type="text" id="txtBatch" value="Batch Match / Serial Diff"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-yellow-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-orange-700 mb-1">Material Only</label>
+                            <input type="text" id="txtMat" value="Material OK / Batch Diff"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-orange-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-red-700 mb-1">Variance</label>
+                            <input type="text" id="txtVar" value="Not found in SAP"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-red-500">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="md:col-span-2 mt-4">
+                <button onclick="saveSettings(); alert('Settings Saved Successfully!');"
+                    class="w-full bg-gray-800 text-white px-6 py-3 rounded shadow hover:bg-gray-700 font-bold text-sm flex items-center justify-center transition">
+                    <i class="fas fa-save mr-2"></i> SAVE ALL SETTINGS
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="duplicateWarning"
+        class="hidden mb-4 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded shadow animate-fade">
+        <div class="flex items-start">
+            <i class="fas fa-exclamation-triangle text-yellow-600 text-xl mr-3 mt-1"></i>
+            <div class="flex-1">
+                <h4 class="font-bold text-yellow-800 mb-1">Duplicate Serials Detected in SAP Data</h4>
+                <p class="text-sm text-yellow-700" id="duplicateMessage"></p>
+                <button onclick="showDuplicateDetails()"
+                    class="text-xs text-yellow-800 underline mt-2 hover:text-yellow-900">
+                    View Details
+                </button>
+            </div>
+            <button onclick="document.getElementById('duplicateWarning').classList.add('hidden')"
+                class="text-yellow-600 hover:text-yellow-800">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="errorPanel" class="hidden mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded shadow animate-fade">
+        <div class="flex items-start">
+            <i class="fas fa-exclamation-circle text-red-600 text-xl mr-3 mt-1"></i>
+            <div class="flex-1">
+                <h4 class="font-bold text-red-800 mb-1">Validation Errors</h4>
+                <div id="errorList" class="text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto"></div>
+                <button onclick="downloadErrorLog()"
+                    class="text-xs bg-red-600 text-white px-3 py-1 rounded mt-2 hover:bg-red-700">
+                    <i class="fas fa-download mr-1"></i> Download Error Log
+                </button>
+            </div>
+            <button onclick="document.getElementById('errorPanel').classList.add('hidden')"
+                class="text-red-600 hover:text-red-800">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="progressContainer" class="hidden mb-4 bg-white p-4 rounded shadow border-l-4 border-blue-600 animate-fade">
+        <div class="flex items-center justify-between mb-2">
+            <h4 class="font-bold text-gray-800"><i class="fas fa-spinner fa-spin mr-2 text-blue-600"></i>
+                Processing...</h4>
+            <span id="progressPercent" class="text-sm font-bold text-blue-600">0%</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div id="progressBar"
+                class="h-3 rounded-full transition-all duration-300 bg-gradient-to-r from-blue-500 to-purple-600"
+                style="width: 0%"></div>
+        </div>
+        <p id="progressStatus" class="text-xs text-gray-600 mt-2">Initializing...</p>
+    </div>
+
+    <div id="statusLog"
+        class="hidden mb-4 p-3 bg-gray-900 text-green-400 font-mono text-xs rounded max-h-32 overflow-y-auto"></div>
+
+    <!-- 1. SAP System File (Required Common Step) -->
+    <div class="bg-white p-5 rounded shadow border-l-4 border-blue-900 mb-6">
+        <label class="block font-bold text-gray-800 mb-1 text-lg">1. Upload SAP System Dump (Required)</label>
+        <div class="text-xs text-gray-500 mb-3">Upload your SAP YSRL export file (.xlsx or .csv) to load inventory
+            reference.</div>
+        <input type="file" id="fileSystem" onchange="loadSystemInventory(this.files[0])"
+            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-900 hover:file:bg-blue-100 cursor-pointer border border-gray-300 rounded p-1" />
+    </div>
+
+    <!-- 2. Mode Selection Buttons -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <button onclick="enableBulkMode()"
+            class="bg-gray-900 hover:bg-black text-white py-5 rounded font-bold shadow-lg flex items-center justify-center transition uppercase tracking-wider text-sm md:text-base border-b-4 border-gray-700 active:border-b-0 active:translate-y-1">
+            START BULK VALIDATION
+        </button>
+        <button onclick="openLiveScanMode()"
+            class="bg-red-700 hover:bg-red-800 text-white py-5 rounded font-bold shadow-lg flex items-center justify-center transition uppercase tracking-wider text-sm md:text-base border-b-4 border-red-900 active:border-b-0 active:translate-y-1">
+            <i class="fas fa-barcode mr-2"></i> START LIVE SCANNER
+        </button>
+    </div>
+
+    <!-- 3. Bulk Inputs (Hidden Area) -->
+    <div id="bulkUploadSection" class="hidden animate-fade mb-8">
+        <div class="bg-gray-100 p-5 rounded border border-gray-300 mb-4 relative">
+            <div
+                class="absolute -top-3 left-4 bg-gray-900 text-white text-[10px] px-2 py-1 rounded font-bold uppercase">
+                Bulk Mode Active</div>
+            <label class="block font-bold text-gray-700 mb-1">2. Upload Scan Data File</label>
+            <div class="text-[10px] text-gray-400 mb-2">Upload the Excel/CSV file from your handheld scanner</div>
+            <input type="file" id="fileScan"
+                class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-gray-200 file:text-gray-800 hover:file:bg-gray-300 cursor-pointer border border-gray-300 rounded p-1 bg-white" />
+        </div>
+
+        <button id="btnRun" onclick="runValidation()"
+            class="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded shadow-lg transition active:scale-[0.99]">
+            <i class="fas fa-play-circle mr-2"></i> RUN VALIDATION
+        </button>
+    </div>
+
+    <div id="preValidationModal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg">
+                <h3 class="text-xl font-bold flex items-center">
+                    <i class="fas fa-clipboard-check mr-2"></i>
+                    Pre-Validation Report
+                </h3>
+            </div>
+            <div class="p-6">
+                <div id="preValidationChecks" class="space-y-3 mb-6">
+                </div>
+                <div class="flex gap-3 justify-end">
+                    <button onclick="closePreValidation()"
+                        class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded font-bold">
+                        Cancel
+                    </button>
+                    <button id="btnProceed" onclick="proceedWithValidation()"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold">
+                        Proceed Anyway
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="duplicateDetailsModal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div class="bg-yellow-500 text-white p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-bold flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Duplicate Serials Detected
+                </h3>
+                <button onclick="document.getElementById('duplicateDetailsModal').classList.add('hidden')"
+                    class="text-white hover:text-yellow-100">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-4 flex-1 overflow-hidden flex flex-col">
+                <p class="text-sm text-gray-600 mb-2">The following serials were found multiple times in the SAP System
+                    file. You can copy or export this list.</p>
+                <textarea id="txtDuplicateDetails" readonly
+                    class="w-full flex-1 p-3 border rounded font-mono text-xs bg-gray-50 mb-3 focus:outline-none resize-none h-64"></textarea>
+                <div class="flex gap-3 justify-end">
+                    <button onclick="copyDuplicateDetails()"
+                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-bold text-sm flex items-center">
+                        <i class="fas fa-copy mr-2"></i> Copy to Clipboard
+                    </button>
+                    <button onclick="exportDuplicateCSV()"
+                        class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold text-sm flex items-center">
+                        <i class="fas fa-file-csv mr-2"></i> Export CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="colVisModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[70]">
+        <div class="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="font-bold text-lg"><i class="fas fa-columns text-blue-600 mr-2"></i>Show/Hide Columns</h3>
+                <button onclick="document.getElementById('colVisModal').classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-2" id="colVisList">
+            </div>
+            <div class="p-3 border-t bg-gray-50 text-right">
+                <button onclick="document.getElementById('colVisModal').classList.add('hidden')"
+                    class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="updatesModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]">
+        <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full mx-4 animate-fade">
+            <div
+                class="bg-gradient-to-r from-green-500 to-teal-500 text-white p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-bold"><i class="fas fa-bullhorn mr-2"></i>What's New</h3>
+                <button onclick="closeUpdates()" class="text-white hover:text-green-100"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 max-h-[70vh] overflow-y-auto">
+                <div class="space-y-4">
+                    <div class="border-l-4 border-green-500 pl-3">
+                        <h4 class="font-bold text-gray-800">v2.1 - Table Adjustments</h4>
+                        <ul class="list-disc list-inside text-sm text-gray-600 mt-1">
+                            <li><b>Column Visibility:</b> You can now show/hide specific columns using the new "Adjust
+                                Columns" button.</li>
+                            <li><b>Resize Fix:</b> Fixed issue where resizing a column triggered sorting.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-b-lg text-right">
+                <button onclick="closeUpdates()"
+                    class="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700">Awesome!</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="aboutModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]">
+        <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 animate-fade flex flex-col max-h-[85vh]">
+            <div class="bg-gray-800 text-white p-4 rounded-t-lg flex justify-between items-center">
+                <h3 class="text-xl font-bold"><i class="fas fa-info-circle mr-2"></i>About This Tool</h3>
+                <button onclick="document.getElementById('aboutModal').classList.add('hidden')"
+                    class="text-white hover:text-gray-300"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <h4 class="font-bold text-lg text-purple-700 mb-2">What is this?</h4>
+                <p class="text-sm text-gray-600 mb-4">
+                    The <b>SAP Inventory Validator</b> is a client-side tool designed to assist Warehouse Management
+                    teams in reconciling physical stock counts (scanned via GS1 barcodes) against SAP system dumps.
+                </p>
+
+                <h4 class="font-bold text-lg text-blue-700 mb-2">How it Works</h4>
+                <p class="text-sm text-gray-600 mb-2">The tool uses a <b>Waterfall Matching Logic</b> to link scanned
+                    items with SAP records:</p>
+                <ol class="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4 pl-2">
+                    <li><b>Exact Match:</b> Matches Material + Batch + Serial. (Highest Confidence)</li>
+                    <li><b>Batch Match:</b> Matches Material + Batch (if Serial differs or is missing).</li>
+                    <li><b>Material Match:</b> Matches Material only (if Batch/Serial differ).</li>
+                </ol>
+
+                <h4 class="font-bold text-lg text-orange-700 mb-2">Logic & Rules</h4>
+                <ul class="list-disc list-inside text-sm text-gray-600 space-y-1 mb-4 pl-2">
+                    <li><b>Stock Status:</b> Determined by Expiry Date and "System Condition".</li>
+                    <li><b>Customer Lookup:</b> Fetches Customer Name from Master Data based on Customer Code (supports
+                        fuzzy string matching).</li>
+                    <li><b>Storage Location:</b> Automatically assigned based on Status (Good Stock vs Damage) using
+                        your configured codes.</li>
+                </ul>
+
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200 text-xs text-yellow-800">
+                    <b>Privacy Note:</b> This tool runs 100% in your browser. No data is uploaded to any server. Your
+                    files remain on your device.
+                </div>
+
+                <h4 class="font-bold text-lg text-gray-800 mb-2 mt-4"><i class="fas fa-keyboard mr-2"></i>Keyboard
+                    Shortcuts</h4>
+                <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                    <div class="bg-gray-50 p-2 rounded border"><kbd class="bg-white border rounded px-1">Alt</kbd> +
+                        <kbd class="bg-white border rounded px-1">F</kbd> Focus Search
+                    </div>
+                    <div class="bg-gray-50 p-2 rounded border"><kbd class="bg-white border rounded px-1">Ctrl</kbd> +
+                        <kbd class="bg-white border rounded px-1">Shift</kbd> + <kbd
+                            class="bg-white border rounded px-1">L</kbd> Clear Filters
+                    </div>
+                    <div class="bg-gray-50 p-2 rounded border"><kbd class="bg-white border rounded px-1">Esc</kbd> Close
+                        Panels</div>
+                    <div class="bg-gray-50 p-2 rounded border"><kbd class="bg-white border rounded px-1">P</kbd> Pause
+                        Live Scan</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="hidden space-y-6">
+
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+
+            <div class="bg-blue-50 p-3 rounded shadow border-t-4 border-blue-900 relative overflow-hidden">
+                <div class="text-blue-900 text-[10px] uppercase font-bold">Total SAP Stock</div>
+                <div class="text-2xl font-extrabold text-blue-900" id="kpi-sys-total">0</div>
+            </div>
+
+            <div class="bg-white p-3 rounded shadow border-t-4 border-gray-500">
+                <div class="text-gray-500 text-[10px] uppercase font-bold">Total Scanned</div>
+                <div class="text-2xl font-bold text-gray-800" id="kpi-total">0</div>
+                <div class="text-[9px] text-gray-400 mt-1" id="kpi-scan-info"></div>
+            </div>
+
+            <div class="bg-white p-3 rounded shadow border-t-4 border-green-500">
+                <div class="text-green-600 text-[10px] uppercase font-bold">Serial Match</div>
+                <div class="text-2xl font-bold text-green-700" id="kpi-serial">0</div>
+            </div>
+
+            <div class="bg-white p-3 rounded shadow border-t-4 border-yellow-500">
+                <div class="text-yellow-600 text-[10px] uppercase font-bold">Batch Match</div>
+                <div class="text-2xl font-bold text-yellow-700" id="kpi-batch">0</div>
+            </div>
+
+            <div class="bg-white p-3 rounded shadow border-t-4 border-orange-500">
+                <div class="text-orange-600 text-[10px] uppercase font-bold">Material Only</div>
+                <div class="text-2xl font-bold text-orange-700" id="kpi-mat">0</div>
+            </div>
+
+            <div class="bg-white p-3 rounded shadow border-t-4 border-red-500">
+                <div class="text-red-600 text-[10px] uppercase font-bold">Variance</div>
+                <div class="text-2xl font-bold text-red-700" id="kpi-var">0</div>
+            </div>
+
+            <div class="bg-purple-50 p-3 rounded shadow border-t-4 border-purple-600 relative overflow-hidden">
+                <div class="text-purple-800 text-[10px] uppercase font-bold">Remaining SAP</div>
+                <div class="text-3xl font-extrabold text-purple-900" id="kpi-remain">0</div>
+            </div>
+
+            <div class="bg-red-50 p-3 rounded shadow border-t-4 border-red-600">
+                <div class="text-red-900 text-[10px] uppercase font-bold">🔴 Damage</div>
+                <div class="text-2xl font-extrabold text-red-900" id="kpi-damage">0</div>
+            </div>
+
+            <div class="bg-gray-800 p-3 rounded shadow border-t-4 border-black">
+                <div class="text-white text-[10px] uppercase font-bold">⚫ Expired</div>
+                <div class="text-2xl font-extrabold text-white" id="kpi-expired">0</div>
+            </div>
+
+            <div class="bg-orange-50 p-3 rounded shadow border-t-4 border-orange-600">
+                <div class="text-orange-900 text-[10px] uppercase font-bold">🟠 Near Expiry</div>
+                <div class="text-2xl font-extrabold text-orange-900" id="kpi-near-expiry">0</div>
+            </div>
+
+            <div class="bg-yellow-50 p-3 rounded shadow border-t-4 border-yellow-600">
+                <div class="text-yellow-900 text-[10px] uppercase font-bold">🟡 Short Expiry</div>
+                <div class="text-2xl font-extrabold text-yellow-900" id="kpi-short-expiry">0</div>
+            </div>
+
+            <div class="bg-green-50 p-3 rounded shadow border-t-4 border-green-600">
+                <div class="text-green-900 text-[10px] uppercase font-bold">🟢 Good Stock</div>
+                <div class="text-2xl font-extrabold text-green-900" id="kpi-good-stock">0</div>
+            </div>
+
+        </div>
+
+        <div id="summaryStats"
+            class="hidden bg-gradient-to-r from-purple-50 to-blue-50 p-5 rounded-lg shadow-md border border-purple-200">
+            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-chart-line text-purple-600 mr-2"></i>
+                Validation Summary
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded shadow-sm">
+                    <div class="text-xs text-gray-500 uppercase font-bold mb-1">Match Rate</div>
+                    <div class="text-3xl font-extrabold text-green-600" id="stat-match-rate">0%</div>
+                    <div class="text-xs text-gray-400 mt-1" id="stat-match-detail">0 of 0 matched</div>
+                </div>
+                <div class="bg-white p-4 rounded shadow-sm">
+                    <div class="text-xs text-gray-500 uppercase font-bold mb-1">Processing Time</div>
+                    <div class="text-3xl font-extrabold text-blue-600" id="stat-process-time">0s</div>
+                    <div class="text-xs text-gray-400 mt-1" id="stat-speed">0 items/sec</div>
+                </div>
+                <div class="bg-white p-4 rounded shadow-sm">
+                    <div class="text-xs text-gray-500 uppercase font-bold mb-1">Files Processed</div>
+                    <div class="text-lg font-bold text-gray-700" id="stat-files">
+                        <div class="text-xs"><i class="fas fa-barcode mr-1"></i> <span id="stat-scan-file">-</span>
+                        </div>
+                        <div class="text-xs mt-1"><i class="fas fa-database mr-1"></i> <span id="stat-sap-file">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 bg-white p-3 rounded shadow-sm">
+                <div class="text-xs text-gray-500 uppercase font-bold mb-2">Top 3 Variance Materials</div>
+                <div id="stat-top-variance" class="text-sm text-gray-600">No variance detected</div>
+            </div>
+        </div>
+
+        <div id="historyPanel"
+            class="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-lg shadow-md border border-indigo-200">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-history text-indigo-600 mr-2"></i>
+                    Session History
+                </h3>
+                <button onclick="clearHistory()" class="text-xs text-red-600 hover:text-red-800 font-bold">
+                    <i class="fas fa-trash mr-1"></i> Clear All
+                </button>
+            </div>
+            <div id="historyList" class="space-y-2">
+                <div class="text-sm text-gray-500 italic text-center py-4">No validation history yet</div>
+            </div>
+        </div>
+
+        <!-- ACTIVE FILTERS BAR -->
+        <div id="activeFiltersBar"
+            class="hidden flex flex-wrap items-center bg-blue-50 border border-blue-200 p-2 rounded shadow-sm animate-fade">
+        </div>
+
+        <div
+            class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-3 rounded shadow border border-gray-200">
+            <div class="relative w-full md:w-1/3">
+                <input type="text" id="searchBox" onkeyup="filterData()" placeholder="Search anything..."
+                    class="w-full pl-9 pr-4 py-2 border rounded text-sm focus:outline-none focus:border-blue-500">
+                <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="openColVis()"
+                    class="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded shadow hover:bg-blue-100 font-bold text-sm flex items-center">
+                    <i class="fas fa-eye mr-2"></i> Adjust Columns
+                </button>
+                <button onclick="exportResult()"
+                    class="bg-green-600 text-white px-5 py-2 rounded shadow hover:bg-green-700 font-bold text-sm flex items-center">
+                    <i class="fas fa-file-excel mr-2"></i> Export Excel
+                </button>
+            </div>
+        </div>
+
+
+        <div class="bg-gray-800 text-white p-2 mb-2 rounded flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-bolt text-yellow-400"></i>
+                <span class="text-sm font-bold">Quick Views:</span>
+                <div id="quickExportButtons" class="flex gap-2 ml-2"></div>
+            </div>
+            <div class="text-xs text-gray-400">Click name to view, Icon to export</div>
+        </div>
+
+        <div class="bg-white rounded shadow overflow-hidden border border-gray-200">
+            <div class="overflow-x-auto max-h-[600px]">
+                <table class="w-full text-sm text-left relative">
+                    <thead class="bg-gray-100 text-gray-700 uppercase text-xs sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('statusPriority')">Status <i
+                                    id="icon-statusPriority" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('logic')">Logic <i id="icon-logic"
+                                    class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('mat')">Material <i id="icon-mat"
+                                    class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('desc')">Description <i
+                                    id="icon-desc" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('cust')">Customer Name <i
+                                    id="icon-cust" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('custCode')">Customer Code <i
+                                    id="icon-custCode" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('sysPlant')">Plant <i
+                                    id="icon-sysPlant" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('sLoc')">S.Loc <i id="icon-sLoc"
+                                    class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 th-phy border-l relative" onclick="sortBy('phyBatch')">Phy Batch <i
+                                    id="icon-phyBatch" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 th-phy border-r relative" onclick="sortBy('phySer')">Phy Serial <i
+                                    id="icon-phySer" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 th-sys relative" onclick="sortBy('sysBatch')">Sys Batch <i
+                                    id="icon-sysBatch" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 th-sys border-r relative" onclick="sortBy('sysSer')">Sys Serial <i
+                                    id="icon-sysSer" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('condition')">Condition <i
+                                    id="icon-condition" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('expiryDate')">Expiry Date <i
+                                    id="icon-expiryDate" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('sysExpiry')">Sys Expiry <i
+                                    id="icon-sysExpiry" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('daysLeft')">Days Left <i
+                                    id="icon-daysLeft" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('stockStatus')">Stock Status <i
+                                    id="icon-stockStatus" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('detail')">Comment <i
+                                    id="icon-detail" class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                            <th class="px-4 py-3 border-b relative" onclick="sortBy('raw')">Scan String <i id="icon-raw"
+                                    class="fas fa-sort text-gray-400 ml-1"></i>
+                                <div class="resizer"></div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="mt-8 mb-8 text-center">
+        <div
+            class="inline-block px-8 py-3 rounded-full bg-white/40 backdrop-blur-md border border-white/50 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+            <p class="text-sm font-extrabold text-slate-700 tracking-wide">Developed by <span
+                    class="text-blue-700">Ahemdabad Team</span> <i class="fas fa-code text-blue-400 ml-1"></i></p>
+            <div class="h-px bg-slate-300 w-1/2 mx-auto my-2"></div>
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Dedicated To <span
+                    class="text-slate-800">Meril-Ahmedabad Warehouse</span></p>
+        </div>
+    </div>
+
+    </div>
+
+    <script src="script.js"></script>
+
+    <div id="layoutModal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-white w-full max-w-4xl h-[80vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
+            <div class="bg-gray-900 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-lg">Advanced Layout Manager</h3>
+                <button onclick="document.getElementById('layoutModal').classList.add('hidden')"
+                    class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <div class="flex flex-1 overflow-hidden">
+                <div class="w-1/3 bg-gray-50 border-r p-0 flex flex-col">
+                    <div class="p-3 border-b font-bold text-gray-500 text-xs uppercase">Saved Layouts</div>
+                    <div id="savedLayoutsList" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+                    <div class="p-3 border-t"><button onclick="createNewLayout()"
+                            class="w-full bg-blue-600 text-white py-2 rounded font-bold text-sm">Create New</button>
+                    </div>
+                </div>
+                <div class="w-2/3 flex flex-col bg-white">
+                    <div class="p-4 border-b flex justify-between bg-gray-100">
+                        <input type="text" id="layoutNameInput" placeholder="Layout Name"
+                            class="border p-2 rounded w-1/2 text-sm font-bold">
+                        <div>
+                            <button onclick="saveCurrentLayout()"
+                                class="bg-green-600 text-white px-4 py-2 rounded text-sm font-bold mr-2">Save</button>
+                            <button onclick="deleteCurrentLayout()"
+                                class="bg-red-500 text-white px-4 py-2 rounded text-sm font-bold">Delete</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4">
+                        <div class="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 border-b pb-2 mb-2">
+                            <div class="col-span-1 text-center">Show</div>
+                            <div class="col-span-4">Field</div>
+                            <div class="col-span-4">Excel Header</div>
+                            <div class="col-span-1">Width</div>
+                            <div class="col-span-2 text-center">Order</div>
+                        </div>
+                        <div id="columnEditorList" class="space-y-1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Scan Mode Overlay -->
+    <div id="liveScanModal" class="hidden fixed inset-0 bg-gray-900 z-50 flex flex-col">
+        <!-- Header -->
+        <div class="bg-red-600 text-white p-4 flex justify-between items-center shadow-lg">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-circle animate-pulse text-2xl"></i>
+                <h2 class="text-2xl font-bold">LIVE SCAN MODE - ACTIVE</h2>
+            </div>
+
+            <!-- Condition Toggle -->
+            <div class="flex bg-black bg-opacity-30 rounded p-1">
+                <button id="btnCondGood" onclick="setLiveCondition('Good')"
+                    class="px-6 py-2 rounded font-bold bg-green-500 text-white shadow ring-2 ring-white">
+                    <i class="fas fa-check-circle mr-2"></i> GOOD
+                </button>
+                <button id="btnCondDamage" onclick="setLiveCondition('Damage')"
+                    class="px-6 py-2 rounded font-bold bg-transparent text-gray-300 hover:text-white transition">
+                    <i class="fas fa-times-circle mr-2"></i> DAMAGE
+                </button>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button id="livePauseBtn" onclick="toggleLivePause()"
+                    class="bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded font-bold">
+                    <i class="fas fa-pause mr-2"></i> PAUSE
+                </button>
+                <button onclick="closeLiveScanMode()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded font-bold">
+                    <i class="fas fa-times mr-2"></i> EXIT
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col p-6 overflow-hidden">
+            <!-- Input Box -->
+            <div class="mb-6">
+                <label class="text-white text-lg font-bold mb-2 block">SCAN BARCODE:</label>
+                <input type="text" id="liveScanInput"
+                    class="w-full p-4 text-2xl font-mono border-4 border-blue-500 rounded focus:outline-none focus:border-green-500"
+                    placeholder="Focus here and scan..." autocomplete="off">
+            </div>
+
+            <!-- Status Card -->
+            <div id="liveStatusCard" class="mb-6 p-8 rounded-lg border-4 text-center hidden">
+                <div id="liveStatusIcon" class="text-8xl mb-4"></div>
+                <div id="liveStatusText" class="text-4xl font-bold mb-2"></div>
+                <div id="liveStatusDetail" class="text-2xl"></div>
+            </div>
+
+            <!-- Statistics Panel -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-green-700 p-4 rounded text-center">
+                    <div class="text-white text-sm font-bold mb-1">MATCHED</div>
+                    <div id="liveStatMatched" class="text-white text-4xl font-bold">0</div>
+                </div>
+                <div class="bg-red-700 p-4 rounded text-center">
+                    <div class="text-white text-sm font-bold mb-1">VARIANCE</div>
+                    <div id="liveStatVariance" class="text-white text-4xl font-bold">0</div>
+                </div>
+                <div class="bg-yellow-600 p-4 rounded text-center">
+                    <div class="text-white text-sm font-bold mb-1">DUPLICATES</div>
+                    <div id="liveStatDuplicate" class="text-white text-4xl font-bold">0</div>
+                </div>
+                <div class="bg-blue-700 p-4 rounded text-center">
+                    <div class="text-white text-sm font-bold mb-1">TOTAL SCANS</div>
+                    <div id="liveStatTotal" class="text-white text-4xl font-bold">0</div>
+                </div>
+            </div>
+
+            <!-- Recent Scans Table -->
+            <div class="flex-1 bg-gray-800 rounded overflow-hidden flex flex-col">
+                <div class="bg-gray-700 p-3 text-white font-bold text-sm">RECENT SCANS (Last 10)</div>
+                <div class="flex-1 overflow-y-auto">
+                    <table class="w-full text-white text-sm">
+                        <thead class="bg-gray-700 sticky top-0">
+                            <tr>
+                                <th class="p-2 text-left">#</th>
+                                <th class="p-2 text-left">Time</th>
+                                <th class="p-2 text-left">Material</th>
+                                <th class="p-2 text-left">Batch</th>
+                                <th class="p-2 text-left">Serial</th>
+                                <th class="p-2 text-left">Status</th>
+                                <th class="p-2 text-left">Detail</th>
+                            </tr>
+                        </thead>
+                        <tbody id="liveScansTableBody">
+                            <tr>
+                                <td colspan="7" class="p-4 text-center text-gray-500">No scans yet...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Controls -->
+        <div class="bg-gray-800 p-4 flex justify-between items-center border-t border-gray-700">
+            <div class="text-white text-sm">
+                <kbd class="bg-gray-700 px-2 py-1 rounded">ESC</kbd> Exit |
+                <kbd class="bg-gray-700 px-2 py-1 rounded">P</kbd> Pause/Resume
+            </div>
+            <button onclick="finishLiveSession()"
+                class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-bold text-lg">
+                <i class="fas fa-check-circle mr-2"></i> FINISH & EXPORT
+            </button>
+        </div>
+    </div>
+</body>
+
+</html>

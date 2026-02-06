@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLSIPL Validator v73 (Calculation Fixed)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- CORE STYLES --- */
+        body {
+            background-color: #f8fafc;
+            background-image: url('background.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* --- TABLE --- */
+        .table-container {
+            overflow: auto;
+            height: calc(100vh - 250px);
+            position: relative;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #f1f5f9;
+            z-index: 20;
+            font-size: 11px;
+            border-right: 1px solid #cbd5e1;
+            border-bottom: 2px solid #e2e8f0;
+            user-select: none;
+            color: #475569;
+            padding: 0;
+            height: 32px;
+        }
+
+        th:hover {
+            background-color: #e2e8f0;
+        }
+
+        td {
+            font-size: 11px;
+            vertical-align: middle;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 4px 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #334155;
+            height: 28px;
+        }
+
+        tr:hover td {
+            background-color: #f0f9ff;
+        }
+
+        /* Resizers and Filter Icons */
+        .th-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            height: 100%;
+            width: 100%;
+        }
+
+        .resizer {
+            width: 4px;
+            cursor: col-resize;
+            height: 100%;
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 25;
+        }
+
+        .resizer:hover {
+            background: #94a3b8;
+        }
+
+        .filter-icon {
+            margin-left: 4px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: color 0.2s;
+            font-size: 10px;
+        }
+
+        .filter-icon:hover,
+        .filter-icon.active {
+            color: #2563eb;
+        }
+
+        .sort-icon {
+            margin-left: 2px;
+            color: #cbd5e1;
+            cursor: pointer;
+            font-size: 10px;
+            display: none;
+        }
+
+        th:hover .sort-icon {
+            display: inline-block;
+        }
+
+        .sort-icon.active {
+            color: #4f46e5;
+            display: inline-block;
+        }
+
+        /* --- BADGES --- */
+        .badge-ok {
+            color: #166534;
+            background: #dcfce7;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            border: 1px solid #86efac;
+            font-size: 10px;
+        }
+
+        .badge-warn {
+            color: #854d0e;
+            background: #fef9c3;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            border: 1px solid #fde047;
+            font-size: 10px;
+        }
+
+        .badge-err {
+            color: #991b1b;
+            background: #fee2e2;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            border: 1px solid #fca5a5;
+            font-size: 10px;
+        }
+
+        /* --- LAYOUT MANAGER MODAL (V2) --- */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-backdrop.hidden {
+            display: none !important;
+        }
+
+        .lm-container {
+            display: flex;
+            height: 500px;
+            width: 800px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .lm-sidebar {
+            width: 220px;
+            background: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .lm-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        .lm-layout-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+            color: #475569;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .lm-layout-item:hover {
+            background: #e2e8f0;
+        }
+
+        .lm-layout-item.active {
+            background: #eff6ff;
+            border-left-color: #2563eb;
+            color: #1e40af;
+        }
+
+        .lm-header {
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+        }
+
+        .lm-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .lm-col-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            background: white;
+        }
+
+        .lm-col-row:hover {
+            background: #f8fafc;
+        }
+
+        .lm-col-row.disabled {
+            opacity: 0.6;
+            background: #f9fafb;
+        }
+
+        .btn-lm {
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-lm-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-lm-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-lm-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-lm-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-lm-save {
+            background: #16a34a;
+            color: white;
+        }
+
+        .btn-lm-save:hover {
+            background: #15803d;
+        }
+
+        .btn-create {
+            width: 100%;
+            padding: 10px;
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: auto;
+        }
+
+        /* Filter Menu (Legacy support for column headers) */
+        .filter-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            padding: 8px;
+            z-index: 50;
+            width: 220px;
+            font-weight: normal;
+            display: none;
+            top: 100%;
+            left: 0;
+        }
+
+        .filter-search {
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+        }
+
+        .filter-list {
+            max-height: 150px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid #f1f5f9;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            color: #334155;
+            cursor: pointer;
+        }
+
+        .filter-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .btn-xs {
+            padding: 2px 8px;
+            font-size: 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background-color: #4f46e5;
+            color: white;
+        }
+
+        .btn-clear {
+            color: #64748b;
+            background-color: #f1f5f9;
+        }
+    </style>
+</head>
+
+<body class="p-4 text-gray-800">
+
+    <div class="max-w-[99%] mx-auto pb-20 fade-in">
+
+        <div
+            class="bg-white border-l-8 border-indigo-600 rounded shadow-sm px-6 py-4 flex justify-between items-center mb-6">
+            <div class="flex items-center">
+                <img src="logo.png" alt="Meril Logo" class="h-10 mr-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-indigo-900"><i class="fas fa-calculator mr-2"></i>MLSIPL
+                        Validator <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded ml-2">v73</span>
+                    </h1>
+                    <p class="text-xs text-gray-500 mt-1">Calculation Logic Fixed: Damage Priority > Date Priority</p>
+                </div>
+            </div>
+            <div class="flex gap-2 items-center">
+                <a href="index.html"
+                    class="mr-2 group bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-bold shadow transition flex items-center transform hover:-translate-y-0.5 decoration-none relative overflow-hidden">
+                    <div
+                        class="absolute inset-0 bg-white/10 group-hover:translate-x-full transition-transform duration-500 -skew-x-12 -translate-x-full">
+                    </div>
+                    <i class="fas fa-th-large mr-2"></i> Switch Entity
+                </a>
+                <div id="statusIndicator" class="mr-4 text-xs font-bold text-gray-400"><i
+                        class="fas fa-circle text-[8px]"></i> Loading...</div>
+                <button onclick="openConfig()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition"><i
+                        class="fas fa-database mr-1"></i> Master Config</button>
+                <button onclick="location.reload()"
+                    class="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm font-bold hover:bg-gray-300"><i
+                        class="fas fa-redo"></i></button>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 text-white p-4 rounded shadow mb-6 border-l-4 border-yellow-400">
+            <h3 class="text-sm font-bold text-yellow-400 mb-2"><i class="fas fa-user-md mr-2"></i>Scanner Doctor</h3>
+            <div class="flex gap-4 items-center mb-3">
+                <input type="text" id="testInput" placeholder="Paste scan string here..."
+                    class="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-yellow-400">
+                <button onclick="runDoctor()"
+                    class="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded text-sm font-bold">Diagnose</button>
+            </div>
+            <div id="doctorRes" class="text-xs font-mono hidden grid grid-cols-6 gap-2 bg-gray-900 p-2 rounded"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white p-5 rounded shadow border-t-4 border-blue-500 relative">
+                <label class="font-bold text-blue-900 text-sm mb-2 block">1. Scan File (Excel)</label>
+                <input type="file" id="fileScan" class="w-full text-xs mb-2" />
+                <div class="flex justify-between items-center text-[10px] text-gray-500 mt-2 bg-blue-50 p-2 rounded">
+                    <div class="grid grid-cols-2 gap-2">
+                        <span>String Col (A=0): <input type="number" id="colScan" value="0"
+                                class="w-8 border text-center font-bold"></span>
+                        <span>Cond Col (B=1): <input type="number" id="colCond" value="1"
+                                class="w-8 border text-center font-bold"></span>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="chkScanHeader" class="mr-1" checked> <label for="chkScanHeader"
+                            class="font-bold cursor-pointer">Has Header?</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded shadow border-t-4 border-green-500 relative">
+                <label class="font-bold text-green-900 text-sm mb-2 block">2. System Stock (Excel)</label>
+                <input type="file" id="fileSys" class="w-full text-xs mb-2" />
+                <div class="text-[10px] text-gray-500 mt-2 bg-green-50 p-2 rounded">
+                    <div class="mb-1"><b>Fields:</b> Mat, Batch, Qty (Flexible), Plant, Customer</div>
+                    <div class="flex gap-2 border-t border-green-200 pt-1">
+                        <span>Ovr Cust Col: <input type="number" id="colCustOverride" placeholder="Auto"
+                                class="w-8 border text-center font-bold"></span>
+                        <span>Ovr Plant Col: <input type="number" id="colPlantOverride" placeholder="Auto"
+                                class="w-8 border text-center font-bold"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="runMLSIPL()" id="btnRun"
+            class="w-full bg-indigo-700 hover:bg-indigo-800 text-white py-3 rounded shadow-lg font-bold text-lg mb-8 transition transform active:scale-[0.99]">
+            START RECONCILIATION
+        </button>
+
+        <div id="dashboard" class="hidden space-y-6">
+
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div class="bg-white p-3 rounded shadow border-l-4 border-blue-600">
+                    <div class="text-[9px] text-gray-500 font-bold uppercase">Total System Stock</div>
+                    <div class="text-xl font-bold text-gray-800" id="k-sap">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-gray-500">
+                    <div class="text-[9px] text-gray-500 font-bold uppercase">Total Scanned</div>
+                    <div class="text-xl font-bold text-gray-800" id="k-scan">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-green-600">
+                    <div class="text-[9px] text-green-600 font-bold uppercase">Matched (Consumed)</div>
+                    <div class="text-xl font-bold text-green-700" id="k-match">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-yellow-500">
+                    <div class="text-[9px] text-yellow-600 font-bold uppercase">Batch Mismatch</div>
+                    <div class="text-xl font-bold text-yellow-700" id="k-swap">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-purple-600">
+                    <div class="text-[9px] text-purple-600 font-bold uppercase">Remaining Stock</div>
+                    <div class="text-xl font-bold text-purple-700" id="k-remain">0</div>
+                </div>
+
+                <div class="bg-white p-3 rounded shadow border-l-4 border-green-400">
+                    <div class="text-[9px] text-green-600 font-bold uppercase">Good Cond</div>
+                    <div class="text-xl font-bold text-green-600" id="k-good">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-red-400">
+                    <div class="text-[9px] text-red-600 font-bold uppercase">Damage</div>
+                    <div class="text-xl font-bold text-red-600" id="k-dmg">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-orange-400">
+                    <div class="text-[9px] text-orange-600 font-bold uppercase">Expiry/Near</div>
+                    <div class="text-xl font-bold text-orange-600" id="k-exp">0</div>
+                </div>
+                <div class="bg-white p-3 rounded shadow border-l-4 border-red-700 col-span-2">
+                    <div class="text-[9px] text-red-800 font-bold uppercase">Variance</div>
+                    <div class="text-xl font-bold text-red-800" id="k-var">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-3 rounded shadow flex flex-col md:flex-row justify-between items-center gap-4">
+                <!-- Search -->
+                <div class="relative w-full md:w-1/3">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                    <input type="text" id="searchBox" onkeyup="filterTable()"
+                        placeholder="Search Material, Batch, Plant..."
+                        class="w-full border rounded pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-indigo-500 shadow-sm">
+                </div>
+
+                <!-- Right Controls -->
+                <div class="flex items-center gap-3">
+                    <!-- Tabs -->
+                    <div class="flex gap-1 text-[10px] font-bold text-gray-500 bg-gray-100 p-1 rounded">
+                        <div class="px-2 py-1 cursor-pointer rounded hover:bg-white transition-all"
+                            onclick="switchTab('all')">ALL</div>
+                        <div class="px-2 py-1 cursor-pointer rounded hover:bg-white transition-all"
+                            onclick="switchTab('match')">MATCH</div>
+                        <div class="px-2 py-1 cursor-pointer rounded hover:bg-white transition-all"
+                            onclick="switchTab('var')">VAR</div>
+                    </div>
+
+                    <!-- Layout Manager -->
+                    <div class="relative">
+                        <button onclick="LayoutManager.open()"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 transition-all text-xs font-bold">
+                            <i class="fas fa-columns"></i> Layout Manager
+                        </button>
+                    </div>
+
+                    <!-- Export -->
+                    <button onclick="exportData()"
+                        class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 transition-all text-xs font-bold">
+                        <i class="fas fa-file-excel"></i> Export
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded shadow overflow-hidden border">
+                <div class="table-container">
+                    <table class="w-full text-left" id="mainTable">
+                        <thead class="bg-gray-100 text-gray-700 font-bold uppercase text-[10px]">
+                            <tr>
+                                <th class="w-10 bg-gray-50 text-center" data-col="0">SN#</th>
+                                <th class="w-20 relative" data-col="1">
+                                    <div class="th-content">Status <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 0)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(0)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="w-16 relative" data-col="2">
+                                    <div class="th-content">Cond <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 1)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(1)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="w-24 bg-gray-200 relative" data-col="3">
+                                    <div class="th-content">Plant <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 2)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(2)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="w-32 relative" data-col="4">
+                                    <div class="th-content">Raw Scan <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 3)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(3)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="text-blue-700 relative" data-col="5">
+                                    <div class="th-content">Scan Code <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 4)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(4)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="text-green-700 relative" data-col="6">
+                                    <div class="th-content">SAP Code <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 5)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(5)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="w-32 relative" data-col="7">
+                                    <div class="th-content">Desc <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 6)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(6)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="bg-blue-50 relative" data-col="8">
+                                    <div class="th-content">Phy Batch <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 7)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(7)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="bg-green-50 relative" data-col="9">
+                                    <div class="th-content">Sys Batch <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 8)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(8)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="relative" data-col="10">
+                                    <div class="th-content">Cust Code <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 9)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(9)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="relative" data-col="11">
+                                    <div class="th-content">Cust Name <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 10)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(10)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="relative" data-col="12">
+                                    <div class="th-content">Mfg <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 11)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(11)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="relative" data-col="13">
+                                    <div class="th-content">Exp <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 12)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(12)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                                <th class="relative" data-col="14">
+                                    <div class="th-content">Remarks <i class="fas fa-filter filter-icon"
+                                            onclick="openFilter(event, 13)"></i> <i class="fas fa-sort ml-1"
+                                            onclick="sortTable(13)"></i></div>
+                                    <div class="resizer"></div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="resBody"></tbody>
+                    </table>
+                </div>
+
+                <div id="configModal" class="hidden modal-backdrop">
+                    <div class="lm-container">
+                        <!-- Sidebar -->
+                        <div class="lm-sidebar">
+                            <div
+                                class="p-4 border-b border-gray-200 font-bold text-gray-700 text-xs uppercase tracking-wider bg-gray-100 flex items-center gap-2">
+                                <i class="fas fa-cogs"></i> Configuration
+                            </div>
+                            <div class="lm-body">
+                                <div class="lm-layout-item active" onclick="switchConfigTab('tabMaster', this)">Master
+                                    Data</div>
+                                <div class="lm-layout-item" onclick="switchConfigTab('tabCust', this)">Customers</div>
+                                <div class="lm-layout-item" onclick="switchConfigTab('tabRules', this)">Parser Rules
+                                </div>
+                                <div class="lm-layout-item" onclick="switchConfigTab('tabMsg', this)">Messages</div>
+                                <div class="lm-layout-item" onclick="switchConfigTab('tabAdv', this)">Advanced</div>
+                            </div>
+                            <button class="btn-create bg-green-600 hover:bg-green-700" onclick="saveConfig()">
+                                <i class="fas fa-save"></i> Save Config
+                            </button>
+                        </div>
+
+                        <!-- Content -->
+                        <div class="lm-content relative">
+                            <button class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 z-10"
+                                onclick="document.getElementById('configModal').classList.add('hidden')">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+
+                            <!-- Tab: Master -->
+                            <div id="tabMaster" class="config-tab-content p-4 h-full flex flex-col">
+                                <h3 class="font-bold text-gray-700 mb-2">Master Data Map</h3>
+                                <p class="text-xs text-gray-500 mb-2">Format: ScanCode, SAPCode, Description</p>
+                                <textarea id="txtMaster"
+                                    class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
+                            </div>
+
+                            <!-- Tab: Cust -->
+                            <div id="tabCust" class="config-tab-content hidden p-4 h-full flex flex-col">
+                                <h3 class="font-bold text-gray-700 mb-2">Customer Map</h3>
+                                <p class="text-xs text-gray-500 mb-2">Format: Code, Name</p>
+                                <textarea id="txtCust"
+                                    class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
+                            </div>
+
+                            <!-- Tab: Rules -->
+                            <div id="tabRules" class="config-tab-content hidden p-4 h-full flex flex-col">
+                                <h3 class="font-bold text-gray-700 mb-2">Parser Rules</h3>
+                                <p class="text-xs text-gray-500 mb-2">Format: Len, MatS, MatL, BatS, BatL, MfgS, MfgL,
+                                    ExpS, ExpL</p>
+                                <textarea id="txtRules"
+                                    class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
+                            </div>
+
+                            <!-- Tab: Messages -->
+                            <div id="tabMsg" class="config-tab-content hidden p-4 h-full flex flex-col">
+                                <h3 class="font-bold text-gray-700 mb-2">Status Messages</h3>
+                                <p class="text-xs text-gray-500 mb-2">Key: Value (e.g. Matched: OK)</p>
+                                <textarea id="txtMsg"
+                                    class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
+                            </div>
+
+                            <!-- Tab: Advanced -->
+                            <div id="tabAdv" class="config-tab-content hidden p-4 h-full overflow-y-auto">
+                                <h3 class="font-bold text-gray-700 mb-4">Advanced Settings</h3>
+
+                                <div class="mb-4">
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">Quantity Keywords (Comma
+                                        sep)</label>
+                                    <input type="text" id="txtQtyKeys"
+                                        class="w-full border rounded p-2 text-xs focus:border-indigo-500 outline-none">
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">Plant Priority (Comma
+                                        sep)</label>
+                                    <input type="text" id="txtPlantPrio"
+                                        class="w-full border rounded p-2 text-xs focus:border-indigo-500 outline-none"
+                                        placeholder="e.g. 1001, 2002">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-600 mb-1">Near Expiry
+                                            (Months)</label>
+                                        <input type="number" id="txtNearExp"
+                                            class="w-full border rounded p-2 text-xs focus:border-indigo-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-600 mb-1">Short Expiry
+                                            (Months)</label>
+                                        <input type="number" id="txtShortExp"
+                                            class="w-full border rounded p-2 text-xs focus:border-indigo-500 outline-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="lmModal" class="modal-backdrop hidden">
+                    <div class="lm-container">
+                        <!-- Sidebar: Saved Layouts -->
+                        <div class="lm-sidebar">
+                            <div
+                                class="p-4 border-b border-gray-200 font-bold text-gray-700 text-xs uppercase tracking-wider flex justify-between items-center bg-gray-100">
+                                Saved Layouts
+                            </div>
+                            <div id="lmSidebarList" class="lm-body">
+                                <!-- Injected via JS -->
+                            </div>
+                            <button class="btn-create" onclick="LayoutManager.createNew()">
+                                <i class="fas fa-plus-circle"></i> Create New
+                            </button>
+                        </div>
+
+                        <!-- Content: Column Config -->
+                        <div class="lm-content">
+                            <div class="lm-header">
+                                <div class="flex items-center gap-2 w-2/3">
+                                    <i class="fas fa-table text-gray-400"></i>
+                                    <input type="text" id="lmLayoutName"
+                                        class="border border-gray-300 rounded px-3 py-1.5 text-sm font-bold w-full focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-gray-400 text-gray-700"
+                                        placeholder="Layout Name" oninput="LayoutManager.handleNameChange()">
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="btnLmDelete" class="btn-lm btn-lm-danger opacity-50 cursor-not-allowed"
+                                        onclick="LayoutManager.deleteCurrent()" disabled>Delete</button>
+                                    <button id="btnLmSave" class="btn-lm btn-lm-save"
+                                        onclick="LayoutManager.saveCurrent()">Save</button>
+                                    <button class="text-gray-400 hover:text-gray-600 ml-3 transition-colors"
+                                        onclick="LayoutManager.close()"><i class="fas fa-times text-xl"></i></button>
+                                </div>
+                            </div>
+
+                            <div
+                                class="bg-gray-50 border-b px-4 py-2 flex items-center text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                                <div class="w-10 text-center">Show</div>
+                                <div class="flex-1 pl-2">Column Data Field</div>
+                                <div class="w-1/3">Custom Header Label</div>
+                                <div class="w-16 text-center">Order</div>
+                            </div>
+
+                            <div id="lmColList" class="lm-body select-none">
+                                <!-- Injected Rows -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    // --- DATA STORE ---
+                    let masterMap = {}, custMap = {}, parseRules = {}, msgMap = {};
+                    let configAdv = { qtyKeys: [], plantPrio: [], nearExp: 6, shortExp: 3 };
+                    let results = [], activeFilters = {};
+
+                    // --- ADVANCED LAYOUT ENGINE (V2) ---
+
+                    // 1. Source of Truth: Column Definitions
+                    const COLUMN_DEFS = [
+                        { id: 0, label: "SN#", defLabel: "SN#", width: "w-10", align: "center", render: (r, i) => i + 1, cls: "font-bold text-gray-500 border-r" },
+                        { id: 1, label: "Status", defLabel: "Status", width: "w-20", align: "left", render: (r) => `<span class="${r.badge}">${r.status}</span>` },
+                        { id: 2, label: "Condition", defLabel: "Condition", width: "w-16", align: "left", render: (r) => `<span class="${r.cond.includes('Exp') || r.cond === 'Damage' ? 'text-red-600' : ''}">${r.cond}</span>`, cls: "text-xs font-bold" },
+                        { id: 3, label: "Plant", defLabel: "Plant", width: "w-24", align: "left", render: (r) => r.sysPlant, cls: "font-mono bg-gray-100" },
+                        { id: 4, label: "Raw Scan", defLabel: "Raw Scan", width: "w-32", align: "left", render: (r) => r.raw, cls: "font-mono text-[10px] text-gray-500 truncate max-w-[100px]" },
+                        { id: 5, label: "Scan Code", defLabel: "Scan Code", width: "auto", align: "left", render: (r) => r.p.scanCode, cls: "font-bold text-blue-700 text-xs" },
+                        { id: 6, label: "SAP Code", defLabel: "SAP Code", width: "auto", align: "left", render: (r) => r.p.sapCode, cls: "font-bold text-green-700 text-xs" },
+                        { id: 7, label: "Desc", defLabel: "Desc", width: "w-32", align: "left", render: (r) => r.p.desc, cls: "text-[10px] truncate max-w-[100px]" },
+                        { id: 8, label: "Phy Batch", defLabel: "Phy Batch", width: "auto", align: "left", render: (r) => r.p.batch, cls: "font-mono text-xs bg-blue-50" },
+                        { id: 9, label: "Sys Batch", defLabel: "Sys Batch", width: "auto", align: "left", render: (r) => r.sysBatch, cls: "font-mono text-xs bg-green-50" },
+                        { id: 10, label: "Cust Code", defLabel: "Cust Code", width: "auto", align: "left", render: (r) => r.custCode, cls: "text-[10px] font-mono" },
+                        { id: 11, label: "Cust Name", defLabel: "Cust Name", width: "auto", align: "left", render: (r) => r.custName, cls: "text-[10px] truncate max-w-[100px]" },
+                        { id: 12, label: "Mfg", defLabel: "Mfg", width: "auto", align: "left", render: (r) => r.p.mfg, cls: "text-[10px]" },
+                        { id: 13, label: "Exp", defLabel: "Exp", width: "auto", align: "left", render: (r) => r.p.exp, cls: "text-[10px]" },
+                        { id: 14, label: "Remarks", defLabel: "Remarks", width: "auto", align: "left", render: (r) => r.rem, cls: "text-[10px] italic" }
+                    ];
+
+                    // 2. Default Presets
+                    const DEFAULT_LAYOUTS = [
+                        { id: 'std', name: 'Standard View', cols: COLUMN_DEFS.map(c => ({ id: c.id, visible: true, label: c.defLabel })) },
+                        { id: 'recon', name: 'Recon Focus', cols: COLUMN_DEFS.map(c => ({ id: c.id, visible: [0, 1, 2, 5, 6, 8, 9, 14].includes(c.id), label: c.defLabel })) },
+                        { id: 'cust', name: 'Customer View', cols: COLUMN_DEFS.map(c => ({ id: c.id, visible: [0, 1, 2, 5, 7, 10, 11, 14].includes(c.id), label: c.defLabel })) }
+                    ];
+
+                    // 3. State Management
+                    const LayoutManager = {
+                        layouts: [],
+                        activeLayoutId: 'std',
+                        editingLayout: null, // Temporary state for modal
+
+                        init() {
+                            const saved = localStorage.getItem('mlsipl_layouts_v2');
+                            if (saved) {
+                                this.layouts = JSON.parse(saved);
+                            } else {
+                                this.layouts = JSON.parse(JSON.stringify(DEFAULT_LAYOUTS)); // Deep copy defaults
+                            }
+
+                            // Ensure active layout exists
+                            const lastActive = localStorage.getItem('mlsipl_active_layout_id');
+                            if (lastActive && this.layouts.find(l => l.id === lastActive)) {
+                                this.activeLayoutId = lastActive;
+                            } else {
+                                this.activeLayoutId = 'std';
+                            }
+
+                            this.applyActive();
+                        },
+
+                        open() {
+                            document.getElementById('lmModal').classList.remove('hidden');
+                            this.loadSidebar();
+                            // Load active layout into editing state
+                            const active = this.layouts.find(l => l.id === this.activeLayoutId);
+                            this.editLayout(active.id);
+                        },
+
+                        close() {
+                            document.getElementById('lmModal').classList.add('hidden');
+                        },
+
+                        loadSidebar() {
+                            const list = document.getElementById('lmSidebarList');
+                            list.innerHTML = this.layouts.map(l => `
+                    <div class="lm-layout-item ${l.id === this.editingLayout?.id ? 'active' : ''}" onclick="LayoutManager.editLayout('${l.id}')">
+                        ${l.name} ${l.id === this.activeLayoutId ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded ml-2">Active</span>' : ''}
+                    </div>
+                `).join('');
+                        },
+
+                        createNew() {
+                            const newId = 'custom_' + Date.now();
+                            const newLayout = {
+                                id: newId,
+                                name: 'New Layout',
+                                cols: JSON.parse(JSON.stringify(DEFAULT_LAYOUTS[0].cols)) // Start with standard
+                            };
+                            this.layouts.push(newLayout);
+                            this.editLayout(newId);
+                            this.loadSidebar();
+                        },
+
+                        editLayout(id) {
+                            const layout = this.layouts.find(l => l.id === id);
+                            if (!layout) return;
+
+                            this.editingLayout = JSON.parse(JSON.stringify(layout)); // Deep copy for editing
+                            document.getElementById('lmLayoutName').value = this.editingLayout.name;
+
+                            // Enable/Disable delete for defaults
+                            const isDefault = ['std', 'recon', 'cust'].includes(layout.id);
+                            const btnDel = document.getElementById('btnLmDelete');
+                            btnDel.disabled = isDefault;
+                            if (isDefault) btnDel.classList.add('opacity-50', 'cursor-not-allowed');
+                            else btnDel.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                            this.renderColList();
+                            this.loadSidebar(); // Update active highlight
+                        },
+
+                        renderColList() {
+                            const list = document.getElementById('lmColList');
+                            list.innerHTML = this.editingLayout.cols.map((col, idx) => {
+                                const def = COLUMN_DEFS.find(d => d.id === col.id);
+                                return `
+                    <div class="lm-col-row ${!col.visible ? 'disabled' : ''}">
+                        <div class="w-10 text-center">
+                            <input type="checkbox" ${col.visible ? 'checked' : ''} onchange="LayoutManager.toggleCol(${idx}, this.checked)" class="cursor-pointer">
+                        </div>
+                        <div class="flex-1 pl-2 font-medium text-xs text-gray-700">${def.label}</div>
+                        <div class="w-1/3">
+                            <input type="text" value="${col.label}" onchange="LayoutManager.updateLabel(${idx}, this.value)" class="border rounded px-2 py-1 text-xs w-full focus:border-blue-500 outline-none">
+                        </div>
+                        <div class="w-16 text-center flex justify-center gap-1">
+                            <button onclick="LayoutManager.moveCol(${idx}, -1)" class="text-gray-400 hover:text-blue-600 px-1 ${idx === 0 ? 'invisible' : ''}"><i class="fas fa-arrow-up"></i></button>
+                            <button onclick="LayoutManager.moveCol(${idx}, 1)" class="text-gray-400 hover:text-blue-600 px-1 ${idx === this.editingLayout.cols.length - 1 ? 'invisible' : ''}"><i class="fas fa-arrow-down"></i></button>
+                        </div>
+                    </div>
+                `}).join('');
+                        },
+
+                        toggleCol(idx, val) { this.editingLayout.cols[idx].visible = val; this.renderColList(); },
+                        updateLabel(idx, val) { this.editingLayout.cols[idx].label = val; },
+                        handleNameChange() { if (this.editingLayout) this.editingLayout.name = document.getElementById('lmLayoutName').value; },
+
+                        moveCol(idx, dir) {
+                            const cols = this.editingLayout.cols;
+                            const target = idx + dir;
+                            if (target < 0 || target >= cols.length) return;
+                            [cols[idx], cols[target]] = [cols[target], cols[idx]];
+                            this.renderColList();
+                        },
+
+                        saveCurrent() {
+                            // Update persistent store
+                            const idx = this.layouts.findIndex(l => l.id === this.editingLayout.id);
+                            if (idx > -1) this.layouts[idx] = this.editingLayout;
+
+                            // Persist
+                            localStorage.setItem('mlsipl_layouts_v2', JSON.stringify(this.layouts));
+
+                            // Set as active
+                            this.activeLayoutId = this.editingLayout.id;
+                            this.applyActive();
+
+                            alert('Layout Saved & Applied!');
+                            this.loadSidebar();
+                        },
+
+                        deleteCurrent() {
+                            if (!confirm("Delete this layout?")) return;
+                            this.layouts = this.layouts.filter(l => l.id !== this.editingLayout.id);
+                            localStorage.setItem('mlsipl_layouts_v2', JSON.stringify(this.layouts));
+
+                            // Switch to standard
+                            this.activeLayoutId = 'std';
+                            this.editLayout('std');
+                        },
+
+                        applyActive() {
+                            localStorage.setItem('mlsipl_active_layout_id', this.activeLayoutId);
+                            const layout = this.layouts.find(l => l.id === this.activeLayoutId);
+                            if (!layout) return; // Should not happen
+                            renderTable(); // Re-render main table
+                        },
+
+                        getActiveCols() {
+                            const layout = this.layouts.find(l => l.id === this.activeLayoutId) || DEFAULT_LAYOUTS[0];
+                            return layout.cols.filter(c => c.visible); // Only render visible columns
+                        }
+                    };
+
+                    // Initialize on load
+                    // Initialized in consolidated load handler below
+
+                    // --- DYNAMIC RENDERER ---
+                    function renderTable() {
+                        // Get Active Columns
+                        const cols = LayoutManager.getActiveCols();
+                        const filtered = getFilteredResults();
+
+                        // 1. Build Header
+                        const thead = document.querySelector('#mainTable thead');
+                        thead.innerHTML = `
+                <tr>
+                    ${cols.map(c => {
+                            const def = COLUMN_DEFS.find(d => d.id === c.id);
+                            return `
+                        <th class="${def.width} relative" data-col="${c.id}">
+                            <div class="th-content">
+                                ${c.label} 
+                                <span class="flex items-center">
+                                     <i class="fas fa-filter filter-icon" onclick="openFilter(event, ${c.id})"></i>
+                                     <i class="fas fa-sort ml-1 sort-icon" onclick="sortTable(${c.id})"></i>
+                                </span>
+                            </div>
+                            <div class="resizer"></div>
+                        </th>`;
+                        }).join('')}
+                </tr>
+            `;
+
+                        // Re-attach resizers
+                        const resizers = document.querySelectorAll('.resizer');
+                        resizers.forEach(r => r.addEventListener('mousedown', initResize));
+
+                        // 2. Build Body
+                        document.getElementById('resBody').innerHTML = filtered.map((r, i) => `
+                <tr class="hover:bg-blue-50 border-b">
+                     ${cols.map(c => {
+                            const def = COLUMN_DEFS.find(d => d.id === c.id);
+                            const cellContent = def.render(r, i); // Pass row and index
+                            return `<td class="${def.cls || ''} p-2 text-left">${cellContent}</td>`;
+                        }).join('')}
+                </tr>
+            `).join('');
+
+                        // Restore Filter Icons Active State
+                        Object.keys(activeFilters).forEach(colId => {
+                            const icon = document.querySelector(`th[data-col="${colId}"] .filter-icon`);
+                            if (icon) icon.classList.add('active');
+                        });
+                    }
+
+                    // --- FILTER LOGIC ---
+                    function getFilteredResults() {
+                        return results.filter(r => {
+                            return Object.keys(activeFilters).every(colIdx => {
+                                if (activeFilters[colIdx].length === 0) return true;
+                                // Get val same as sort/render
+                                let val = String(getKeyVal(r, parseInt(colIdx))).trim();
+                                return activeFilters[colIdx].includes(val);
+                            });
+                        });
+                    }
+
+                    let currFilterCol = null;
+                    function openFilter(e, colIdx) {
+                        e.stopPropagation();
+                        currFilterCol = colIdx;
+
+                        // Close existing
+                        document.querySelectorAll('.filter-menu').forEach(el => el.remove());
+
+                        // Build UI
+                        const menu = document.createElement('div');
+                        menu.className = 'filter-menu';
+                        menu.innerHTML = `
+                <input type="text" class="filter-search" placeholder="Search..." onkeyup="filterMenuSearch(this)">
+                <div class="filter-list" id="filterList"></div>
+                <div class="filter-actions">
+                    <button class="btn-xs btn-clear" onclick="clearFilter(${colIdx})">Clear</button>
+                    <button class="btn-xs btn-primary" onclick="applyFilter(${colIdx})">Apply</button>
+                </div>
+            `;
+
+                        // Populate Items
+                        const uniqueVals = [...new Set(results.map(r => String(getKeyVal(r, colIdx)).trim()))].sort();
+                        const list = menu.querySelector('#filterList');
+
+                        // "Select All"
+                        const allDiv = document.createElement('div');
+                        allDiv.className = 'filter-item font-bold border-b pb-1 mb-1';
+                        allDiv.innerHTML = `<input type="checkbox" id="chkAll" checked onchange="toggleAllFilters(this)"> (Select All)`;
+                        list.appendChild(allDiv);
+
+                        uniqueVals.forEach(v => {
+                            const checked = !activeFilters[colIdx] || activeFilters[colIdx].includes(v);
+                            const div = document.createElement('div');
+                            div.className = 'filter-item';
+                            div.innerHTML = `<input type="checkbox" value="${v}" ${checked ? 'checked' : ''}> ${v || '(Blanks)'}`;
+                            list.appendChild(div);
+                        });
+
+                        // Position
+                        const th = e.target.closest('th');
+                        th.appendChild(menu);
+                        menu.style.display = 'block';
+
+                        // Click outside to close
+                        document.addEventListener('click', closeFilterMenu, { once: true });
+                        menu.addEventListener('click', e => e.stopPropagation());
+                    }
+
+                    function filterMenuSearch(inp) {
+                        const term = inp.value.toLowerCase();
+                        document.querySelectorAll('#filterList .filter-item').forEach(div => {
+                            if (div.querySelector('#chkAll')) return;
+                            const txt = div.innerText.toLowerCase();
+                            div.style.display = txt.includes(term) ? 'flex' : 'none';
+                        });
+                    }
+
+                    function toggleAllFilters(chk) {
+                        document.querySelectorAll('#filterList .filter-item:not(:first-child) input').forEach(c => {
+                            if (c.parentNode.style.display !== 'none') c.checked = chk.checked;
+                        });
+                    }
+
+                    function applyFilter(colIdx) {
+                        const checked = [];
+                        const allInputs = document.querySelectorAll('#filterList .filter-item:not(:first-child) input');
+                        allInputs.forEach(inp => { if (inp.checked) checked.push(inp.value); });
+
+                        // If all checked (or none unchecked), clear filter for this col (optimization)
+                        if (checked.length === allInputs.length) delete activeFilters[colIdx];
+                        else activeFilters[colIdx] = checked;
+
+                        // Update Icon
+                        const targetTh = document.querySelector(`#mainTable th[data-col="${colIdx}"]`);
+                        if (targetTh) {
+                            const icon = targetTh.querySelector('.filter-icon');
+                            if (activeFilters[colIdx]) icon.classList.add('active');
+                            else icon.classList.remove('active');
+                        }
+
+                        renderTable();
+                        closeFilterMenu();
+                    }
+
+                    function clearFilter(colIdx) {
+                        delete activeFilters[colIdx];
+                        const targetTh = document.querySelector(`#mainTable th[data-col="${colIdx}"]`);
+                        if (targetTh) targetTh.querySelector('.filter-icon').classList.remove('active');
+                        renderTable();
+                        closeFilterMenu();
+                    }
+
+                    function closeFilterMenu() {
+                        document.querySelectorAll('.filter-menu').forEach(el => el.remove());
+                    }
+
+                    // --- TABS ---
+                    // --- TABS ---
+                    function switchConfigTab(id, btn) {
+                        // Hide all content
+                        document.querySelectorAll('.config-tab-content').forEach(d => d.classList.add('hidden'));
+                        // Show target
+                        document.getElementById(id).classList.remove('hidden');
+
+                        // Update Menu Active State
+                        document.querySelectorAll('.lm-layout-item').forEach(b => b.classList.remove('active'));
+                        if (btn) btn.classList.add('active');
+                    }
+                    function openConfig() { document.getElementById('configModal').classList.remove('hidden'); }
+
+                    // --- CONFIG MANAGEMENT ---
+                    function loadConfig() {
+                        try {
+                            const m = localStorage.getItem('mlsipl_master_v72');
+                            const c = localStorage.getItem('mlsipl_cust_v72');
+                            const r = localStorage.getItem('mlsipl_rules_v72');
+                            const msg = localStorage.getItem('mlsipl_msg_v72');
+                            const adv = localStorage.getItem('mlsipl_adv_v72');
+
+                            const setVal = (id, val) => {
+                                const el = document.getElementById(id);
+                                if (el) el.value = val;
+                            };
+
+                            if (m) {
+                                setVal('txtMaster', m);
+                                masterMap = {};
+                                m.split('\n').forEach(l => { let p = l.split(','); if (p.length >= 2) masterMap[p[0].trim().toUpperCase()] = { sap: p[1].trim(), desc: p[2] || '' }; });
+                            }
+                            if (c) {
+                                setVal('txtCust', c);
+                                custMap = {};
+                                c.split('\n').forEach(l => { let p = l.split(','); if (p.length >= 2) custMap[p[0].trim().toUpperCase()] = p[1].trim(); });
+                            }
+                            if (r) setVal('txtRules', r);
+                            if (msg) setVal('txtMsg', msg);
+
+                            // Advanced
+                            if (adv) {
+                                let parsed = JSON.parse(adv);
+                                setVal('txtQtyKeys', parsed.qtyKeys.join(', '));
+                                setVal('txtPlantPrio', parsed.plantPrio.join(', '));
+                                setVal('txtNearExp', parsed.nearExp || 6);
+                                setVal('txtShortExp', parsed.shortExp || 3);
+                                configAdv = parsed;
+                            } else {
+                                configAdv.qtyKeys = ['qty', 'quantity', 'unrestricted', 'stock', 'count'];
+                            }
+
+                            // Rules Processing
+                            parseRules = {};
+                            const rulesVal = document.getElementById('txtRules') ? document.getElementById('txtRules').value : "";
+                            (rulesVal || "").split('\n').forEach(l => {
+                                if (l.startsWith('#') || l.trim() === '') return;
+                                let p = l.split(',').map(x => parseInt(x.trim()));
+                                if (p.length >= 5) {
+                                    if (!parseRules[p[0]]) parseRules[p[0]] = [];
+                                    parseRules[p[0]].push({ mS: p[1], mL: p[2], bS: p[3], bL: p[4], mgS: p[5] || 0, mgL: p[6] || 0, exS: p[7] || 0, exL: p[8] || 0 });
+                                }
+                            });
+
+                            // Msg Processing
+                            const msgEl = document.getElementById('txtMsg');
+                            const rawMsg = msgEl ? msgEl.value : "Matched:OK\nBatch Mismatch:Partial\nVariance:Not Found";
+                            msgMap = { 'Matched': 'Matched', 'Batch Mismatch': 'Batch Mismatch', 'Variance': 'Variance', 'Stock Exhausted': 'Stock Exhausted', 'Master Missing': 'Master Missing' };
+                            if (rawMsg) {
+                                rawMsg.split('\n').forEach(l => {
+                                    let p = l.split(':');
+                                    if (p.length >= 2) msgMap[p[0].trim()] = p[1].trim();
+                                });
+                            }
+
+                            // Ready Indicator
+                            document.getElementById('statusIndicator').innerHTML = `<span class="text-green-500"><i class="fas fa-check-circle"></i> Ready v73</span>`;
+                        } catch (err) {
+                            console.error("Config Load Error:", err);
+                        }
+                    }
+
+                    function saveConfig() {
+                        localStorage.setItem('mlsipl_master_v72', document.getElementById('txtMaster').value);
+                        localStorage.setItem('mlsipl_cust_v72', document.getElementById('txtCust').value);
+                        localStorage.setItem('mlsipl_rules_v72', document.getElementById('txtRules').value);
+                        localStorage.setItem('mlsipl_msg_v72', document.getElementById('txtMsg').value);
+
+                        let advObj = {
+                            qtyKeys: document.getElementById('txtQtyKeys').value.split(',').map(s => s.trim().toLowerCase()),
+                            plantPrio: document.getElementById('txtPlantPrio').value.split(',').map(s => s.trim().toUpperCase()),
+                            nearExp: parseInt(document.getElementById('txtNearExp').value) || 6,
+                            shortExp: parseInt(document.getElementById('txtShortExp').value) || 3
+                        };
+                        localStorage.setItem('mlsipl_adv_v72', JSON.stringify(advObj));
+
+                        loadConfig();
+                        document.getElementById('configModal').classList.add('hidden');
+                        alert("Settings Saved!");
+                    }
+                    window.addEventListener('load', () => {
+                        try {
+                            loadConfig();
+                            LayoutManager.init();
+                        } catch (e) {
+                            console.error("Init Error:", e);
+                            document.getElementById('statusIndicator').innerHTML = `<span class="text-red-500"><i class="fas fa-exclamation-triangle"></i> Init Fail</span>`;
+                            alert("Initialization Error: " + e.message + "\nCheck console for details.");
+                        }
+                    });
+
+                    // --- RESIZE HANDLER ---
+                    document.addEventListener('DOMContentLoaded', () => {
+                        const resizers = document.querySelectorAll('.resizer');
+                        resizers.forEach(r => r.addEventListener('mousedown', initResize));
+                    });
+
+                    let startX, startWidth, resizableCol;
+                    function initResize(e) {
+                        e.stopPropagation();
+                        resizableCol = e.target.parentElement;
+                        startX = e.pageX;
+                        startWidth = resizableCol.offsetWidth;
+                        document.addEventListener('mousemove', doResize);
+                        document.addEventListener('mouseup', stopResize);
+                    }
+                    function doResize(e) { resizableCol.style.width = (startWidth + e.pageX - startX) + 'px'; }
+                    function stopResize() { document.removeEventListener('mousemove', doResize); document.removeEventListener('mouseup', stopResize); }
+
+                    // --- UTILS ---
+                    function formatDate(s) { if (!s || s.length != 6) return "-"; return `20${s.substring(0, 2)}-${s.substring(2, 4)}-${s.substring(4, 6)}`; }
+
+                    // --- PARSER ---
+                    function parseBarcode(raw) {
+                        let s = String(raw).trim().replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
+                        let len = s.length;
+                        let res = { scanCode: "", batch: "", sapCode: "Unknown", desc: "-", mfg: "-", exp: "-" };
+
+                        const gs1 = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})240(.+)$/);
+                        if (gs1) { res.batch = gs1[2].trim(); res.mfg = gs1[3]; res.exp = gs1[4]; res.scanCode = gs1[5].trim(); }
+                        else if (s.includes('(')) {
+                            let m = s.match(/\(240\)([^()]+)/) || s.match(/\(21\)([^()]+)/); if (m) res.scanCode = m[1].trim();
+                            m = s.match(/\(10\)([^()]+)/); if (m) res.batch = m[1].trim();
+                            m = s.match(/\(11\)([^()]+)/); if (m) res.mfg = m[1];
+                            m = s.match(/\(17\)([^()]+)/); if (m) res.exp = m[1];
+                            if (!res.scanCode) res.scanCode = s;
+                        }
+                        else if (parseRules[len]) {
+                            let rule = parseRules[len][0];
+                            for (let r of parseRules[len]) { if (masterMap[s.substring(r.mS, r.mS + r.mL).trim().toUpperCase()]) { rule = r; break; } }
+                            res.scanCode = s.substring(rule.mS, rule.mS + rule.mL);
+                            res.batch = s.substring(rule.bS, rule.bS + rule.bL);
+                            if (rule.mgL) res.mfg = s.substring(rule.mgS, rule.mgS + rule.mgL);
+                            if (rule.exL) res.exp = s.substring(rule.exS, rule.exS + rule.exL);
+                        } else { res.scanCode = s; res.batch = "Unknown"; }
+
+                        res.scanCode = res.scanCode.trim();
+                        res.batch = res.batch.trim().replace(/[^a-zA-Z0-9-]/g, '');
+                        let k = res.scanCode.toUpperCase();
+                        if (masterMap[k]) { res.sapCode = masterMap[k].sap; res.desc = masterMap[k].desc; }
+                        else res.sapCode = "Not in Master";
+                        res.mfg = formatDate(res.mfg); res.exp = formatDate(res.exp);
+                        return res;
+                    }
+
+                    // --- PROCESS ---
+                    const readXlsx = (file) => new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).Sheets[XLSX.read(new Uint8Array(e.target.result), { type: 'array' }).SheetNames[0]], { header: 1, defval: "" }));
+                        reader.readAsArrayBuffer(file);
+                    });
+
+                    async function runMLSIPL() {
+                        const fScan = document.getElementById('fileScan').files[0];
+                        const fSys = document.getElementById('fileSys').files[0];
+                        const cScan = parseInt(document.getElementById('colScan').value);
+                        const cCond = parseInt(document.getElementById('colCond').value);
+                        const hasHead = document.getElementById('chkScanHeader').checked;
+
+                        if (!fScan || !fSys) { alert("Upload both files"); return; }
+                        document.getElementById('btnRun').innerText = "PROCESSING...";
+
+                        try {
+                            const rawSys = await readXlsx(fSys);
+                            const h = rawSys[0].map(x => String(x).toLowerCase());
+
+                            const iMat = h.findIndex(x => x.includes('material') || x.includes('item'));
+                            const iBatch = h.findIndex(x => x.includes('batch') || x.includes('lot'));
+
+                            let iQty = -1;
+                            for (let k of configAdv.qtyKeys) { iQty = h.findIndex(x => x.includes(k)); if (iQty > -1) break; }
+
+                            const ovrCust = document.getElementById('colCustOverride').value;
+                            const ovrPlant = document.getElementById('colPlantOverride').value;
+                            let iCust = ovrCust ? parseInt(ovrCust) : h.findIndex(x => x.includes('customer') || x.includes('cust'));
+                            let iName = h.findIndex(x => x.includes('name 1') || x.includes('name'));
+                            let iPlant = ovrPlant ? parseInt(ovrPlant) : h.findIndex(x => x.includes('plant') || x.includes('site') || x.includes('wrks'));
+
+                            if (iMat < 0 || iQty < 0) throw new Error("System file needs Material & Qty (Check Config Keywords)");
+
+                            let inv = [];
+                            for (let i = 1; i < rawSys.length; i++) {
+                                let r = rawSys[i];
+                                if (!r[iMat]) continue;
+                                let q = parseFloat(r[iQty]) || 0;
+                                let cCode = iCust > -1 && r[iCust] ? String(r[iCust]).trim() : "-";
+                                let cName = iName > -1 && r[iName] ? String(r[iName]).trim() : "-";
+                                let pl = iPlant > -1 && r[iPlant] ? String(r[iPlant]).trim().toUpperCase() : "-";
+
+                                for (let k = 0; k < q; k++) inv.push({ mat: String(r[iMat]).trim().toUpperCase(), batch: iBatch > -1 ? String(r[iBatch]).trim().toUpperCase() : "NA", cust: cCode, name: cName, plant: pl, used: false });
+                            }
+
+                            const rawScan = await readXlsx(fScan);
+                            results = []; activeFilters = {}; // Reset results and filters
+                            document.querySelectorAll('.filter-icon').forEach(i => i.classList.remove('active')); // Reset UI
+                            let stats = { sap: inv.length, match: 0, var: 0, scan: 0, swap: 0, good: 0, dmg: 0, exp: 0 };
+                            let startRow = hasHead ? 1 : 0;
+                            let today = new Date();
+
+                            for (let i = startRow; i < rawScan.length; i++) {
+                                let r = rawScan[i];
+                                let rawStr = r[cScan];
+                                if (!rawStr) continue;
+                                stats.scan++;
+
+                                let p = parseBarcode(rawStr);
+                                let condRaw = r[cCond] ? String(r[cCond]).trim().toLowerCase() : "good";
+                                let cond = "Good";
+
+                                // FIXED LOGIC: Damage Priority > Expiry Priority
+                                if (condRaw.includes('dam') || condRaw.includes('bad') || condRaw.includes('broken')) {
+                                    cond = "Damage";
+                                    stats.dmg++;
+                                }
+                                else if (p.exp !== "-" && p.exp.length === 10) {
+                                    let expDate = new Date(p.exp);
+                                    if (expDate < today) { cond = "Expired"; stats.exp++; }
+                                    else {
+                                        let diffMonths = (expDate - today) / (1000 * 60 * 60 * 24 * 30.44);
+                                        if (diffMonths < configAdv.shortExp) { cond = "Short Exp"; stats.exp++; }
+                                        else if (diffMonths < configAdv.nearExp) { cond = "Near Exp"; stats.exp++; }
+                                        else { stats.good++; }
+                                    }
+                                }
+                                else {
+                                    stats.good++;
+                                }
+
+                                let status = "Variance", sysBatch = "-", sysPlant = "-", custCode = "-", custName = "-", rem = msgMap['Variance'], badge = "badge-err";
+
+                                if (p.sapCode !== "Not in Master") {
+                                    let candidates = inv.filter(x => !x.used && x.mat === p.sapCode);
+                                    candidates.sort((a, b) => {
+                                        let aBatch = (a.batch === p.batch) ? 1 : 0;
+                                        let bBatch = (b.batch === p.batch) ? 1 : 0;
+                                        if (aBatch !== bBatch) return bBatch - aBatch;
+                                        let pA = configAdv.plantPrio.indexOf(a.plant);
+                                        let pB = configAdv.plantPrio.indexOf(b.plant);
+                                        if (pA === -1) pA = 999;
+                                        if (pB === -1) pB = 999;
+                                        return pA - pB;
+                                    });
+
+                                    let match = candidates[0];
+
+                                    if (match) {
+                                        match.used = true;
+                                        sysBatch = match.batch;
+                                        sysPlant = match.plant;
+                                        if (custMap[match.cust.toUpperCase()]) custName = custMap[match.cust.toUpperCase()];
+                                        else custName = match.name;
+                                        custCode = match.cust;
+
+                                        if (match.batch === p.batch) {
+                                            status = "Matched"; rem = msgMap['Matched']; badge = "badge-ok"; stats.match++;
+                                        } else {
+                                            status = "Batch Mismatch"; rem = msgMap['Batch Mismatch']; badge = "badge-warn"; stats.swap++;
+                                        }
+                                    } else {
+                                        let exists = inv.some(x => x.mat === p.sapCode);
+                                        rem = exists ? msgMap['Stock Exhausted'] : msgMap['Variance'];
+                                        stats.var++;
+                                    }
+                                } else { stats.var++; rem = msgMap['Master Missing']; }
+
+                                results.push({ status, badge, cond, raw: rawStr, p, sysBatch, sysPlant, custCode, custName, rem });
+                            }
+
+                            renderTable();
+                            updateKPIs(stats);
+                            document.getElementById('dashboard').classList.remove('hidden');
+                            document.getElementById('btnRun').innerText = "START RECONCILIATION";
+
+                            // LayoutManager auto-applies via renderTable 
+                        } catch (e) {
+                            console.error(e);
+                            document.getElementById('btnRun').innerText = "Error: " + e.message;
+                            alert("Error during processing: " + e.message);
+                        }
+                    }
+
+                    function updateKPIs(s) {
+                        document.getElementById('k-sap').innerText = s.sap;
+                        document.getElementById('k-scan').innerText = s.scan;
+                        document.getElementById('k-match').innerText = s.match;
+                        document.getElementById('k-swap').innerText = s.swap;
+                        document.getElementById('k-var').innerText = s.var;
+                        document.getElementById('k-remain').innerText = s.sap - (s.match + s.swap);
+                        document.getElementById('k-good').innerText = s.good;
+                        document.getElementById('k-dmg').innerText = s.dmg;
+                        document.getElementById('k-exp').innerText = s.exp;
+                    }
+
+                    function filterTable() {
+                        const term = document.getElementById('searchBox').value.toLowerCase();
+                        const rows = document.getElementById('resBody').getElementsByTagName('tr');
+                        for (let row of rows) row.style.display = row.textContent.toLowerCase().includes(term) ? "" : "none";
+                    }
+
+                    // --- SORTING ---
+                    let sortDir = true;
+                    function sortTable(id) {
+                        sortDir = !sortDir;
+                        results.sort((a, b) => {
+                            let vA = String(getKeyVal(a, id)).toLowerCase();
+                            let vB = String(getKeyVal(b, id)).toLowerCase();
+                            if (vA < vB) return sortDir ? -1 : 1;
+                            if (vA > vB) return sortDir ? 1 : -1;
+                            return 0;
+                        });
+                        renderTable();
+                    }
+
+                    function getKeyVal(r, id) {
+                        switch (id) {
+                            case 0: return 0; // SN handled by index
+                            case 1: return r.status;
+                            case 2: return r.cond;
+                            case 3: return r.sysPlant;
+                            case 4: return r.raw;
+                            case 5: return r.p.scanCode;
+                            case 6: return r.p.sapCode;
+                            case 7: return r.p.desc;
+                            case 8: return r.p.batch;
+                            case 9: return r.sysBatch;
+                            case 10: return r.custCode;
+                            case 11: return r.custName;
+                            case 12: return r.p.mfg;
+                            case 13: return r.p.exp;
+                            case 14: return r.rem;
+                            default: return "";
+                        }
+                    }
+
+                    function exportData() {
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.json_to_sheet(results.map((r, i) => ({
+                            SN: i + 1, Status: r.status, Condition: r.cond, Plant: r.sysPlant,
+                            Raw: r.raw, ScanCode: r.p.scanCode, SAPCode: r.p.sapCode, Desc: r.p.desc,
+                            PhyBatch: r.p.batch, SysBatch: r.sysBatch,
+                            CustCode: r.custCode, CustName: r.custName, Remarks: r.rem, Mfg: r.p.mfg, Exp: r.p.exp
+                        })));
+                        XLSX.utils.book_append_sheet(wb, ws, "Recon_Result");
+                        XLSX.writeFile(wb, "MLSIPL_Report_Final.xlsx");
+                    }
+                    function runDoctor() {
+                        const v = document.getElementById('testInput').value;
+                        if (!v) return;
+                        const p = parseBarcode(v);
+                        document.getElementById('doctorRes').innerHTML = `
+                <div>LEN: ${v.length}</div><div>SCAN: ${p.scanCode}</div><div>BATCH: ${p.batch}</div>
+                <div>SAP: ${p.sapCode}</div><div>MFG: ${p.mfg}</div><div>EXP: ${p.exp}</div>
+            `;
+                        document.getElementById('doctorRes').classList.remove('hidden');
+                    }
+                </script>
+</body>
+
+</html>
