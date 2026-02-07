@@ -1237,10 +1237,11 @@
                         document.getElementById('configModal').classList.add('hidden');
                         alert("Settings Saved!");
                     }
-                    window.addEventListener('load', () => {
+                    window.addEventListener('load', async () => {
                         try {
                             loadConfig();
                             LayoutManager.init();
+                            await loadSavedState(); // Restore Data
                         } catch (e) {
                             console.error("Init Error:", e);
                             document.getElementById('statusIndicator').innerHTML = `<span class="text-red-500"><i class="fas fa-exclamation-triangle"></i> Init Fail</span>`;
@@ -1431,10 +1432,30 @@
                             document.getElementById('btnRun').innerText = "START RECONCILIATION";
 
                             // LayoutManager auto-applies via renderTable 
+
+                            // SAVE DATA TO SUPABASE
+                            await saveUserData('MLSIPL', {
+                                results,
+                                stats,
+                                invLength: inv.length
+                            });
+
                         } catch (e) {
                             console.error(e);
                             document.getElementById('btnRun').innerText = "Error: " + e.message;
                             alert("Error during processing: " + e.message);
+                        }
+                    }
+
+                    // --- LOAD DATA ON START ---
+                    async function loadSavedState() {
+                        const saved = await loadUserData('MLSIPL');
+                        if (saved && saved.results) {
+                            results = saved.results;
+                            renderTable();
+                            updateKPIs(saved.stats);
+                            document.getElementById('dashboard').classList.remove('hidden');
+                            console.log("Restored saved state.");
                         }
                     }
 

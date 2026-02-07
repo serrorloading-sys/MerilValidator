@@ -7,6 +7,13 @@
     <title>Meril-V Stock Validator | Entity Selection</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Supabase Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script>
+        // Protect Route
+        document.addEventListener('DOMContentLoaded', requireAuth);
+    </script>
 
     <style>
         body {
