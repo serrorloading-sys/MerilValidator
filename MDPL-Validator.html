@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MLSIPL Validator v73 (Calculation Fixed)</title>
+    <title>MDPL Validator v73 (System Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -16,13 +16,13 @@
         // Protect Route & Load Data
         document.addEventListener('DOMContentLoaded', async () => {
             await requireAuth(); // Check Login
-            await loadSavedDataForMLSIPL(); // Restore Session
+            await loadSavedDataForMDPL(); // Restore Session
         });
 
-        // --- PERSISTENCE LOAD for MLSIPL ---
-        async function loadSavedDataForMLSIPL() {
+        // --- PERSISTENCE LOAD for MDPL ---
+        async function loadSavedDataForMDPL() {
             try {
-                const saved = await loadUserData('MLSIPL');
+                const saved = await loadUserData('MDPL');
                 if (saved && saved.globalData) {
                     globalData = saved.globalData;
                     // Restore KPIs if needed, or re-render
@@ -32,7 +32,7 @@
                         renderTable(globalData);
                         document.getElementById('start-btn').innerHTML = '<i class="fas fa-history mr-2"></i> SESSION RESTORED';
                     }
-                    console.log("Restored MLSIPL Session from Supabase");
+                    console.log("Restored MDPL Session from Supabase");
                 }
             } catch (e) {
                 console.error("Failed to load saved session:", e);
@@ -426,8 +426,8 @@
             <div class="flex items-center">
                 <img src="logo.png" alt="Meril Logo" class="h-10 mr-4">
                 <div>
-                    <h1 class="text-2xl font-bold text-indigo-900"><i class="fas fa-calculator mr-2"></i>MLSIPL
-                        Validator <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded ml-2">v73</span>
+                    <h1 class="text-2xl font-bold text-green-900"><i class="fas fa-microscope mr-2"></i>MDPL
+                        Validator <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded ml-2">v73</span>
                     </h1>
                     <p class="text-xs text-gray-500 mt-1">Calculation Logic Fixed: Damage Priority > Date Priority</p>
                 </div>
@@ -1465,7 +1465,7 @@
                             // LayoutManager auto-applies via renderTable 
 
                             // SAVE DATA TO SUPABASE
-                            await saveUserData('MLSIPL', {
+                            await saveUserData('MDPL', {
                                 results,
                                 stats,
                                 invLength: inv.length
@@ -1480,7 +1480,7 @@
 
                     // --- LOAD DATA ON START ---
                     async function loadSavedState() {
-                        const saved = await loadUserData('MLSIPL');
+                        const saved = await loadUserData('MDPL');
                         if (saved && saved.results) {
                             results = saved.results;
                             renderTable();
