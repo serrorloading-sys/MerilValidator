@@ -22,20 +22,39 @@
         // --- PERSISTENCE LOAD for MDPL ---
         async function loadSavedDataForMDPL() {
             try {
+                document.getElementById('restore-status').innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Checking saved data...';
                 const saved = await loadUserData('MDPL');
-                if (saved && saved.globalData) {
-                    globalData = saved.globalData;
-                    // Restore KPIs if needed, or re-render
-                    // For MLSIPL, we might need to re-run renderTable(globalData)
-                    // Assuming renderTable exists in this file (it should)
+                if (saved && saved.results && saved.results.length > 0) {
+                    results = saved.results;
+
+                    // Re-render table & KPIs
                     if (typeof renderTable === 'function') {
-                        renderTable(globalData);
-                        document.getElementById('start-btn').innerHTML = '<i class="fas fa-history mr-2"></i> SESSION RESTORED';
+                        renderTable();
+                        updateKPIs(saved.stats);
+                        document.getElementById('dashboard').classList.remove('hidden');
+                        document.getElementById('btnRun').innerText = "START RECONCILIATION";
+                        document.getElementById('restore-status').innerHTML = '<span class="text-green-600"><i class="fas fa-check-circle"></i> Session Restored</span>';
+
+                        // Show toast
+                        const toast = document.createElement('div');
+                        toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50 text-sm font-bold animate-bounce';
+                        toast.innerHTML = '<i class="fas fa-save mr-2"></i> Data Restored!';
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 3000);
                     }
-                    console.log("Restored MDPL Session from Supabase");
+                } else {
+                    document.getElementById('restore-status').innerHTML = '';
                 }
             } catch (e) {
                 console.error("Failed to load saved session:", e);
+                document.getElementById('restore-status').innerHTML = '<span class="text-red-400">Load Failed</span>';
+            }
+        }
+
+        async function clearData() {
+            if (confirm("Are you sure you want to clear saved data? This cannot be undone.")) {
+                await deleteUserData('MDPL');
+                location.reload();
             }
         }
     </script>
@@ -422,7 +441,7 @@
     <div class="max-w-[99%] mx-auto pb-20 fade-in">
 
         <div
-            class="bg-white border-l-8 border-indigo-600 rounded shadow-sm px-6 py-4 flex justify-between items-center mb-6">
+            class="bg-white border-l-8 border-green-600 rounded shadow-sm px-6 py-4 flex justify-between items-center mb-6">
             <div class="flex items-center">
                 <img src="logo.png" alt="Meril Logo" class="h-10 mr-4">
                 <div>
@@ -430,9 +449,14 @@
                         Validator <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded ml-2">v73</span>
                     </h1>
                     <p class="text-xs text-gray-500 mt-1">Calculation Logic Fixed: Damage Priority > Date Priority</p>
+                    <div id="restore-status" class="text-[10px] font-bold text-gray-400 mt-1 h-4"></div>
                 </div>
             </div>
             <div class="flex gap-2 items-center">
+                <button onclick="clearData()"
+                    class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-sm font-bold shadow transition flex items-center gap-1">
+                    <i class="fas fa-trash-alt"></i> Clear Data
+                </button>
                 <a href="index.html"
                     class="mr-2 group bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-bold shadow transition flex items-center transform hover:-translate-y-0.5 decoration-none relative overflow-hidden">
                     <div
@@ -440,8 +464,6 @@
                     </div>
                     <i class="fas fa-th-large mr-2"></i> Switch Entity
                 </a>
-                <div id="statusIndicator" class="mr-4 text-xs font-bold text-gray-400"><i
-                        class="fas fa-circle text-[8px]"></i> Loading...</div>
                 <button onclick="openConfig()"
                     class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition"><i
                         class="fas fa-database mr-1"></i> Master Config</button>
