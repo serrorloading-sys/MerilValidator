@@ -270,6 +270,99 @@
         </div>
     </div>
 
+    <!-- WHAT'S NEW MODAL -->
+    <div id="newFeatureModal"
+        class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100 animate-fade-up">
+
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-center relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-full bg-white/10 skew-y-6 transform origin-bottom-left">
+                </div>
+                <div
+                    class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 backdrop-blur-md shadow-inner">
+                    <i class="fas fa-rocket text-3xl text-white drop-shadow-md"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white tracking-tight">System Update v7.3</h2>
+                <p class="text-blue-100 text-sm font-medium mt-1">Faster, Smarter, Better.</p>
+            </div>
+
+            <!-- Content -->
+            <div class="p-6 space-y-5">
+
+                <!-- Feature 1 -->
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-id-card text-blue-600 text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-sm">User ID Login</h3>
+                        <p class="text-xs text-gray-500 mt-1">No more long emails! Just use your 5-digit ID (e.g., <span
+                                class="font-mono bg-gray-100 px-1 rounded">61608</span>) to login instantly.</p>
+                    </div>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-save text-green-600 text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-sm">Auto-Save & Restore</h3>
+                        <p class="text-xs text-gray-500 mt-1">Accidentally refreshed? No panic! Your work (scans &
+                            matches) is automatically saved and restored.</p>
+                    </div>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-broom text-purple-600 text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-sm">7-Day Auto Cleanup</h3>
+                        <p class="text-xs text-gray-500 mt-1">To keep the system fast, old data is automatically cleared
+                            after 7 days. Your database stays clean!</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="p-6 bg-gray-50 border-t flex justify-center">
+                <button onclick="closeNewFeatureModal()"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
+                    Awesome, Let's Go! 🚀
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Check local storage for update version
+        const UPDATE_VERSION = "v7.3";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const lastSeen = localStorage.getItem('merill_update_seen');
+            if (lastSeen !== UPDATE_VERSION) {
+                // Show modal with a slight delay for effect
+                setTimeout(() => {
+                    document.getElementById('newFeatureModal').classList.remove('hidden');
+                }, 500);
+            }
+        });
+
+        function closeNewFeatureModal() {
+            const modal = document.getElementById('newFeatureModal');
+            modal.classList.add('opacity-0', 'scale-95'); // Fade out animation
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                localStorage.setItem('merill_update_seen', UPDATE_VERSION);
+            }, 300);
+        }
+    </script>
 </body>
 
 </html>
