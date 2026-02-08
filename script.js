@@ -33,7 +33,10 @@ async function loadSavedDataForMHPL() {
     try {
         const saved = await loadUserData('MHPL');
         if (saved && saved.globalData) {
-            globalData = saved.globalData;
+            globalData = saved.globalData.map(item => ({
+                ...item,
+                expiryDate: item.expiryDate ? new Date(item.expiryDate) : null
+            }));
             displayedData = [...globalData];
 
             // Restore KPIs
@@ -55,6 +58,17 @@ async function loadSavedDataForMHPL() {
         }
     } catch (e) {
         console.error("Failed to load saved session:", e);
+    }
+}
+
+async function clearData() {
+    if (confirm("Are you sure you want to clear saved data? This cannot be undone.")) {
+        if (typeof deleteUserData === 'function') {
+            await deleteUserData('MHPL');
+            location.reload();
+        } else {
+            alert("Supabase client not loaded.");
+        }
     }
 }
 
@@ -1887,6 +1901,30 @@ async function actualValidation() {
         log("Validation Finished.");
 
         // Hide progress bar after 1 second
+        // SAVE DATA TO SUPABASE
+        const kpiStats = {
+            sysTotal: document.getElementById('kpi-sys-total').innerText,
+            tot: document.getElementById('kpi-total').innerText,
+            s: document.getElementById('kpi-serial').innerText,
+            b: document.getElementById('kpi-batch').innerText,
+            m: document.getElementById('kpi-mat').innerText,
+            v: document.getElementById('kpi-var').innerText,
+            remain: document.getElementById('kpi-remain').innerText
+        };
+
+        if (typeof saveUserData === 'function') {
+            // Non-blocking save
+            saveUserData('MHPL', {
+                globalData,
+                kpis: kpiStats
+            }).catch(e => console.error("Background save failed", e));
+
+            // Visual feedback immediately
+            const btn = document.getElementById('btnRun');
+            btn.innerHTML = 'VALIDATION COMPLETE <i class="fas fa-check"></i>';
+            setTimeout(() => btn.innerHTML = 'START VALIDATION', 3000);
+        }
+
         setTimeout(hideProgress, 1000);
 
     } catch (e) {
@@ -2489,15 +2527,24 @@ let activeLayoutId = 'standard';
 let editingLayout = [];
 
 // Initialize Default if empty
-if (Object.keys(layouts).length === 0) {
+// Initialize Default if empty or missing specific keys
+let needSave = false;
+if (!layouts['standard']) {
     layouts['standard'] = {
         name: 'Standard View',
         columns: ALL_COLUMNS.filter(c => c.default).map(c => ({ ...c, header: c.label, width: 15 }))
     };
+    needSave = true;
+}
+if (!layouts['simple']) {
     layouts['simple'] = {
         name: 'Simple Check',
         columns: ALL_COLUMNS.filter(c => ['status', 'mat', 'phyBatch', 'phySer'].includes(c.key)).map(c => ({ ...c, header: c.label, width: 20 }))
     };
+    needSave = true;
+}
+
+if (needSave) {
     localStorage.setItem('sapVal_layouts_v3', JSON.stringify(layouts));
 }
 

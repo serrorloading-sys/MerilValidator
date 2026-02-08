@@ -173,6 +173,24 @@ async function loadUserData(toolName) {
 }
 
 /**
+ * Delete User Data for a specific Tool
+ * @param {string} toolName
+ */
+async function deleteUserData(toolName) {
+    const { data: { user } } = await sbClient.auth.getUser();
+    if (!user) return;
+
+    const { error } = await sbClient
+        .from('user_data')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('tool_name', toolName);
+
+    if (error) console.error("Delete Error:", error);
+    else console.log("Data Deleted Successfully!");
+}
+
+/**
  * Delete Data Older than 7 Days
  */
 async function deleteOldData(userId) {

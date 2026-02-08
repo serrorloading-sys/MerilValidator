@@ -891,6 +891,10 @@
                             const saved = localStorage.getItem('mlsipl_layouts_v2');
                             if (saved) {
                                 this.layouts = JSON.parse(saved);
+                                // ROBUST: If array is empty, force reload defaults
+                                if (!Array.isArray(this.layouts) || this.layouts.length === 0) {
+                                    this.layouts = JSON.parse(JSON.stringify(DEFAULT_LAYOUTS));
+                                }
                             } else {
                                 this.layouts = JSON.parse(JSON.stringify(DEFAULT_LAYOUTS)); // Deep copy defaults
                             }
@@ -1486,12 +1490,12 @@
 
                             // LayoutManager auto-applies via renderTable 
 
-                            // SAVE DATA TO SUPABASE
-                            await saveUserData('MLSIPL', {
+                            // SAVE DATA TO SUPABASE (Non-blocking)
+                            saveUserData('MLSIPL', {
                                 results,
                                 stats,
                                 invLength: inv.length
-                            });
+                            }).catch(err => console.error("Background Save Failed:", err));
 
                         } catch (e) {
                             console.error(e);

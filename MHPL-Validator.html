@@ -30,9 +30,14 @@
                     <h1 class="text-xl font-bold text-slate-800 tracking-tight leading-none">Inventory Validator</h1>
                     <p class="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mt-1">Warehouse Management
                         System</p>
+                    <div id="restore-status" class="text-[10px] font-bold text-gray-400 mt-1 h-4"></div>
                 </div>
             </div>
             <div class="flex gap-2">
+                <button onclick="clearData()"
+                    class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-sm font-bold shadow transition flex items-center gap-1">
+                    <i class="fas fa-trash-alt"></i> Clear Data
+                </button>
                 <a href="index.html"
                     class="group bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg hover:shadow-slate-500/50 transition-all duration-300 transform hover:-translate-y-1 hover:scale-105 flex items-center decoration-none border border-white/20 relative overflow-hidden">
                     <div
