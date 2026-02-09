@@ -12,11 +12,17 @@
     <!-- Supabase Auth & Persistence -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
+    <script src="feature-flags.js"></script>
     <script>
         // Protect Route & Load Data
         document.addEventListener('DOMContentLoaded', async () => {
             await requireAuth(); // Check Login
             await loadSavedDataForMLSIPL(); // Restore Session
+
+            // Feature Flags
+            if (typeof initFeatureFlags === 'function') {
+                await initFeatureFlags('mlsipl_settings');
+            }
         });
 
         // --- PERSISTENCE LOAD for MLSIPL ---
@@ -453,18 +459,18 @@
                 </div>
             </div>
             <div class="flex gap-2 items-center">
-                <button onclick="clearData()"
+                <button onclick="clearData()" data-feature="allow_clear_data"
                     class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-sm font-bold shadow transition flex items-center gap-1">
                     <i class="fas fa-trash-alt"></i> Clear Data
                 </button>
-                <a href="index.html"
+                <a href="index.html" data-feature="allow_switch_entity"
                     class="mr-2 group bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-bold shadow transition flex items-center transform hover:-translate-y-0.5 decoration-none relative overflow-hidden">
                     <div
                         class="absolute inset-0 bg-white/10 group-hover:translate-x-full transition-transform duration-500 -skew-x-12 -translate-x-full">
                     </div>
                     <i class="fas fa-th-large mr-2"></i> Switch Entity
                 </a>
-                <button onclick="openConfig()"
+                <button onclick="openConfig()" data-feature="allow_local_config"
                     class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition"><i
                         class="fas fa-database mr-1"></i> Master Config</button>
                 <button onclick="location.reload()"
@@ -473,7 +479,8 @@
             </div>
         </div>
 
-        <div class="bg-gray-800 text-white p-4 rounded shadow mb-6 border-l-4 border-yellow-400">
+        <div data-feature="show_scanner_doctor"
+            class="bg-gray-800 text-white p-4 rounded shadow mb-6 border-l-4 border-yellow-400">
             <h3 class="text-sm font-bold text-yellow-400 mb-2"><i class="fas fa-user-md mr-2"></i>Scanner Doctor</h3>
             <div class="flex gap-4 items-center mb-3">
                 <input type="text" id="testInput" placeholder="Paste scan string here..."
@@ -586,7 +593,7 @@
                     </div>
 
                     <!-- Layout Manager -->
-                    <div class="relative">
+                    <div class="relative" data-feature="allow_layout_manager">
                         <button onclick="LayoutManager.open()"
                             class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 transition-all text-xs font-bold">
                             <i class="fas fa-columns"></i> Layout Manager
@@ -594,7 +601,7 @@
                     </div>
 
                     <!-- Export -->
-                    <button onclick="exportData()"
+                    <button onclick="exportData()" data-feature="allow_export"
                         class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 transition-all text-xs font-bold">
                         <i class="fas fa-file-excel"></i> Export
                     </button>

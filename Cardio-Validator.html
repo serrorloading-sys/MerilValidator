@@ -12,11 +12,17 @@
     <!-- Supabase Auth & Persistence -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>
+    <script src="feature-flags.js"></script>
     <script>
         // Protect Route & Load Data
         document.addEventListener('DOMContentLoaded', async () => {
             await requireAuth(); // Check Login
             await loadSavedDataForCardio(); // Restore Session
+
+            // Feature Flags
+            if (typeof initFeatureFlags === 'function') {
+                await initFeatureFlags('cardio_settings');
+            }
         });
 
         // --- PERSISTENCE LOAD for Cardio ---
@@ -453,18 +459,18 @@
                 </div>
             </div>
             <div class="flex gap-2 items-center">
-                <button onclick="clearData()"
+                <button onclick="clearData()" data-feature="allow_clear_data"
                     class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-sm font-bold shadow transition flex items-center gap-1">
                     <i class="fas fa-trash-alt"></i> Clear Data
                 </button>
-                <a href="index.html"
+                <a href="index.html" data-feature="allow_switch_entity"
                     class="mr-2 group bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded text-sm font-bold shadow transition flex items-center transform hover:-translate-y-0.5 decoration-none relative overflow-hidden">
                     <div
                         class="absolute inset-0 bg-white/10 group-hover:translate-x-full transition-transform duration-500 -skew-x-12 -translate-x-full">
                     </div>
                     <i class="fas fa-th-large mr-2"></i> Switch Entity
                 </a>
-                <button onclick="openConfig()"
+                <button onclick="openConfig()" data-feature="allow_local_config"
                     class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition"><i
                         class="fas fa-database mr-1"></i> Master Config</button>
                 <button onclick="location.reload()"
@@ -473,7 +479,8 @@
             </div>
         </div>
 
-        <div class="bg-gray-800 text-white p-4 rounded shadow mb-6 border-l-4 border-yellow-400">
+        <div data-feature="show_scanner_doctor"
+            class="bg-gray-800 text-white p-4 rounded shadow mb-6 border-l-4 border-yellow-400">
             <h3 class="text-sm font-bold text-yellow-400 mb-2"><i class="fas fa-user-md mr-2"></i>Scanner Doctor</h3>
             <div class="flex gap-4 items-center mb-3">
                 <input type="text" id="testInput" placeholder="Paste scan string here..."
@@ -586,7 +593,7 @@
                     </div>
 
                     <!-- Layout Manager -->
-                    <div class="relative">
+                    <div class="relative" data-feature="allow_layout_manager">
                         <button onclick="LayoutManager.open()"
                             class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 transition-all text-xs font-bold">
                             <i class="fas fa-columns"></i> Layout Manager
@@ -594,7 +601,7 @@
                     </div>
 
                     <!-- Export -->
-                    <button onclick="exportData()"
+                    <button onclick="exportData()" data-feature="allow_export"
                         class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded shadow flex items-center gap-2 transition-all text-xs font-bold">
                         <i class="fas fa-file-excel"></i> Export
                     </button>
@@ -1208,17 +1215,39 @@
                     function openConfig() { document.getElementById('configModal').classList.remove('hidden'); }
 
                     // --- CONFIG MANAGEMENT ---
-                    function loadConfig() {
+                    // --- CONFIG MANAGEMENT ---
+                    async function loadConfig() {
                         try {
-                            const m = localStorage.getItem('mlsipl_master_v72');
-                            const c = localStorage.getItem('mlsipl_cust_v72');
-                            const r = localStorage.getItem('mlsipl_rules_v72');
-                            const msg = localStorage.getItem('mlsipl_msg_v72');
-                            const adv = localStorage.getItem('mlsipl_adv_v72');
+                            // 1. Fetch from Supabase (Persistent)
+                            let dbConfig = {};
+                            try {
+                                const { data } = await sbClient
+                                    .from('global_config')
+                                    .select('value')
+                                    .eq('key', 'cardio_settings')
+                                    .single();
+                                if (data && data.value) dbConfig = data.value;
+                            } catch (e) {
+                                console.warn("DB Config load failed", e);
+                            }
 
+                            // 2. Fetch from LocalStorage (Personal Override/Fallback)
+                            let m = localStorage.getItem('mlsipl_master_v72');
+                            let c = localStorage.getItem('mlsipl_cust_v72');
+                            let r = localStorage.getItem('mlsipl_rules_v72');
+                            let msg = localStorage.getItem('mlsipl_msg_v72');
+                            let adv = localStorage.getItem('mlsipl_adv_v72');
+
+                            // 3. Priority: DB > Local
+                            // If DB has the specific CSV field, use it. Otherwise keep local/empty.
+                            if (dbConfig.master_csv) m = dbConfig.master_csv;
+                            if (dbConfig.cust_csv) c = dbConfig.cust_csv;
+                            if (dbConfig.rules_csv) r = dbConfig.rules_csv;
+
+                            // Helper
                             const setVal = (id, val) => {
                                 const el = document.getElementById(id);
-                                if (el) el.value = val;
+                                if (el) el.value = val || "";
                             };
 
                             if (m) {
@@ -1270,7 +1299,7 @@
                             }
 
                             // Ready Indicator
-                            document.getElementById('statusIndicator').innerHTML = `<span class="text-green-500"><i class="fas fa-check-circle"></i> Ready v73</span>`;
+                            document.getElementById('statusIndicator').innerHTML = `<span class="text-green-500"><i class="fas fa-check-circle"></i> Ready v73 (Synced)</span>`;
                         } catch (err) {
                             console.error("Config Load Error:", err);
                         }
@@ -1292,11 +1321,12 @@
 
                         loadConfig();
                         document.getElementById('configModal').classList.add('hidden');
-                        alert("Settings Saved!");
+                        alert("Settings Saved Locally!");
                     }
+
                     window.addEventListener('load', async () => {
                         try {
-                            loadConfig();
+                            await loadConfig();
                             LayoutManager.init();
                             await loadSavedState(); // Restore Data
                         } catch (e) {
