@@ -5,324 +5,620 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Meril Ecosystem</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            900: '#134e4a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase SDK -->
+    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
-        .sidebar-active {
-            background-color: #4f46e5;
-            color: white;
+        body {
+            font-family: 'Inter', sans-serif;
         }
 
-        .sidebar-item:hover:not(.sidebar-active) {
-            background-color: #f3f4f6;
-            color: #1f2937;
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Smooth Transitions */
+        .sidebar-link {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .sidebar-link::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 0%;
+            width: 3px;
+            background-color: #0d9488;
+            /* brand-600 */
+            border-radius: 0 4px 4px 0;
+            transition: all 0.2s ease;
+            opacity: 0;
+        }
+
+        .sidebar-active {
+            background-color: #f0fdfa;
+            /* brand-50 */
+            color: #0f766e !important;
+            /* brand-700 */
+        }
+
+        .sidebar-active::before {
+            height: 70%;
+            opacity: 1;
+        }
+
+        .sidebar-link:hover:not(.sidebar-active) {
+            background-color: #fafafa;
+            color: #111827;
+        }
+
+        /* Glassmorphism for content cards */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Animation */
+        .fade-in-up {
+            animation: fadeInUp 0.5s ease-out forwards;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* Toggle Switch */
         .toggle-checkbox:checked {
             right: 0;
-            border-color: #68D391;
+            border-color: #0d9488;
         }
 
         .toggle-checkbox:checked+.toggle-label {
-            background-color: #68D391;
+            background-color: #0d9488;
         }
     </style>
 </head>
 
-<body class="bg-gray-100 font-sans h-screen flex overflow-hidden">
+<body class="bg-gray-50/50 text-gray-800 h-screen flex overflow-hidden selection:bg-teal-100 selection:text-teal-900">
 
     <!-- Sidebar -->
-    <aside class="w-64 bg-white shadow-md flex flex-col z-10">
-        <div class="h-16 flex items-center justify-center border-b border-gray-200">
-            <i class="fas fa-shield-alt text-indigo-600 text-2xl mr-2"></i>
-            <span class="font-bold text-xl text-gray-800 tracking-tight">Meril Admin</span>
+    <aside
+        class="w-72 bg-white border-r border-gray-100 flex flex-col z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] transition-all duration-300">
+        <!-- Logo Area -->
+        <div class="h-20 flex items-center px-8 border-b border-gray-50/50">
+            <img src="logo.png" alt="Meril Logo"
+                class="w-10 h-10 object-contain mr-3 transform hover:scale-105 transition-transform duration-300">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900 tracking-tight leading-none">Meril</h1>
+                <span class="text-[10px] font-bold text-teal-600 uppercase tracking-[0.2em]">Admin Console</span>
+            </div>
         </div>
 
-        <nav class="flex-1 overflow-y-auto py-4">
-            <p class="px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Overview</p>
-            <a href="#" onclick="showSection('dashboard')" id="nav-dashboard"
-                class="sidebar-item sidebar-active flex items-center px-6 py-3 text-sm font-medium transition-colors">
-                <i class="fas fa-chart-pie w-5 mr-3"></i> Dashboard
-            </a>
+        <!-- Navigation -->
+        <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scroll">
 
-            <p class="px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">Tools Configuration
-            </p>
-            <a href="#" onclick="showSection('tool-cardio')" id="nav-tool-cardio"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-heartbeat w-5 mr-3"></i> Cardio Validator
-            </a>
-            <a href="#" onclick="showSection('tool-mdpl')" id="nav-tool-mdpl"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-file-medical w-5 mr-3"></i> MDPL Validator
-            </a>
-            <a href="#" onclick="showSection('tool-mhpl')" id="nav-tool-mhpl"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-hospital w-5 mr-3"></i> MHPL Validator
-            </a>
-            <a href="#" onclick="showSection('tool-mlsipl')" id="nav-tool-mlsipl"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-flask w-5 mr-3"></i> MLSIPL Validator
-            </a>
-            <a href="#" onclick="showSection('tool-chat')" id="nav-tool-chat"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-comments w-5 mr-3"></i> Chat App
-            </a>
+            <div class="mb-6">
+                <p class="px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Main</p>
+                <a href="#" onclick="showSection('dashboard')" id="nav-dashboard"
+                    class="sidebar-link sidebar-active flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl">
+                    <i class="fas fa-chart-pie w-6 opacity-80 text-center"></i>
+                    <span class="ml-2">Dashboard</span>
+                </a>
+            </div>
 
-            <p class="px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">User Management</p>
-            <a href="#" onclick="showSection('users')" id="nav-users"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-user-plus w-5 mr-3"></i> Add Users
-            </a>
+            <div class="mb-6">
+                <p class="px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Validators</p>
+                <a href="#" onclick="showSection('tool-cardio')" id="nav-tool-cardio"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl mb-1">
+                    <i class="fas fa-heartbeat w-6 opacity-80 text-center"></i> <span class="ml-2">Cardio</span>
+                </a>
+                <a href="#" onclick="showSection('tool-mdpl')" id="nav-tool-mdpl"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl mb-1">
+                    <i class="fas fa-file-medical w-6 opacity-80 text-center"></i> <span class="ml-2">MDPL</span>
+                </a>
+                <a href="#" onclick="showSection('tool-mhpl')" id="nav-tool-mhpl"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl mb-1">
+                    <i class="fas fa-hospital w-6 opacity-80 text-center"></i> <span class="ml-2">MHPL</span>
+                </a>
+                <a href="#" onclick="showSection('tool-mlsipl')" id="nav-tool-mlsipl"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl mb-1">
+                    <i class="fas fa-flask w-6 opacity-80 text-center"></i> <span class="ml-2">MLSIPL</span>
+                </a>
+            </div>
 
-            <p class="px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">System</p>
-            <a href="#" onclick="showSection('settings')" id="nav-settings"
-                class="sidebar-item flex items-center px-6 py-3 text-gray-600 text-sm font-medium transition-colors">
-                <i class="fas fa-cogs w-5 mr-3"></i> Global Settings
-            </a>
+            <div class="mb-6">
+                <p class="px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Communication</p>
+                <a href="#" onclick="showSection('tool-chat')" id="nav-tool-chat"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl">
+                    <i class="fas fa-comments w-6 opacity-80 text-center"></i> <span class="ml-2">Chat System</span>
+                </a>
+            </div>
+
+            <div class="mb-6">
+                <p class="px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Users</p>
+                <a href="#" onclick="showSection('users')" id="nav-users"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl mb-1">
+                    <i class="fas fa-user-plus w-6 opacity-80 text-center"></i> <span class="ml-2">Add New</span>
+                </a>
+                <a href="#" onclick="showSection('user-list')" id="nav-user-list"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl">
+                    <i class="fas fa-users w-6 opacity-80 text-center"></i> <span class="ml-2">Directory</span>
+                </a>
+            </div>
+
+            <div>
+                <p class="px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Settings</p>
+                <a href="#" onclick="showSection('settings')" id="nav-settings"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl">
+                    <i class="fas fa-sliders w-6 opacity-80 text-center"></i> <span class="ml-2">Global Config</span>
+                </a>
+            </div>
         </nav>
 
-        <div class="p-4 border-t border-gray-200 space-y-2">
-            <!-- Back to Home -->
-            <button onclick="window.location.href='index.html'"
-                class="w-full flex items-center justify-center px-4 py-2 border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-sm font-medium rounded-md shadow-sm transition-colors">
-                <i class="fas fa-home mr-2"></i> Back to Home
-            </button>
-
-            <!-- Logout -->
-            <button onclick="handleLogout()"
-                class="w-full flex items-center justify-center px-4 py-2 border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 text-sm font-medium rounded-md shadow-sm transition-colors">
-                <i class="fas fa-sign-out-alt mr-2"></i> Logout
-            </button>
-
-            <!-- Admin Profile (Mini) -->
-            <div class="flex items-center pt-2 mt-2 border-t border-gray-100">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs shadow-sm"
-                    id="admin-avatar">A</div>
-                <div class="ml-3 min-w-0">
-                    <p class="text-sm font-bold text-gray-900 truncate" id="admin-name">Loading...</p>
-                    <p class="text-xs text-gray-500 truncate flex items-center">
-                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span> Online
+        <!-- User Profile (Bottom) -->
+        <div class="p-4 border-t border-gray-100 bg-gray-50/30">
+            <div class="flex items-center gap-3 mb-3 px-2">
+                <div class="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center text-teal-700 font-bold text-xs shadow-sm"
+                    id="admin-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p class="text-xs font-bold text-gray-900 truncate" id="admin-name">Loading...</p>
+                    <p class="text-[10px] text-emerald-600 font-medium truncate flex items-center">
+                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span> Active Now
                     </p>
                 </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="window.location.href='index.html'"
+                    class="flex items-center justify-center px-3 py-2 border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 hover:text-gray-900 text-[11px] font-bold rounded-lg shadow-sm transition-all duration-200">
+                    <i class="fas fa-home mr-1.5"></i> Home
+                </button>
+                <button onclick="handleLogout()"
+                    class="flex items-center justify-center px-3 py-2 border border-red-100 text-red-600 bg-white hover:bg-red-50 text-[11px] font-bold rounded-lg shadow-sm transition-all duration-200">
+                    <i class="fas fa-sign-out-alt mr-1.5"></i> Logout
+                </button>
             </div>
         </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-[#fafafa] relative">
 
-        <!-- Loading Overlay -->
-        <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
-            <div class="text-center">
-                <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-600 mb-4"></i>
-                <p class="text-gray-500">Verifying privileges...</p>
-            </div>
+        <!-- Background Decor -->
+        <div
+            class="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-teal-50/50 to-transparent pointer-events-none">
         </div>
 
-        <!-- Access Denied -->
-        <div id="access-denied" class="hidden fixed inset-0 bg-red-50 z-50 flex items-center justify-center">
-            <div class="text-center max-w-md p-6 bg-white rounded-lg shadow-xl">
-                <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
-                <h2 class="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-                <p class="text-gray-600 mb-6">You do not have permission to view this page. Administrator access is
-                    required.</p>
-                <a href="index.html"
-                    class="inline-block bg-indigo-600 text-white px-6 py-2 rounded shadow hover:bg-indigo-700 transition">Return
-                    to Home</a>
-            </div>
-        </div>
+        <!-- content container -->
+        <div class="relative z-10 max-w-7xl mx-auto">
 
-        <!-- DASHBOARD VIEW -->
-        <div id="view-dashboard" class="view-section px-8 py-6">
-            <h1 class="text-2xl font-bold text-gray-900 mb-6">System Dashboard</h1>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <!-- Stat Card 1 -->
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                                <i class="fas fa-users text-white text-xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-                                    <dd class="text-3xl font-semibold text-gray-900" id="stat-users">-</dd>
-                                </dl>
-                            </div>
-                        </div>
+            <!-- Loading Overlay -->
+            <div id="loading"
+                class="fixed inset-0 bg-white/80 backdrop-blur-md z-50 flex flex-col items-center justify-center transition-opacity duration-300">
+                <div class="relative">
+                    <div class="w-16 h-16 border-4 border-teal-100 border-t-teal-500 rounded-full animate-spin"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <i class="fas fa-shield-alt text-teal-500 text-lg"></i>
                     </div>
                 </div>
-
-                <!-- Stat Card 2 -->
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
-                                <i class="fas fa-database text-white text-xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">Active Configs</dt>
-                                    <dd class="text-3xl font-semibold text-gray-900" id="stat-configs">-</dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Stat Card 3 -->
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="p-5">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                                <i class="fas fa-tools text-white text-xl"></i>
-                            </div>
-                            <div class="ml-5 w-0 flex-1">
-                                <dl>
-                                    <dt class="text-sm font-medium text-gray-500 truncate">System Status-</dt>
-                                    <dd class="text-lg font-semibold text-green-600 mt-1">Operational</dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <p class="mt-4 text-sm font-medium text-gray-500 animate-pulse">Authenticating Admin...</p>
             </div>
 
-            <!-- Recent Activity Table -->
-            <div class="bg-white shadow rounded-lg">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Recent Configuration Changes</h3>
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="view-section px-8 py-8 fade-in-up">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Overview</h2>
+                        <p class="text-gray-500 mt-1 text-sm">Welcome back, here's what's happening today.</p>
+                    </div>
+                    <span
+                        class="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 shadow-sm">
+                        <i class="far fa-calendar mr-2"></i> <span id="current-date">Today</span>
+                    </span>
                 </div>
-                <ul id="activity-list" class="divide-y divide-gray-200">
-                    <li class="px-6 py-4 text-center text-gray-500 text-sm">Loading activity...</li>
-                </ul>
-            </div>
-        </div>
 
-        <!-- USER MANAGEMENT VIEW -->
-        <div id="view-users" class="view-section hidden px-8 py-6">
-            <h1 class="text-2xl font-bold text-gray-900 mb-6">User Management</h1>
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Users Card -->
+                    <div
+                        class="bg-white rounded-2xl p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.08)] border border-gray-100 relative overflow-hidden group hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.12)] transition-shadow duration-300">
+                        <div
+                            class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform duration-500">
+                        </div>
+                        <div class="relative z-10">
+                            <div class="flex justify-between items-start mb-4">
+                                <div
+                                    class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shadow-inner">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <span
+                                    class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Total
+                                    Users</span>
+                            </div>
+                            <h3 class="text-4xl font-bold text-gray-900 mb-1" id="stat-users">-</h3>
+                            <a href="#" onclick="showSection('user-list')"
+                                class="text-sm text-indigo-600 hover:text-indigo-700 font-medium inline-flex items-center group-hover:translate-x-1 transition-transform">
+                                Manage Users <i class="fas fa-arrow-right ml-1 text-xs"></i>
+                            </a>
+                        </div>
+                    </div>
 
-            <div class="bg-white shadow rounded-lg max-w-2xl">
-                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3 class="text-lg font-medium text-gray-900">Create New User</h3>
-                    <p class="text-sm text-gray-500">Add a new user to the system. They will receive a confirmation
-                        email.</p>
-                </div>
-                <div class="p-6">
-                    <form id="createUserForm" onsubmit="handleCreateUser(event)" class="space-y-4">
+                    <!-- Configs Card -->
+                    <div
+                        class="bg-white rounded-2xl p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.08)] border border-gray-100 relative overflow-hidden group hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.12)] transition-shadow duration-300">
+                        <div
+                            class="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-bl-full -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform duration-500">
+                        </div>
+                        <div class="relative z-10">
+                            <div class="flex justify-between items-start mb-4">
+                                <div
+                                    class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-xl shadow-inner">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <span
+                                    class="bg-teal-50 text-teal-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">Active
+                                    Configs</span>
+                            </div>
+                            <h3 class="text-4xl font-bold text-gray-900 mb-1" id="stat-configs">-</h3>
+                            <span class="text-sm text-gray-400">System modules active</span>
+                        </div>
+                    </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Name -->
+                    <!-- System Status Card -->
+                    <div
+                        class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-lg text-white relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10">
+                        </div>
+                        <div class="relative z-10 h-full flex flex-col justify-between">
+                            <div class="flex justify-between items-center mb-4">
+                                <div
+                                    class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-xl backdrop-blur-sm">
+                                    <i class="fas fa-server"></i>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span
+                                        class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
+                                    <span
+                                        class="text-xs font-bold text-emerald-400 uppercase tracking-widest">Online</span>
+                                </div>
+                            </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Full Name</label>
-                                <input type="text" id="new-user-name" required
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2">
-                            </div>
-
-                            <!-- Role -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Role</label>
-                                <select id="new-user-role"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2">
-                                    <option value="user">Standard User</option>
-                                    <option value="admin">Administrator</option>
-                                </select>
+                                <h3 class="text-lg font-medium text-gray-200">System Health</h3>
+                                <p class="text-3xl font-bold mt-1">100% <span
+                                        class="text-sm font-normal text-gray-400">Operational</span></p>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Email -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Email Address</label>
-                            <input type="email" id="new-user-email" required placeholder="user@merillife.com"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2">
-                        </div>
-
-                        <!-- Password -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Password</label>
-                            <input type="password" id="new-user-pass" required minlength="6"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2">
-                        </div>
-
-                        <!-- Actions -->
-                        <div class="pt-4 flex items-center justify-end">
-                            <button type="submit" id="btn-create-user"
-                                class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-medium shadow-sm transition-colors">
-                                <i class="fas fa-plus mr-2"></i> Create Account
-                            </button>
-                        </div>
-                    </form>
+                <!-- Recent Activity -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                        <h3 class="font-bold text-gray-800">Recent Configuration Changes</h3>
+                        <button class="text-gray-400 hover:text-teal-600 transition-colors"><i
+                                class="fas fa-ellipsis-h"></i></button>
+                    </div>
+                    <ul id="activity-list" class="divide-y divide-gray-50">
+                        <li class="px-6 py-8 text-center text-gray-400 text-sm italic">
+                            <i class="fas fa-circle-notch fa-spin mr-2"></i> Loading activity log...
+                        </li>
+                    </ul>
                 </div>
             </div>
 
-            <div id="user-msg-container" class="mt-4 max-w-2xl"></div>
-        </div>
+            <!-- Create User View -->
+            <div id="view-users" class="view-section px-8 py-8 hidden fade-in-up">
+                <div class="max-w-2xl mx-auto">
+                    <div class="mb-8 text-center">
+                        <div
+                            class="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600 text-2xl shadow-sm">
+                            <i class="fas fa-user-plus"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-900">Create New Account</h2>
+                        <p class="text-gray-500 mt-2">Add a new user to the ecosystem. They'll receive an email to set
+                            up access.</p>
+                    </div>
 
-        <!-- GENERIC TOOL EDITOR VIEW -->
-        <div id="view-tool-editor" class="view-section hidden px-8 py-6">
-            <div class="flex justify-between items-center mb-6">
-                <div>
-                    <h1 class="text-2xl font-bold text-gray-900" id="editor-title">Tool Configuration</h1>
-                    <p class="text-sm text-gray-500" id="editor-subtitle">Manage settings for this tool.</p>
+                    <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                        <form id="createUserForm" onsubmit="handleCreateUser(event)" class="p-8 space-y-6">
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Full
+                                        Name</label>
+                                    <input type="text" id="new-user-name" required
+                                        class="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none"
+                                        placeholder="e.g. Jane Doe">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Role
+                                        Access</label>
+                                    <select id="new-user-role"
+                                        class="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
+                                        <option value="user">Standard User</option>
+                                        <option value="admin">Administrator</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Email
+                                    Address</label>
+                                <div class="relative">
+                                    <i
+                                        class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    <input type="email" id="new-user-email" required placeholder="user@merillife.com"
+                                        class="w-full pl-10 pr-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Password</label>
+                                <div class="relative">
+                                    <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    <input type="password" id="new-user-pass" required minlength="6"
+                                        placeholder="••••••••"
+                                        class="w-full pl-10 pr-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
+                                </div>
+                                <p class="text-xs text-gray-400 text-right">Min 6 characters</p>
+                            </div>
+
+                            <div class="pt-4 flex items-center justify-end space-x-4">
+                                <button type="button" onclick="document.getElementById('createUserForm').reset()"
+                                    class="px-6 py-2.5 rounded-lg text-sm font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors">Reset</button>
+                                <button type="submit" id="btn-create-user"
+                                    class="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-lg shadow-indigo-600/30 transform hover:-translate-y-0.5 transition-all w-full md:w-auto">
+                                    Create Account
+                                </button>
+                            </div>
+
+                        </form>
+                    </div>
+
+                    <div id="user-msg-container" class="mt-6"></div>
                 </div>
-                <div class="space-x-2">
-                    <div class="inline-flex rounded-md shadow-sm" role="group">
+            </div>
+
+            <!-- User List View -->
+            <div id="view-user-list" class="view-section px-8 py-8 hidden fade-in-up">
+                <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-900">User Directory</h2>
+                        <p class="text-gray-500 mt-1">View and manage all registered users.</p>
+                    </div>
+                    <button onclick="loadUsers()"
+                        class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-bold shadow-sm hover:border-gray-300 hover:text-gray-800 transition-all flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i> Refresh List
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="bg-gray-50/50 border-b border-gray-100">
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        User Profile</th>
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        Role</th>
+                                    <th
+                                        class="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        Last Activity</th>
+                                    <th
+                                        class="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body" class="divide-y divide-gray-50">
+                                <tr>
+                                    <td colspan="4" class="px-6 py-12 text-center">
+                                        <div class="flex flex-col items-center justify-center text-gray-400">
+                                            <i class="fas fa-circle-notch fa-spin text-2xl mb-2 text-teal-500"></i>
+                                            <span class="text-sm">Fetching user data...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tool Editor View -->
+            <div id="view-tool-editor" class="view-section px-8 py-8 hidden fade-in-up">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span
+                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 uppercase tracking-wide">Configuring</span>
+                            <span class="text-xs font-mono text-gray-400" id="config-key-display">key_name</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-900" id="editor-title">Tool Name</h2>
+                        <p class="text-gray-500" id="editor-subtitle">Manage configuration settings.</p>
+                    </div>
+
+                    <div class="flex items-center gap-3 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
                         <button onclick="setVisibleEditorMode('visual')" id="btn-mode-visual"
-                            class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700">
-                            <i class="fas fa-sliders-h mr-1"></i> Visual
+                            class="px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2">
+                            <i class="fas fa-sliders"></i> Visual
                         </button>
                         <button onclick="setVisibleEditorMode('code')" id="btn-mode-code"
-                            class="px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-100 focus:z-10 focus:ring-2 focus:ring-blue-700 focus:text-blue-700">
-                            <i class="fas fa-code mr-1"></i> Code
+                            class="px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2">
+                            <i class="fas fa-code"></i> JSON
                         </button>
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="sticky top-4 z-20 bg-white/90 backdrop-blur-md rounded-xl border border-gray-200 shadow-lg p-3 mb-6 flex justify-between items-center transform transition-all"
+                    id="action-bar">
+                    <div class="flex items-center gap-2 text-sm text-gray-500 px-2">
+                        <i class="fas fa-info-circle text-teal-500"></i>
+                        <span>Make changes below</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="resetEditor()"
+                            class="px-4 py-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors">Discard</button>
+                        <button onclick="loadTemplate()"
+                            class="px-4 py-2 rounded-lg text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 transition-colors">Load
+                            Template</button>
+                        <button onclick="saveCurrentConfig()"
+                            class="px-6 py-2 rounded-lg text-xs font-bold text-white bg-gray-900 hover:bg-black shadow-md transition-all flex items-center gap-2">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Visual Editor -->
+                <div id="visual-editor-container"
+                    class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 hidden">
+                    <div id="visual-controls" class="space-y-6"></div>
+                </div>
+
+                <!-- JSON Editor -->
+                <div id="json-editor-container" class="bg-[#1e1e1e] rounded-2xl shadow-2xl overflow-hidden hidden">
+                    <div class="px-6 py-3 bg-[#252526] flex justify-between items-center border-b border-[#333]">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest"><i
+                                class="fas fa-code mr-2"></i>Source</span>
+                        <span class="text-[10px] text-gray-500">JSON</span>
+                    </div>
+                    <textarea id="json-editor"
+                        class="w-full h-[600px] p-6 bg-[#1e1e1e] text-blue-200 font-mono text-sm border-0 focus:ring-0 resize-none outline-none leading-relaxed"
+                        spellcheck="false"></textarea>
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                    <div id="save-status"
+                        class="hidden px-4 py-2 bg-green-50 text-green-700 text-sm font-bold rounded-lg items-center gap-2 animate-bounce">
+                        <i class="fas fa-check-circle"></i> Saved Successfully
                     </div>
                 </div>
             </div>
 
-            <div class="flex justify-end space-x-2 mb-4">
-                <button onclick="resetEditor()"
-                    class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-                    Discard Changes
-                </button>
-                <button onclick="loadTemplate()"
-                    class="px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100">
-                    <i class="fas fa-magic mr-1"></i> Load Template
-                </button>
-                <button onclick="saveCurrentConfig()"
-                    class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    <i class="fas fa-save mr-2"></i> Save Changes
-                </button>
-            </div>
+        </div>
 
-            <!-- VISUAL EDITOR CONTAINER -->
-            <div id="visual-editor-container" class="bg-white shadow rounded-lg overflow-hidden p-6 hidden">
-                <div id="visual-controls" class="space-y-6">
-                    <!-- Dynamic Controls Will Be Injected Here -->
+        <!-- Edit User Modal -->
+        <div id="modal-edit-user" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+            <div class="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onclick="closeEditUser()"></div>
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden fade-in-up">
+                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <h3 class="text-lg font-bold text-gray-900">Edit User Details</h3>
+                    <button onclick="closeEditUser()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-            </div>
+                <form id="editUserForm" onsubmit="handleUpdateUser(event)" class="p-6 space-y-4">
+                    <input type="hidden" id="edit-user-id">
 
-            <!-- JSON EDITOR CONTAINER -->
-            <div id="json-editor-container" class="bg-white shadow rounded-lg overflow-hidden hidden">
-                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                    <span class="text-sm font-medium text-gray-500">Configuration JSON</span>
-                    <span class="text-xs text-gray-400 font-mono" id="config-key-display">Key: -</span>
-                </div>
-                <div class="p-0">
-                    <textarea id="json-editor"
-                        class="w-full h-96 p-4 font-mono text-sm border-0 focus:ring-0 resize-none bg-gray-50"
-                        spellcheck="false"></textarea>
-                </div>
-            </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Full Name</label>
+                        <input type="text" id="edit-user-name" required
+                            class="w-full px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
+                    </div>
 
-            <div class="mt-4 text-right">
-                <span id="save-status" class="text-sm text-green-600 font-medium hidden">Saved successfully!</span>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Role</label>
+                        <select id="edit-user-role"
+                            class="w-full px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
+                            <option value="user">Standard User</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-100">
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Reset
+                            Password <span class="text-gray-400 font-normal normal-case">(Optional)</span></label>
+                        <div class="relative">
+                            <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="edit-user-pass" minlength="6" placeholder="New password"
+                                class="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none">
+                        </div>
+                        <p class="text-[10px] text-gray-400 mt-1">Leave blank to keep current password.</p>
+                    </div>
+
+                    <div id="edit-msg-container" class="text-sm"></div>
+
+                    <div class="pt-2 flex items-center justify-end gap-3">
+                        <button type="button" onclick="closeEditUser()"
+                            class="px-4 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-50 transition-colors">Cancel</button>
+                        <button type="submit" id="btn-update-user"
+                            class="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md transition-all">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -330,525 +626,406 @@
 
     <!-- JS Logic -->
     <script>
-        const SUPABASE_URL = 'https://etdqyrkihsbritcikpbi.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0ZHF5cmtpaHNicml0Y2lrcGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0NTMxNzksImV4cCI6MjA4NjAyOTE3OX0.gNVhroMQpc_2Yl3p8UyjdalTqzeUHvLgjcu-XxBWI1I';
-        const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
+        const SUPABASE_URL = 'https://etdqyrkihsbritcikpbi.supabase.co';
+        // NOTE: In production, do not expose keys. This is a demo.
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0ZHF5cmtpaHNicml0Y2lrcGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0NTMxNzksImV4cCI6MjA4NjAyOTE3OX0.gNVhroMQpc_2Yl3p8UyjdalTqzeUHvLgjcu-XxBWI1I';
+
+        const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         let currentUser = null;
         let currentConfigKey = null;
-        let currentEditorMode = 'visual'; // 'visual' or 'code'
 
-        // Tool Metadata Mapping
+        // Tool Config
         const TOOL_MAP = {
-            'tool-cardio': { key: 'cardio_settings', name: 'Cardio Validator', desc: 'Heart rate limits, default thresholds, etc.' },
-            'tool-mdpl': { key: 'mdpl_settings', name: 'MDPL Validator', desc: 'MDPL specific compliance rules.' },
-            'tool-mhpl': { key: 'mhpl_settings', name: 'MHPL Validator', desc: 'Hospital list and validation parsing rules.' },
-            'tool-mlsipl': { key: 'mlsipl_settings', name: 'MLSIPL Validator', desc: 'System integration endpoints.' },
-            'tool-chat': { key: 'chat_settings', name: 'Chat Application', desc: 'Message retention, file size limits, etc.' },
-            'settings': { key: 'global_settings', name: 'Global Settings', desc: 'System-wide preferences.' }
+            'tool-cardio': { key: 'cardio_settings', name: 'Cardio Validator', desc: 'Heart rate analysis configs' },
+            'tool-mdpl': { key: 'mdpl_settings', name: 'MDPL Validator', desc: 'MDPL compliance rules' },
+            'tool-mhpl': { key: 'mhpl_settings', name: 'MHPL Validator', desc: 'Hospital data settings' },
+            'tool-mlsipl': { key: 'mlsipl_settings', name: 'MLSIPL Validator', desc: 'System integration points' },
+            'tool-chat': { key: 'chat_settings', name: 'Chat System', desc: 'Messaging & retention policies' },
+            'settings': { key: 'global_settings', name: 'Global Settings', desc: 'System-wide variables' }
         };
 
-        // Default Templates
         const TEMPLATES = {
-            'cardio_settings': {
-                "enabled": true,
-                "features": {
-                    "allow_clear_data": true,
-                    "allow_switch_entity": true,
-                    "allow_local_config": true,
-                    "allow_layout_manager": true,
-                    "allow_export": true,
-                    "show_scanner_doctor": true
-                }
-            },
-            'mdpl_settings': {
-                "enabled": true,
-                "features": {
-                    "allow_clear_data": true,
-                    "allow_switch_entity": true,
-                    "allow_local_config": true,
-                    "allow_layout_manager": true,
-                    "allow_export": true,
-                    "show_scanner_doctor": true
-                }
-            },
-            'mhpl_settings': {
-                "enabled": true,
-                "features": {
-                    "allow_clear_data": true,
-                    "allow_switch_entity": true,
-                    "allow_local_config": true,
-                    "allow_layout_manager": true,
-                    "allow_export": true,
-                    "show_scanner_doctor": true
-                }
-            },
-            'mlsipl_settings': {
-                "enabled": true,
-                "version": "v1",
-                "endpoint_url": "https://api.example.com/mlsipl",
-                "api_key": "",
-                "features": {
-                    "allow_clear_data": true,
-                    "allow_switch_entity": true,
-                    "allow_local_config": true,
-                    "allow_layout_manager": true,
-                    "allow_export": true,
-                    "show_scanner_doctor": true
-                }
-            },
-            'chat_settings': {
-                "enabled": true,
-                "retention_days": 30,
-                "max_file_size_mb": 10,
-                "features": {
-                    "allow_file_upload": true,
-                    "allow_delete_msg": true,
-                    "allow_file_sharing": true,
-                    "allow_markdown": true
-                }
-            },
-            'global_settings': {
-                "system_name": "Meril Ecosystem",
-                "maintenance_mode": false,
-                "announce_message": ""
-            }
+            'cardio_settings': { "enabled": true, "features": { "allow_export": true } },
+            'mdpl_settings': { "enabled": true, "features": { "allow_export": true } },
+            'mhpl_settings': { "enabled": true, "features": { "allow_export": true } },
+            'mlsipl_settings': { "enabled": true, "version": "v1", "features": { "allow_export": true } },
+            'chat_settings': { "enabled": true, "retention_days": 30, "features": { "allow_file_sharing": true } },
+            'global_settings': { "system_name": "Meril Ecosystem", "maintenance_mode": false }
         };
 
-        // Initialize Admin Dashboard
+        // --- INIT ---
         async function init() {
             try {
                 const { data: { user } } = await sbClient.auth.getUser();
                 if (!user) throw new Error("No user");
 
-                // Check Role
-                const { data: profile } = await sbClient
-                    .from('profiles')
-                    .select('role, username')
-                    .eq('id', user.id)
-                    .single();
-
+                const { data: profile } = await sbClient.from('profiles').select('role, username').eq('id', user.id).single();
                 if (!profile || profile.role !== 'admin') {
-                    // STRICT: Redirect immediately
                     window.location.href = 'index.html';
                     return;
                 }
 
                 currentUser = user;
                 document.getElementById('admin-name').innerText = profile.username || user.email.split('@')[0];
-                document.getElementById('admin-avatar').innerText = (profile.username || user.email).charAt(0).toUpperCase();
-
-                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('loading').classList.add('opacity-0', 'pointer-events-none');
 
                 loadDashboardStats();
 
             } catch (e) {
-                console.error("Auth failed:", e);
-                // Redirect on error too for safety
+                console.error(e);
                 window.location.href = 'index.html';
             }
         }
 
-        window.loadTemplate = function () {
-            if (confirm("This will overwrite current editor content with the default template. Continue?")) {
-                const template = TEMPLATES[currentConfigKey] || {};
-                const jsonStr = JSON.stringify(template, null, 2);
-                document.getElementById('json-editor').value = jsonStr;
-                renderVisualEditor(template); // Update visual
-            }
-        }
-
-        window.setVisibleEditorMode = function (mode) {
-            currentEditorMode = mode;
-            const visualBtn = document.getElementById('btn-mode-visual');
-            const codeBtn = document.getElementById('btn-mode-code');
-            const visualContainer = document.getElementById('visual-editor-container');
-            const jsonContainer = document.getElementById('json-editor-container');
-
-            if (mode === 'visual') {
-                visualBtn.classList.replace('text-gray-500', 'text-gray-900');
-                codeBtn.classList.replace('text-gray-900', 'text-gray-500');
-
-                // Sync Code -> Visual
-                try {
-                    const json = JSON.parse(document.getElementById('json-editor').value);
-                    renderVisualEditor(json);
-                    visualContainer.classList.remove('hidden');
-                    jsonContainer.classList.add('hidden');
-                } catch (e) {
-                    alert("Invalid JSON in Code Editor. Please fix before switching to Visual Mode.");
-                    return;
-                }
-
-            } else {
-                codeBtn.classList.replace('text-gray-500', 'text-gray-900');
-                visualBtn.classList.replace('text-gray-900', 'text-gray-500');
-
-                // Sync Visual -> Code (Assuming visual updates JSON on change, so just show)
-                visualContainer.classList.add('hidden');
-                jsonContainer.classList.remove('hidden');
-            }
-        }
-
-        function renderVisualEditor(config) {
-            const container = document.getElementById('visual-controls');
-            container.innerHTML = ''; // Clear
-
-            // Helper to create toggle
-            function createToggle(key, label, value, onChange) {
-                const wrapper = document.createElement('div');
-                wrapper.className = "flex items-center justify-between py-3 border-b border-gray-100 last:border-0";
-
-                const labelDiv = document.createElement('div');
-                labelDiv.innerHTML = `<p class="text-sm font-medium text-gray-900">${label}</p><p class="text-xs text-gray-500 font-mono">${key}</p>`;
-
-                const toggleLabel = document.createElement('label');
-                toggleLabel.className = "relative inline-flex items-center cursor-pointer";
-
-                const input = document.createElement('input');
-                input.type = "checkbox";
-                input.className = "sr-only peer";
-                input.checked = value;
-                input.onchange = (e) => onChange(e.target.checked);
-
-                const slider = document.createElement('div');
-                slider.className = "w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600";
-
-                toggleLabel.appendChild(input);
-                toggleLabel.appendChild(slider);
-
-                wrapper.appendChild(labelDiv);
-                wrapper.appendChild(toggleLabel);
-                return wrapper;
-            }
-
-            // Helper to create textarea
-            function createTextArea(key, label, value, onChange) {
-                const wrapper = document.createElement('div');
-                wrapper.className = "py-3 border-b border-gray-100 last:border-0";
-
-                const labelEl = document.createElement('label');
-                labelEl.className = "block text-sm font-medium text-gray-700 mb-1";
-                labelEl.innerText = label;
-
-                const subLabel = document.createElement('p');
-                subLabel.className = "text-xs text-gray-500 font-mono mb-2";
-                subLabel.innerText = key;
-
-                const textarea = document.createElement('textarea');
-                textarea.className = "w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border font-mono text-xs";
-                textarea.rows = 6;
-                textarea.value = value || "";
-                textarea.placeholder = "Paste CSV data here...";
-                textarea.oninput = (e) => onChange(e.target.value);
-
-                wrapper.appendChild(labelEl);
-                wrapper.appendChild(subLabel);
-                wrapper.appendChild(textarea);
-                return wrapper;
-            }
-
-            // Helper to create input field
-            function createInput(key, label, value, onChange) {
-                const wrapper = document.createElement('div');
-                wrapper.className = "py-3 border-b border-gray-100 last:border-0";
-
-                const labelEl = document.createElement('label');
-                labelEl.className = "block text-sm font-medium text-gray-700 mb-1";
-                labelEl.innerText = label;
-
-                const subLabel = document.createElement('p');
-                subLabel.className = "text-xs text-gray-500 font-mono mb-2";
-                subLabel.innerText = key;
-
-                const input = document.createElement('input');
-                input.type = typeof value === 'number' ? 'number' : 'text';
-                input.className = "w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border";
-                input.value = value;
-                input.oninput = (e) => onChange(input.type === 'number' ? parseFloat(e.target.value) : e.target.value);
-
-                wrapper.appendChild(labelEl);
-                wrapper.appendChild(subLabel);
-                wrapper.appendChild(input);
-                return wrapper;
-            }
-
-            // Universal Control Creator
-            function createControl(key, value, parentObj) {
-                if (key === 'features') return; // Handled separately
-                if (key === 'version') return; // Skip version
-
-                // Special handling for CSV fields
-                if (key.includes('_csv') || key === 'master_data' || key === 'rules_data') {
-                    container.appendChild(createTextArea(key, formatLabel(key), value, (newVal) => {
-                        parentObj[key] = newVal;
-                        updateJsonFromVisual(config);
-                    }));
-                    return;
-                }
-
-                if (typeof value === 'boolean') {
-                    container.appendChild(createToggle(key, formatLabel(key), value, (newVal) => {
-                        parentObj[key] = newVal;
-                        updateJsonFromVisual(config);
-                    }));
-                } else if (typeof value === 'string' || typeof value === 'number') {
-                    container.appendChild(createInput(key, formatLabel(key), value, (newVal) => {
-                        parentObj[key] = newVal;
-                        updateJsonFromVisual(config);
-                    }));
-                }
-            }
-
-            // 1. Render Root Properties
-            const rootHeader = document.createElement('div');
-            rootHeader.innerHTML = '<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">General</h3>';
-            container.appendChild(rootHeader);
-
-            Object.keys(config).forEach(key => {
-                if (key !== 'features') {
-                    createControl(key, config[key], config);
-                }
+        // --- NAVIGATION ---
+        window.showSection = function (id) {
+            // Updated Sidebar States
+            document.querySelectorAll('.sidebar-link').forEach(el => {
+                el.classList.remove('sidebar-active', 'bg-teal-50', 'text-teal-700');
+                el.classList.add('text-gray-600');
             });
 
-            // 2. Render Features Object
-            if (config.features) {
-                const featuresHeader = document.createElement('h3');
-                featuresHeader.className = "text-xs font-bold text-gray-400 uppercase tracking-wider mt-6 mb-2 border-t pt-4";
-                featuresHeader.innerText = "Features Configuration";
-                container.appendChild(featuresHeader);
-
-                Object.keys(config.features).forEach(key => {
-                    createControl(key, config.features[key], config.features);
-                });
-            }
-        }
-
-        function formatLabel(key) {
-            return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        }
-
-        function updateJsonFromVisual(config) {
-            document.getElementById('json-editor').value = JSON.stringify(config, null, 2);
-        }
-
-        // Navigation Logic
-        window.showSection = function (sectionId) {
-            // Update Sidebar
-            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('sidebar-active', 'bg-indigo-600', 'text-white'));
-            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.add('text-gray-600'));
-
-            const activeLink = document.getElementById(`nav-${sectionId}`);
-            if (activeLink) {
-                activeLink.classList.add('sidebar-active');
-                activeLink.classList.remove('text-gray-600');
+            const link = document.getElementById(`nav-${id}`);
+            if (link) {
+                link.classList.add('sidebar-active');
+                link.classList.remove('text-gray-600');
             }
 
-            // Hide all views
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            // Hide Views
+            document.querySelectorAll('.view-section').forEach(el => {
+                el.classList.remove('fade-in-up');
+                el.classList.add('hidden');
+            });
 
-            if (sectionId === 'dashboard') {
-                document.getElementById('view-dashboard').classList.remove('hidden');
-                loadDashboardStats();
-            } else if (sectionId === 'users') {
-                document.getElementById('view-users').classList.remove('hidden');
-            } else {
-                loadToolEditor(sectionId);
-            }
-        }
+            // Show Target
+            const view = document.getElementById(id === 'users' ? 'view-users' : (id === 'dashboard' ? 'view-dashboard' : (id === 'user-list' ? 'view-user-list' : 'view-tool-editor')));
 
-        async function handleCreateUser(e) {
-            e.preventDefault();
-            const btn = document.getElementById('btn-create-user');
-            const msgContainer = document.getElementById('user-msg-container');
-            const email = document.getElementById('new-user-email').value;
-            const password = document.getElementById('new-user-pass').value;
-            const name = document.getElementById('new-user-name').value;
-            const role = document.getElementById('new-user-role').value;
+            view.classList.remove('hidden');
+            // Trigger Reflow for animation
+            void view.offsetWidth;
+            view.classList.add('fade-in-up');
 
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Creating...';
-            msgContainer.innerHTML = '';
+            if (id === 'dashboard') loadDashboardStats();
+            else if (id === 'user-list') loadUsers();
+            else if (id !== 'users') loadToolEditor(id);
+        };
 
-            try {
-                const tempClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                    auth: {
-                        persistSession: false,
-                        autoRefreshToken: false,
-                        detectSessionInUrl: false
-                    }
-                });
-
-                const { data, error } = await tempClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: { full_name: name, role: role }
-                    }
-                });
-
-                if (error) throw error;
-
-                if (data.user) {
-                    if (role === 'admin') {
-                        await sbClient
-                            .from('profiles')
-                            .update({ role: 'admin' })
-                            .eq('id', data.user.id);
-                    }
-
-                    msgContainer.innerHTML = `
-                        <div class="rounded-md bg-green-50 p-4">
-                            <div class="flex">
-                                <div class="flex-shrink-0">
-                                    <i class="fas fa-check-circle text-green-400"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <h3 class="text-sm font-medium text-green-800">User Created Successfully</h3>
-                                    <div class="mt-2 text-sm text-green-700">
-                                        <p>User <strong>${email}</strong> has been created with role <strong>${role}</strong>.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`;
-
-                    document.getElementById('createUserForm').reset();
-                }
-
-            } catch (err) {
-                console.error("Create User Error:", err);
-                msgContainer.innerHTML = `
-                    <div class="rounded-md bg-red-50 p-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-times-circle text-red-400"></i>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-red-800">Creation Failed</h3>
-                                <div class="mt-2 text-sm text-red-700">
-                                    <p>${err.message}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-plus mr-2"></i> Create Account';
-            }
-        }
-
+        // --- DASHBOARD STATS ---
         async function loadDashboardStats() {
-            // Users count
-            const { count } = await sbClient.from('profiles').select('*', { count: 'exact', head: true });
-            document.getElementById('stat-users').innerText = count || 0;
+            const { count: uCount } = await sbClient.from('profiles').select('*', { count: 'exact', head: true });
+            document.getElementById('stat-users').innerText = uCount || 0;
 
-            // Configs count
-            const { count: confCount } = await sbClient.from('global_config').select('*', { count: 'exact', head: true });
-            document.getElementById('stat-configs').innerText = confCount || 0;
+            const { count: cCount } = await sbClient.from('global_config').select('*', { count: 'exact', head: true });
+            document.getElementById('stat-configs').innerText = cCount || 0;
 
-            // Activity Log (Mock based on updated_at)
-            const { data: activity } = await sbClient
-                .from('global_config')
-                .select('key, updated_at')
-                .order('updated_at', { ascending: false })
-                .limit(5);
+            const { data: logs } = await sbClient.from('global_config').select('key, updated_at').order('updated_at', { ascending: false }).limit(5);
 
             const list = document.getElementById('activity-list');
             list.innerHTML = '';
-            if (activity && activity.length > 0) {
-                activity.forEach(item => {
+            if (logs && logs.length) {
+                logs.forEach(l => {
                     list.innerHTML += `
-                        <li class="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
-                            <div>
-                                <p class="text-sm font-medium text-indigo-600">${item.key}</p>
-                                <p class="text-xs text-gray-500">Configuration updated</p>
+                        <li class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-default group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-xs group-hover:bg-teal-100 transition-colors">
+                                    <i class="fas fa-edit"></i>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-bold text-gray-700">${l.key}</span>
+                                    <span class="text-[10px] text-gray-400 uppercase tracking-wider">Modified</span>
+                                </div>
                             </div>
-                            <span class="text-xs text-gray-400">${new Date(item.updated_at).toLocaleString()}</span>
-                        </li>
-                    `;
+                            <span class="text-xs font-mono text-gray-400">${new Date(l.updated_at).toLocaleDateString()}</span>
+                        </li>`;
                 });
             } else {
-                list.innerHTML = '<li class="px-6 py-4 text-center text-gray-500 text-sm">No recent activity.</li>';
+                list.innerHTML = `<li class="px-6 py-8 text-center text-gray-400 text-sm italic">No recent activity found.</li>`;
             }
         }
 
-        async function loadToolEditor(toolId) {
-            const tool = TOOL_MAP[toolId];
-            if (!tool) return;
+        // --- USER MANAGEMENT ---
+        async function handleCreateUser(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-create-user');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Processing';
+            btn.disabled = true;
 
-            document.getElementById('view-tool-editor').classList.remove('hidden');
-            document.getElementById('editor-title').innerText = tool.name;
-            document.getElementById('editor-subtitle').innerText = tool.desc;
-            document.getElementById('config-key-display').innerText = `Key: ${tool.key}`;
-            document.getElementById('json-editor').value = 'Loading...';
-            document.getElementById('save-status').classList.add('hidden');
+            const name = document.getElementById('new-user-name').value;
+            const role = document.getElementById('new-user-role').value;
+            const email = document.getElementById('new-user-email').value;
+            const pass = document.getElementById('new-user-pass').value;
+            const msg = document.getElementById('user-msg-container');
 
+            try {
+                // Secondary Client for Auth creation
+                const tempClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+                const { data, error } = await tempClient.auth.signUp({
+                    email, password: pass, options: { data: { full_name: name, role: role } }
+                });
+
+                if (error) throw error;
+                if (data.user && role === 'admin') {
+                    await sbClient.from('profiles').update({ role: 'admin' }).eq('id', data.user.id);
+                }
+
+                msg.innerHTML = `<div class="p-4 rounded-xl bg-green-50 border border-green-100 text-green-700 flex items-center gap-3"><i class="fas fa-check-circle text-xl"></i><div><p class="font-bold">Success!</p><p class="text-xs">User created.</p></div></div>`;
+                document.getElementById('createUserForm').reset();
+                setTimeout(() => msg.innerHTML = '', 4000);
+
+            } catch (err) {
+                msg.innerHTML = `<div class="p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 flex items-center gap-3"><i class="fas fa-exclamation-circle text-xl"></i><div><p class="font-bold">Error</p><p class="text-xs">${err.message}</p></div></div>`;
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function loadUsers() {
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-gray-400"><i class="fas fa-circle-notch fa-spin text-2xl mb-2 text-teal-500"></i><br>Loading...</td></tr>';
+
+            try {
+                const { data: users, error } = await sbClient.from('profiles').select('*').order('email');
+                if (error) throw error;
+
+                if (!users.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-gray-400">No users found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = users.map(u => `
+                    <tr class="hover:bg-gray-50/80 transition-colors group">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-sm shadow-sm">
+                                    ${(u.full_name || u.username || u.email || 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-bold text-gray-900">${u.full_name || u.username || 'Unknown'}</div>
+                                    <div class="text-xs text-gray-400 font-mono">${u.email || u.id}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-green-50 text-green-700 border border-green-100'}">
+                                ${u.role || 'user'}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-xs font-mono text-gray-400">
+                            ${u.updated_at ? new Date(u.updated_at).toLocaleDateString() : '-'}
+                        </td>
+                        <td class="px-6 py-4 text-right flex justify-end gap-2">
+                            <button onclick="openEditUser('${u.id}', '${(u.full_name || '').replace(/'/g, "\\'")}', '${u.role || 'user'}')" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all" title="Edit User">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteUser('${u.id}')" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600 transition-all" title="Delete User">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-red-500">Error: ${err.message}</td></tr>`;
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm("DELETE USER?\nThis cannot be undone.")) return;
+            await sbClient.from('profiles').delete().eq('id', id);
+            loadUsers();
+        }
+
+        // --- EDIT USER LOGIC ---
+        function openEditUser(id, name, role) {
+            document.getElementById('edit-user-id').value = id;
+            document.getElementById('edit-user-name').value = name;
+            document.getElementById('edit-user-role').value = role;
+            document.getElementById('edit-user-pass').value = '';
+            document.getElementById('edit-msg-container').innerText = '';
+            document.getElementById('modal-edit-user').classList.remove('hidden');
+        }
+
+        function closeEditUser() {
+            document.getElementById('modal-edit-user').classList.add('hidden');
+        }
+
+        async function handleUpdateUser(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-update-user');
+            const id = document.getElementById('edit-user-id').value;
+            const name = document.getElementById('edit-user-name').value;
+            const role = document.getElementById('edit-user-role').value;
+            const pass = document.getElementById('edit-user-pass').value;
+            const msg = document.getElementById('edit-msg-container');
+
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Saving...';
+            btn.disabled = true;
+            msg.innerHTML = '';
+
+            try {
+                // 1. Update Profile (Name & Role)
+                const { error: profileError } = await sbClient
+                    .from('profiles')
+                    .update({ full_name: name, role: role, updated_at: new Date() })
+                    .eq('id', id);
+
+                if (profileError) throw profileError;
+
+                // 2. Reset Password (if provided)
+                if (pass && pass.length > 0) {
+                    const { error: passError } = await sbClient.rpc('admin_reset_user_password', {
+                        target_user_id: id,
+                        new_password: pass
+                    });
+
+                    if (passError) throw new Error('Password Reset Failed: ' + passError.message);
+                }
+
+                msg.innerHTML = `<span class="text-green-600 font-bold"><i class="fas fa-check-circle mr-1"></i> User updated successfully!</span>`;
+                setTimeout(() => {
+                    closeEditUser();
+                    loadUsers();
+                }, 1500);
+
+            } catch (err) {
+                console.error(err);
+                msg.innerHTML = `<span class="text-red-600 font-bold"><i class="fas fa-exclamation-circle mr-1"></i> ${err.message}</span>`;
+            } finally {
+                btn.innerHTML = 'Save Changes';
+                btn.disabled = false;
+            }
+        }
+
+        // --- EDITOR LOGIC ---
+        function setVisibleEditorMode(mode) {
+            const vBtn = document.getElementById('btn-mode-visual');
+            const cBtn = document.getElementById('btn-mode-code');
+            const vCon = document.getElementById('visual-editor-container');
+            const jCon = document.getElementById('json-editor-container');
+
+            if (mode === 'visual') {
+                vBtn.classList.replace('text-gray-600', 'bg-gray-900');
+                vBtn.classList.replace('text-gray-600', 'text-white'); // Fix active style
+                vBtn.className = "px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 bg-gray-900 text-white shadow-lg shadow-gray-900/20";
+
+                cBtn.className = "px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 text-gray-500 hover:bg-gray-50";
+
+                try {
+                    const json = JSON.parse(document.getElementById('json-editor').value);
+                    renderVisualEditor(json);
+                    vCon.classList.remove('hidden');
+                    jCon.classList.add('hidden');
+                } catch (e) { alert("JSON Error"); }
+            } else {
+                cBtn.className = "px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 bg-gray-900 text-white shadow-lg shadow-gray-900/20";
+                vBtn.className = "px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 text-gray-500 hover:bg-gray-50";
+
+                vCon.classList.add('hidden');
+                jCon.classList.remove('hidden');
+            }
+        }
+
+        async function loadToolEditor(id) {
+            const tool = TOOL_MAP[id];
             currentConfigKey = tool.key;
 
-            // Fetch Data
-            const { data, error } = await sbClient
-                .from('global_config')
-                .select('value')
-                .eq('key', tool.key)
-                .single();
+            document.getElementById('editor-title').innerText = tool.name;
+            document.getElementById('editor-subtitle').innerText = tool.desc;
+            document.getElementById('config-key-display').innerText = tool.key;
 
-            // MERGE Logic: Ensure new fields from template exist in fetched data
+            const { data } = await sbClient.from('global_config').select('value').eq('key', tool.key).single();
             const defaults = TEMPLATES[tool.key] || {};
-            let configData = defaults;
+            const config = { ...defaults, ...(data?.value || {}) };
 
-            if (data && data.value) {
-                // Merge: defaults first, then overwrite with DB data.
-                // But we want to ensure keys from defaults exist if missing in DB.
-                // Simple spread might lose nested 'features' if we aren't careful,
-                // but here we just want to ensure root keys exist.
-                configData = { ...defaults, ...data.value };
-
-                // Ensure features object is also merged if it exists
-                if (defaults.features && data.value.features) {
-                    configData.features = { ...defaults.features, ...data.value.features };
-                }
+            if (defaults.features && data?.value?.features) {
+                config.features = { ...defaults.features, ...data.value.features };
             }
 
-            document.getElementById('json-editor').value = JSON.stringify(configData, null, 2);
-
-            // Default to Visual Mode
+            document.getElementById('json-editor').value = JSON.stringify(config, null, 2);
             setVisibleEditorMode('visual');
         }
 
-        window.saveCurrentConfig = async function () {
-            const editor = document.getElementById('json-editor');
-            const status = document.getElementById('save-status');
+        function renderVisualEditor(config) {
+            const con = document.getElementById('visual-controls');
+            con.innerHTML = '';
 
-            try {
-                const json = JSON.parse(editor.value);
+            // Generate Features Grid
+            if (config.features) {
+                const grp = document.createElement('div');
+                grp.className = "mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100";
+                grp.innerHTML = '<h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Feature Flags</h4>';
 
-                const { error } = await sbClient
-                    .from('global_config')
-                    .upsert({
-                        key: currentConfigKey,
-                        value: json,
-                        updated_at: new Date(),
-                        updated_by: currentUser.id
-                    });
+                const grid = document.createElement('div');
+                grid.className = "grid grid-cols-1 md:grid-cols-2 gap-4";
 
-                if (error) throw error;
-
-                status.innerText = "Saved successfully!";
-                status.classList.remove('hidden', 'text-red-600');
-                status.classList.add('text-green-600');
-                setTimeout(() => status.classList.add('hidden'), 3000);
-
-            } catch (e) {
-                status.innerText = "Error: " + e.message;
-                status.classList.remove('hidden', 'text-green-600');
-                status.classList.add('text-red-600');
+                Object.keys(config.features).forEach(k => {
+                    grid.appendChild(createToggle(k, config.features[k], (v) => {
+                        config.features[k] = v;
+                        updateJson(config);
+                    }));
+                });
+                grp.appendChild(grid);
+                con.appendChild(grp);
             }
+
+            // General Settings
+            Object.keys(config).forEach(k => {
+                if (k !== 'features') {
+                    if (typeof config[k] === 'boolean') {
+                        con.appendChild(createToggle(k, config[k], (v) => { config[k] = v; updateJson(config); }));
+                    } else if (typeof config[k] === 'string' || typeof config[k] === 'number') {
+                        con.appendChild(createInput(k, config[k], (v) => { config[k] = v; updateJson(config); }));
+                    }
+                }
+            });
         }
 
-        window.resetEditor = function () {
-            if (confirm("Discard unsaved changes and reload?")) {
-                loadToolEditor(Object.keys(TOOL_MAP).find(k => TOOL_MAP[k].key === currentConfigKey));
-            }
+        function createToggle(key, val, cb) {
+            const div = document.createElement('div');
+            div.className = "flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 shadow-sm hover:border-teal-200 transition-all";
+            div.innerHTML = `
+                <div>
+                   <div class="text-sm font-bold text-gray-800 capitalize">${key.replace(/_/g, ' ')}</div>
+                   <div class="text-[10px] font-mono text-gray-400">${key}</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" class="sr-only peer toggle-checkbox" ${val ? 'checked' : ''}>
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 toggle-label"></div>
+                </label>`;
+            div.querySelector('input').onchange = (e) => cb(e.target.checked);
+            return div;
+        }
+
+        function createInput(key, val, cb) {
+            const div = document.createElement('div');
+            div.className = "mb-4";
+            const isNum = typeof val === 'number';
+            div.innerHTML = `
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">${key.replace(/_/g, ' ')}</label>
+                <input type="${isNum ? 'number' : 'text'}" value="${val}" class="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all outline-none font-medium text-gray-700">`;
+            div.querySelector('input').oninput = (e) => cb(isNum ? parseFloat(e.target.value) : e.target.value);
+            return div;
+        }
+
+        function updateJson(config) {
+            document.getElementById('json-editor').value = JSON.stringify(config, null, 2);
+        }
+
+        async function saveCurrentConfig() {
+            const status = document.getElementById('save-status');
+            try {
+                const json = JSON.parse(document.getElementById('json-editor').value);
+                const { error } = await sbClient.from('global_config').upsert({
+                    key: currentConfigKey, value: json, updated_at: new Date(), updated_by: currentUser.id
+                });
+                if (error) throw error;
+                status.classList.remove('hidden');
+                setTimeout(() => status.classList.add('hidden'), 3000);
+            } catch (e) { alert("Save Failed: " + e.message); }
         }
 
         init();
