@@ -212,6 +212,10 @@
                     class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl">
                     <i class="fas fa-users w-6 opacity-80 text-center"></i> <span class="ml-2">Directory</span>
                 </a>
+                <a href="#" onclick="showSection('audit-logs')" id="nav-audit-logs"
+                    class="sidebar-link flex items-center px-4 py-2.5 text-gray-600 text-sm font-medium rounded-xl mt-1">
+                    <i class="fas fa-history w-6 opacity-80 text-center"></i> <span class="ml-2">Audit Logs</span>
+                </a>
             </div>
 
             <div>
@@ -621,6 +625,41 @@
                 </form>
             </div>
         </div>
+        </div>
+
+        <!-- Audit Logs View -->
+        <div id="view-audit-logs" class="view-section hidden px-8 py-8 max-w-7xl mx-auto">
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">System Audit Logs</h1>
+                    <p class="text-gray-500 mt-1">Track all system changes and administrative actions.</p>
+                </div>
+                <button onclick="loadAuditLogs()"
+                    class="text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-2 text-sm font-bold">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr
+                                class="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
+                                <th class="px-6 py-4">Actor</th>
+                                <th class="px-6 py-4">Action</th>
+                                <th class="px-6 py-4">Target</th>
+                                <th class="px-6 py-4">Details</th>
+                                <th class="px-6 py-4 text-right">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-table-body" class="text-sm divide-y divide-gray-100">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
     </main>
 
@@ -700,7 +739,13 @@
             });
 
             // Show Target
-            const view = document.getElementById(id === 'users' ? 'view-users' : (id === 'dashboard' ? 'view-dashboard' : (id === 'user-list' ? 'view-user-list' : 'view-tool-editor')));
+            let viewId = 'view-tool-editor';
+            if (id === 'users') viewId = 'view-users';
+            else if (id === 'dashboard') viewId = 'view-dashboard';
+            else if (id === 'user-list') viewId = 'view-user-list';
+            else if (id === 'audit-logs') viewId = 'view-audit-logs';
+
+            const view = document.getElementById(viewId);
 
             view.classList.remove('hidden');
             // Trigger Reflow for animation
@@ -709,6 +754,7 @@
 
             if (id === 'dashboard') loadDashboardStats();
             else if (id === 'user-list') loadUsers();
+            else if (id === 'audit-logs') loadAuditLogs();
             else if (id !== 'users') loadToolEditor(id);
         };
 
@@ -900,6 +946,65 @@
             }
         }
 
+        // --- AUDIT LOGS LOGIC ---
+        async function loadAuditLogs() {
+            const tbody = document.getElementById('audit-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-gray-400"><i class="fas fa-circle-notch fa-spin text-2xl mb-2 text-indigo-500"></i><br>Loading logs...</td></tr>';
+
+            try {
+                const { data: logs, error } = await sbClient
+                    .from('audit_logs')
+                    .select(`
+                        *,
+                        actor:profiles!actor_id(full_name, email)
+                    `)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (error) throw error;
+
+                if (!logs.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-gray-400">No audit logs found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = logs.map(l => `
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-xs font-bold mr-3">
+                                     ${(l.actor?.full_name || 'S').charAt(0)}
+                                </div>
+                                <div>
+                                    <div class="font-bold text-gray-900">${l.actor?.full_name || 'System'}</div>
+                                    <div class="text-[10px] text-gray-400">${l.actor?.email || 'System Action'}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider 
+                                ${l.action.includes('DELETE') ? 'bg-red-50 text-red-600' :
+                        (l.action.includes('UPDATE') ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600')}">
+                                ${l.action}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 font-mono text-xs text-gray-600">
+                            ${l.target_entity} / <span class="text-gray-900 font-bold">${l.target_id || '-'}</span>
+                        </td>
+                        <td class="px-6 py-4 text-xs text-gray-500 max-w-xs truncate" title='${JSON.stringify(l.metadata)}'>
+                            ${JSON.stringify(l.metadata)}
+                        </td>
+                        <td class="px-6 py-4 text-right text-xs text-gray-400 whitespace-nowrap">
+                            ${new Date(l.created_at).toLocaleString()}
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-red-500">Error: ${err.message}</td></tr>`;
+            }
+        }
+
         // --- EDITOR LOGIC ---
         function setVisibleEditorMode(mode) {
             const vBtn = document.getElementById('btn-mode-visual');
@@ -1026,6 +1131,11 @@
                 status.classList.remove('hidden');
                 setTimeout(() => status.classList.add('hidden'), 3000);
             } catch (e) { alert("Save Failed: " + e.message); }
+        }
+
+        async function handleLogout() {
+            await sbClient.auth.signOut();
+            window.location.href = 'index.html';
         }
 
         init();
