@@ -17,13 +17,20 @@
         // Protect Route & Load Data
         document.addEventListener('DOMContentLoaded', async () => {
             await requireAuth(); // Check Login
-            await loadSavedDataForCardio(); // Restore Session
 
-            // Feature Flags
+            // 1. Load Feature Flags & Config
+            let config = {};
             if (typeof initFeatureFlags === 'function') {
-                await initFeatureFlags('cardio_settings');
+                config = await initFeatureFlags('cardio_settings');
             }
+
+            // 3. Restore Session
+            await loadSavedDataForCardio();
         });
+
+        // processMasterData removed as Cardio does not currently use Reference Master Data tables in the same way.
+        // If future requirements add Material/Customer Master to Cardio, implement here using config.material_master_csv
+
 
         // --- PERSISTENCE LOAD for Cardio ---
         async function loadSavedDataForCardio() {
@@ -736,7 +743,23 @@
                             <!-- Tab: Master -->
                             <div id="tabMaster" class="config-tab-content p-4 h-full flex flex-col">
                                 <h3 class="font-bold text-gray-700 mb-2">Master Data Map</h3>
-                                <p class="text-xs text-gray-500 mb-2">Format: ScanCode, SAPCode, Description</p>
+                                <div
+                                    class="bg-blue-50 text-blue-800 p-2 rounded text-[10px] mb-2 border border-blue-200">
+                                    <strong>Required CSV Format:</strong><br>
+                                    Option A (Standard): Material Code, Description<br>
+                                    Option B (Advanced): Scan Code (Barcode), SAP Code, Description
+                                </div>
+                                <div class="flex gap-2 mb-2">
+                                    <!-- No file upload input here in Cardio yet? Checking code... no input type=file for master found in Cardio previous snippet. -->
+                                    <!-- Wait, I didn't add the file upload to Cardio in the previous step? -->
+                                    <!-- Cardio has no 'fileMaster'. It only has 'txtMaster'. -->
+                                    <!-- I should consistency add file input AND download button. -->
+                                    <input type="file" id="fileMasterUpload" accept=".csv, .txt"
+                                        class="text-xs border rounded p-1 flex-1 bg-gray-50">
+                                    <button onclick="downloadCSVTemplate('material')"
+                                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs whitespace-nowrap"
+                                        title="Download Sample CSV"><i class="fas fa-download"></i> Template</button>
+                                </div>
                                 <textarea id="txtMaster"
                                     class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
                             </div>
@@ -744,7 +767,19 @@
                             <!-- Tab: Cust -->
                             <div id="tabCust" class="config-tab-content hidden p-4 h-full flex flex-col">
                                 <h3 class="font-bold text-gray-700 mb-2">Customer Map</h3>
-                                <p class="text-xs text-gray-500 mb-2">Format: Code, Name</p>
+                                <div
+                                    class="bg-blue-50 text-blue-800 p-2 rounded text-[10px] mb-2 border border-blue-200">
+                                    <strong>Required CSV Format:</strong><br>
+                                    Column 1: Customer Code<br>
+                                    Column 2: Customer Name
+                                </div>
+                                <div class="flex gap-2 mb-2">
+                                    <input type="file" id="fileCustUpload" accept=".csv, .txt"
+                                        class="text-xs border rounded p-1 flex-1 bg-gray-50">
+                                    <button onclick="downloadCSVTemplate('customer')"
+                                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs whitespace-nowrap"
+                                        title="Download Sample CSV"><i class="fas fa-download"></i> Template</button>
+                                </div>
                                 <textarea id="txtCust"
                                     class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
                             </div>
@@ -1244,6 +1279,25 @@
                             if (dbConfig.cust_csv) c = dbConfig.cust_csv;
                             if (dbConfig.rules_csv) r = dbConfig.rules_csv;
 
+                            // Feature Flags & Master Data
+                            if (typeof initFeatureFlags === 'function') {
+                                const config = await initFeatureFlags('cardio_settings');
+                                if (config) {
+                                    if (config.master_csv) {
+                                        const el = document.getElementById('txtMaster');
+                                        if (el) el.value = config.master_csv;
+                                    }
+                                    if (config.cust_csv) {
+                                        const el = document.getElementById('txtCust');
+                                        if (el) el.value = config.cust_csv;
+                                    }
+                                }
+                            }
+
+                            // Bind File Uploads
+                            bindFileUpload('fileMasterUpload', 'txtMaster');
+                            bindFileUpload('fileCustUpload', 'txtCust');
+
                             // Helper
                             const setVal = (id, val) => {
                                 const el = document.getElementById(id);
@@ -1253,7 +1307,17 @@
                             if (m) {
                                 setVal('txtMaster', m);
                                 masterMap = {};
-                                m.split('\n').forEach(l => { let p = l.split(','); if (p.length >= 2) masterMap[p[0].trim().toUpperCase()] = { sap: p[1].trim(), desc: p[2] || '' }; });
+                                m.split('\n').forEach(l => {
+                                    let p = l.split(',');
+                                    if (p.length >= 3) {
+                                        // 3-Column: ScanCode, SAPCode, Desc
+                                        masterMap[p[0].trim().toUpperCase()] = { sap: p[1].trim(), desc: p[2] || '' };
+                                    } else if (p.length === 2) {
+                                        // 2-Column: MaterialCode, Desc (ScanCode = MaterialCode)
+                                        const code = p[0].trim().toUpperCase();
+                                        masterMap[code] = { sap: code, desc: p[1].trim() };
+                                    }
+                                });
                             }
                             if (c) {
                                 setVal('txtCust', c);
@@ -1322,6 +1386,52 @@
                         loadConfig();
                         document.getElementById('configModal').classList.add('hidden');
                         alert("Settings Saved Locally!");
+                    }
+
+                    function bindFileUpload(inputId, targetId) {
+                        const el = document.getElementById(inputId);
+                        if (el) {
+                            el.addEventListener('change', (e) => {
+                                const f = e.target.files[0];
+                                if (!f) return;
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                    const txt = document.getElementById(targetId);
+                                    if (txt) {
+                                        txt.value = ev.target.result;
+                                        txt.classList.add('bg-green-50');
+                                        setTimeout(() => txt.classList.remove('bg-green-50'), 500);
+                                    }
+                                };
+                                reader.readAsText(f);
+                            });
+                        }
+                    }
+
+                    // --- DOWNLOAD TEMPLATE ---
+                    function downloadCSVTemplate(type) {
+                        let content = "";
+                        let filename = "";
+
+                        if (type === 'material') {
+                            content = "Material Code,Description\nMAT001,Sample Description\nMAT002,Another Item";
+                            filename = "Material_Master_Template.csv";
+                        } else if (type === 'customer') {
+                            content = "Customer Code,Customer Name\nC001,Sample Customer Pvt Ltd\nC002,Another Client";
+                            filename = "Customer_Master_Template.csv";
+                        }
+
+                        if (!content) return;
+
+                        const blob = new Blob([content], { type: 'text/csv' });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.setAttribute('hidden', '');
+                        a.setAttribute('href', url);
+                        a.setAttribute('download', filename);
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
                     }
 
                     window.addEventListener('load', async () => {

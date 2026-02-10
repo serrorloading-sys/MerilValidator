@@ -57,6 +57,18 @@ async function requireAuth() {
     } else {
         console.log("User Authenticated:", session.user.email);
 
+        // Fetch Profile to get Role
+        const { data: profile } = await sbClient
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+        if (profile) {
+            window.currentUser = profile;
+            console.log("Current User Role:", profile.role);
+        }
+
         let displayName = session.user.user_metadata.display_name;
 
         if (!displayName) {

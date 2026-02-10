@@ -13,13 +13,278 @@
     <script src="supabase-client.js"></script>
     <script src="feature-flags.js"></script>
     <script>
+        // Store raw CSV content for saving
+        window.tempMaterialMasterCSV = "";
+        window.tempCustomerMasterCSV = "";
+
+        // --- MASTER DATA LOADING ---
+        async function loadMasterData() {
+            const file = document.getElementById('fileMaster').files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const text = e.target.result;
+                window.tempMaterialMasterCSV = text; // Store for saving
+
+                // Process for current session
+                const lines = text.split(/\r?\n/);
+                if (lines.length > 0) {
+                    const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
+                    const iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
+                    const iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
+
+                    if (iMat > -1 && iDesc > -1) {
+                        window.MATERIAL_MASTER = window.MATERIAL_MASTER || {};
+                        let count = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                            const row = lines[i].split(',');
+                            if (row.length > iMat && row.length > iDesc) {
+                                const m = row[iMat].trim().toUpperCase();
+                                const d = row[iDesc].trim();
+                                if (m) {
+                                    window.MATERIAL_MASTER[m] = d;
+                                    count++;
+                                }
+                            }
+                        }
+                        console.log(`Loaded ${count} materials from file`);
+
+                        // UI Feedback
+                        const listEl = document.getElementById('masterList');
+                        if (listEl) {
+                            listEl.innerHTML = `<li class="text-blue-600 font-bold"><i class="fas fa-check"></i> File Loaded: ${count} items</li>`;
+                            document.getElementById('masterCount').innerText = count;
+                        }
+                    } else {
+                        alert("Could not find 'Material' and 'Description' columns in CSV.");
+                    }
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function loadCustomerMasterData() {
+            const file = document.getElementById('fileCustomerMaster').files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const text = e.target.result;
+                window.tempCustomerMasterCSV = text; // Store for saving
+
+                const lines = text.split(/\r?\n/);
+                if (lines.length > 0) {
+                    const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
+                    const iCode = headers.findIndex(h => h.includes('code') || h.includes('id'));
+                    const iName = headers.findIndex(h => h.includes('name') || h.includes('customer'));
+
+                    if (iCode > -1 && iName > -1) {
+                        window.CUSTOMER_MASTER = window.CUSTOMER_MASTER || {};
+                        let count = 0;
+                        for (let i = 1; i < lines.length; i++) {
+                            const row = lines[i].split(',');
+                            if (row.length > iCode && row.length > iName) {
+                                const c = row[iCode].trim().toUpperCase();
+                                const n = row[iName].trim();
+                                if (c) {
+                                    window.CUSTOMER_MASTER[c] = n;
+                                    count++;
+                                }
+                            }
+                        }
+                        console.log(`Loaded ${count} customers from file`);
+
+                        // UI Feedback
+                        const listEl = document.getElementById('custMasterList');
+                        if (listEl) {
+                            listEl.innerHTML = `<li class="text-blue-600 font-bold"><i class="fas fa-check"></i> File Loaded: ${count} items</li>`;
+                            document.getElementById('custMasterCount').innerText = count;
+                        }
+                    } else {
+                        alert("Could not find 'Customer Code' and 'Customer Name' columns in CSV.");
+                    }
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- SAVE TO MASTER SYSTEM DB ---
+        async function saveToMasterConfig() {
+            if (!confirm("Are you sure you want to overwrite the System Master Data with the currently loaded/uploaded files? This will affect all users.")) return;
+
+            // Use uploaded text if available, otherwise fallback to existing config text (if we can access it, but mainly we rely on upload here)
+            // Actually, if the user hasn't uploaded anything new, we shouldn't wipe it.
+            // But the requirement is "Promote". Usually implies taking what I have and pushing it.
+            // If I loaded from config, I don't have the raw text in temp variables unless I put it there during load.
+
+            // Let's ensure initFeatureFlags populates the temps if they exist
+
+            const updates = {};
+            if (window.tempMaterialMasterCSV) updates.material_master_csv = window.tempMaterialMasterCSV;
+            if (window.tempCustomerMasterCSV) updates.customer_master_csv = window.tempCustomerMasterCSV;
+
+            if (Object.keys(updates).length === 0) {
+                alert("No new Master Data files have been uploaded to save.");
+                return;
+            }
+
+            if (typeof updateFeatureFlag === 'function') {
+                const result = await updateFeatureFlag('mhpl_settings', updates);
+
+                if (result.success) {
+                    alert("Master Data saved to Database successfully!");
+                } else {
+                    alert("Error saving data: " + result.error);
+                }
+            } else {
+                alert("Feature Flag Update function not found. Please contact admin.");
+            }
+        }
+
+        // --- DOWNLOAD TEMPLATE ---
+        function downloadCSVTemplate(type) {
+            let content = "";
+            let filename = "";
+
+            if (type === 'material') {
+                content = "Material Code,Description\nMAT001,Sample Description\nMAT002,Another Item";
+                filename = "Material_Master_Template.csv";
+            } else if (type === 'customer') {
+                content = "Customer Code,Customer Name\nC001,Sample Customer Pvt Ltd\nC002,Another Client";
+                filename = "Customer_Master_Template.csv";
+            }
+
+            if (!content) return;
+
+            const blob = new Blob([content], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', filename);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+    <script>
         // Protect Route
         document.addEventListener('DOMContentLoaded', async () => {
+            // Admin Button Logic
+            // We do this BEFORE requireAuth potentially redirects, though requireAuth is async.
+            // Actually requireAuth might block. Let's do it after or assume currentUser is set.
+            // Default requireAuth sets window.currentUser
             await requireAuth();
 
-            // Feature Flags
+            if (window.currentUser && window.currentUser.role === 'admin') {
+                const btn1 = document.getElementById('btnSaveToMaster');
+                const btn2 = document.getElementById('btnSaveToMasterCust');
+                if (btn1) btn1.style.display = 'flex'; // It was 'flex' in my previous replace
+                // wait, I made them hidden by default. 
+                // The previous code: class="hidden mt-3 flex justify-end"
+                // So removing 'hidden' might be enough, but display:flex is better if I want flex behavior.
+                if (btn1) btn1.classList.remove('hidden');
+                if (btn2) btn2.classList.remove('hidden');
+            }
+
+            // Feature Flags & Master Data
             if (typeof initFeatureFlags === 'function') {
-                await initFeatureFlags('mhpl_settings');
+                const config = await initFeatureFlags('mhpl_settings');
+
+                // Auto-load Master Data (Reference Data)
+                if (config) {
+                    // Material Master
+                    if (config.material_master_csv && config.material_master_csv.length > 10) {
+                        try {
+                            // Parse CSV manually to avoid file object dependency issues
+                            const lines = config.material_master_csv.split(/\r?\n/);
+                            if (lines.length > 0) {
+                                const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
+                                // Simple index find
+                                let iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
+                                let iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
+
+                                // Fallback for 2-column files if headers not found
+                                if ((iMat === -1 || iDesc === -1) && lines[1].split(',').length === 2) {
+                                    iMat = 0;
+                                    iDesc = 1;
+                                    console.log("Headers not found, assuming Col 0 = Material, Col 1 = Description");
+                                }
+
+                                if (iMat > -1 && iDesc > -1) {
+                                    window.MATERIAL_MASTER = window.MATERIAL_MASTER || {};
+                                    let count = 0;
+                                    // Start from 1
+                                    for (let i = 1; i < lines.length; i++) {
+                                        const row = lines[i].split(','); // Basic split, might fail on quoted commas but sufficient for simple lists
+                                        if (row.length > Math.max(iMat, iDesc)) {
+                                            const m = row[iMat].trim().toUpperCase();
+                                            const d = row[iDesc].trim();
+                                            if (m) {
+                                                window.MATERIAL_MASTER[m] = d;
+                                                count++;
+                                            }
+                                        }
+                                    }
+                                    console.log(`Auto-loaded ${count} materials from Config`);
+                                    // UI Feedback
+                                    const listEl = document.getElementById('masterList');
+                                    if (listEl) {
+                                        listEl.innerHTML = `<li class="text-green-600 font-bold"><i class="fas fa-magic"></i> Config Loaded: ${count} items</li>`;
+                                        document.getElementById('masterCount').innerText = `${count} (Config)`;
+                                        const input = document.getElementById('fileMaster');
+                                        if (input) input.style.display = 'none';
+                                    }
+                                }
+                            }
+                        } catch (e) { console.error("Error loading Material Master", e); }
+                    }
+
+                    // Customer Master
+                    if (config.customer_master_csv && config.customer_master_csv.length > 10) {
+                        try {
+                            const lines = config.customer_master_csv.split(/\r?\n/);
+                            if (lines.length > 0) {
+                                const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
+                                let iCode = headers.findIndex(h => h.includes('code') || h.includes('id'));
+                                let iName = headers.findIndex(h => h.includes('name') || h.includes('customer'));
+
+                                // Fallback for 2-column files
+                                if ((iCode === -1 || iName === -1) && lines[1].split(',').length === 2) {
+                                    iCode = 0;
+                                    iName = 1;
+                                    console.log("Headers not found, assuming Col 0 = Customer Code, Col 1 = Name");
+                                }
+
+                                if (iCode > -1 && iName > -1) {
+                                    window.CUSTOMER_MASTER = window.CUSTOMER_MASTER || {};
+                                    let count = 0;
+                                    for (let i = 1; i < lines.length; i++) {
+                                        const row = lines[i].split(',');
+                                        if (row.length > Math.max(iCode, iName)) {
+                                            const c = row[iCode].trim().toUpperCase();
+                                            const n = row[iName].trim();
+                                            if (c) {
+                                                window.CUSTOMER_MASTER[c] = n;
+                                                count++;
+                                            }
+                                        }
+                                    }
+                                    console.log(`Auto-loaded ${count} customers from Config`);
+                                    // UI Feedback
+                                    const listEl = document.getElementById('custMasterList');
+                                    if (listEl) {
+                                        listEl.innerHTML = `<li class="text-green-600 font-bold"><i class="fas fa-magic"></i> Config Loaded: ${count} items</li>`;
+                                        document.getElementById('custMasterCount').innerText = `${count} (Config)`;
+                                        const input = document.getElementById('fileCustomerMaster');
+                                        if (input) input.style.display = 'none';
+                                    }
+                                }
+                            }
+                        } catch (e) { console.error("Error loading Customer Master", e); }
+                    }
+                }
             }
         });
     </script>
@@ -125,6 +390,13 @@
                             <li class="italic text-gray-400">No master data loaded...</li>
                         </ul>
                     </div>
+                    <!-- SAVE TO MASTER BUTTON (Admin Only) -->
+                    <div id="btnSaveToMaster" class="hidden mt-3 flex justify-end">
+                        <button onclick="saveToMasterConfig()"
+                            class="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-3 py-1.5 rounded shadow flex items-center">
+                            <i class="fas fa-cloud-upload-alt mr-1"></i> Save to System DB
+                        </button>
+                    </div>
                 </div>
 
                 <div class="bg-blue-50 p-5 rounded border border-blue-200">
@@ -146,6 +418,13 @@
                         <ul id="custMasterList" class="text-xs text-gray-600 space-y-1">
                             <li class="italic text-gray-400">No customer data loaded...</li>
                         </ul>
+                    </div>
+                    <!-- SAVE TO MASTER BUTTON (Admin Only) -->
+                    <div id="btnSaveToMasterCust" class="hidden mt-3 flex justify-end">
+                        <button onclick="saveToMasterConfig()"
+                            class="bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold px-3 py-1.5 rounded shadow flex items-center">
+                            <i class="fas fa-cloud-upload-alt mr-1"></i> Save to System DB
+                        </button>
                     </div>
                 </div>
 

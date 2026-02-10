@@ -686,10 +686,31 @@
         };
 
         const TEMPLATES = {
-            'cardio_settings': { "enabled": true, "features": { "allow_export": true } },
-            'mdpl_settings': { "enabled": true, "features": { "allow_export": true } },
-            'mhpl_settings': { "enabled": true, "features": { "allow_export": true } },
-            'mlsipl_settings': { "enabled": true, "version": "v1", "features": { "allow_export": true } },
+            'cardio_settings': {
+                "enabled": true,
+                "features": { "allow_export": true },
+                "material_master_csv": "",
+                "customer_master_csv": ""
+            },
+            'mdpl_settings': {
+                "enabled": true,
+                "features": { "allow_export": true },
+                "material_master_csv": "",
+                "customer_master_csv": ""
+            },
+            'mhpl_settings': {
+                "enabled": true,
+                "features": { "allow_export": true },
+                "material_master_csv": "",
+                "customer_master_csv": ""
+            },
+            'mlsipl_settings': {
+                "enabled": true,
+                "version": "v1",
+                "features": { "allow_export": true },
+                "material_master_csv": "",
+                "customer_master_csv": ""
+            },
             'chat_settings': { "enabled": true, "retention_days": 30, "features": { "allow_file_sharing": true } },
             'global_settings': { "system_name": "Meril Ecosystem", "maintenance_mode": false }
         };
@@ -1058,7 +1079,7 @@
             const con = document.getElementById('visual-controls');
             con.innerHTML = '';
 
-            // Generate Features Grid
+            // 1. Feature Flags
             if (config.features) {
                 const grp = document.createElement('div');
                 grp.className = "mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100";
@@ -1077,16 +1098,38 @@
                 con.appendChild(grp);
             }
 
-            // General Settings
-            Object.keys(config).forEach(k => {
-                if (k !== 'features') {
+            // 2. Master Data (CSV text fields)
+            const csvKeys = Object.keys(config).filter(k => k.endsWith('_csv'));
+            if (csvKeys.length > 0) {
+                const grp = document.createElement('div');
+                grp.className = "mb-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100";
+                grp.innerHTML = '<h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4">Master Data Management</h4>';
+
+                csvKeys.forEach(k => {
+                    grp.appendChild(createCsvEditor(k, config[k], (v) => {
+                        config[k] = v;
+                        updateJson(config);
+                    }));
+                });
+                con.appendChild(grp);
+            }
+
+            // 3. General Settings (Rest)
+            const otherKeys = Object.keys(config).filter(k => k !== 'features' && !k.endsWith('_csv'));
+            if (otherKeys.length > 0) {
+                const grp = document.createElement('div');
+                grp.className = "mb-8 p-6 bg-white rounded-2xl border border-gray-100";
+                grp.innerHTML = '<h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">General Settings</h4>';
+
+                otherKeys.forEach(k => {
                     if (typeof config[k] === 'boolean') {
-                        con.appendChild(createToggle(k, config[k], (v) => { config[k] = v; updateJson(config); }));
+                        grp.appendChild(createToggle(k, config[k], (v) => { config[k] = v; updateJson(config); }));
                     } else if (typeof config[k] === 'string' || typeof config[k] === 'number') {
-                        con.appendChild(createInput(k, config[k], (v) => { config[k] = v; updateJson(config); }));
+                        grp.appendChild(createInput(k, config[k], (v) => { config[k] = v; updateJson(config); }));
                     }
-                }
-            });
+                });
+                con.appendChild(grp);
+            }
         }
 
         function createToggle(key, val, cb) {
@@ -1116,6 +1159,54 @@
             return div;
         }
 
+        function createCsvEditor(key, val, cb) {
+            const div = document.createElement('div');
+            div.className = "mb-6 bg-white p-4 rounded-xl border border-blue-100 shadow-sm";
+            const rowCount = val ? val.split('\n').length : 0;
+
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-800 uppercase tracking-wider">${key.replace(/_/g, ' ')}</label>
+                        <div class="text-[10px] text-gray-400 font-mono">Current Data: ${rowCount} rows</div>
+                    </div>
+                    <div class="flex gap-2">
+                         <button onclick="downloadAdminTemplate('${key}')" class="bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors" title="Download Standard Template">
+                            <i class="fas fa-download"></i> Template
+                         </button>
+                         <input type="file" id="upload-${key}" accept=".csv" class="hidden" />
+                         <label for="upload-${key}" class="cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors">
+                            <i class="fas fa-file-upload"></i> Upload CSV
+                         </label>
+                    </div>
+                </div>
+                <textarea class="w-full h-32 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 font-mono text-xs text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none resize-y"
+                    placeholder="Paste CSV data here or upload a file...">${val || ''}</textarea>
+            `;
+
+            const textarea = div.querySelector('textarea');
+            const fileInput = div.querySelector('input[type="file"]');
+
+            textarea.oninput = (e) => cb(e.target.value);
+
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const text = evt.target.result;
+                    textarea.value = text;
+                    cb(text); // Update State
+                    // Update Row Count Display
+                    div.querySelector('.text-gray-400').innerText = `Current Data: ${text.split('\n').length} rows`;
+                };
+                reader.readAsText(file);
+            };
+
+            return div;
+        }
+
         function updateJson(config) {
             document.getElementById('json-editor').value = JSON.stringify(config, null, 2);
         }
@@ -1136,6 +1227,35 @@
         async function handleLogout() {
             await sbClient.auth.signOut();
             window.location.href = 'index.html';
+        }
+
+        // --- ADMIN TEMPLATE DOWNLOAD ---
+        function downloadAdminTemplate(key) {
+            let content = "";
+            let filename = "";
+
+            if (key.includes('material')) {
+                content = "Material Code,Description\nMAT001,Sample Description\nMAT002,Another Item";
+                filename = "Material_Master_Template.csv";
+            } else if (key.includes('customer')) {
+                content = "Customer Code,Customer Name\nC001,Sample Customer Pvt Ltd\nC002,Another Client";
+                filename = "Customer_Master_Template.csv";
+            }
+
+            if (!content) {
+                alert("No template available for this field.");
+                return;
+            }
+
+            const blob = new Blob([content], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', filename);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
 
         init();

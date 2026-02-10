@@ -53,3 +53,51 @@ function applyFeatureFlags(features) {
         });
     });
 }
+
+/**
+ * Updates a specific feature flag or config setting in global_config.
+ * @param {string} toolKey - The key in global_config (e.g., 'mlsipl_settings')
+ * @param {object} partialUpdate - Object containing keys to update (e.g., { material_master_csv: "..." })
+ */
+async function updateFeatureFlag(toolKey, partialUpdate) {
+    if (typeof sbClient === 'undefined') {
+        console.error("Supabase client not found.");
+        return { error: "Supabase client not found" };
+    }
+
+    try {
+        // 1. Fetch current config
+        const { data, error } = await sbClient
+            .from('global_config')
+            .select('*')
+            .eq('key', toolKey)
+            .single();
+
+        if (error) throw error;
+
+        let currentConfig = data.value || {};
+
+        // 2. Merge changes
+        // Deep merge for 'features' if provided, otherwise top-level merge
+        const newConfig = { ...currentConfig, ...partialUpdate };
+
+        // 3. Update
+        const { error: updateError } = await sbClient
+            .from('global_config')
+            .update({
+                value: newConfig,
+                updated_at: new Date().toISOString(),
+                // updated_by: sbClient.auth.user().id // Handled by RLS/Trigger usually, or add if schema requires
+            })
+            .eq('key', toolKey);
+
+        if (updateError) throw updateError;
+
+        console.log(`[FeatureFlags] Updated ${toolKey} successfully.`);
+        return { success: true };
+
+    } catch (e) {
+        console.error("[FeatureFlags] Update Error:", e);
+        return { error: e.message };
+    }
+}

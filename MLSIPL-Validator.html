@@ -19,13 +19,103 @@
             await requireAuth(); // Check Login
             await loadSavedDataForMLSIPL(); // Restore Session
 
-            // Feature Flags
+            // Feature Flags & Master Data
             if (typeof initFeatureFlags === 'function') {
-                await initFeatureFlags('mlsipl_settings');
+                const config = await initFeatureFlags('mlsipl_settings');
+                if (config) {
+                    if (config.material_master_csv) {
+                        const el = document.getElementById('txtMaster');
+                        if (el) el.value = config.material_master_csv;
+                    }
+                    if (config.customer_master_csv) {
+                        const el = document.getElementById('txtCust');
+                        if (el) el.value = config.customer_master_csv;
+                    }
+                }
+            }
+
+            // Bind File Uploads
+            bindFileUpload('fileMasterUpload', 'txtMaster');
+            bindFileUpload('fileCustUpload', 'txtCust');
+
+            // Show Save to Master button for Admins
+            // Note: window.currentUser is now set by supabase-client.js requireAuth()
+            if (window.currentUser && window.currentUser.role === 'admin') {
+                const btn = document.getElementById('btnSaveToMaster');
+                if (btn) btn.style.display = 'flex';
             }
         });
 
-        // --- PERSISTENCE LOAD for MLSIPL ---
+        function bindFileUpload(inputId, targetId) {
+            const el = document.getElementById(inputId);
+            if (el) {
+                el.addEventListener('change', (e) => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    const r = new FileReader();
+                    r.onload = (ev) => {
+                        const txt = document.getElementById(targetId);
+                        if (txt) {
+                            txt.value = ev.target.result;
+                            // Optional: Flash the textarea to indicate success
+                            txt.classList.add('bg-green-50');
+                            setTimeout(() => txt.classList.remove('bg-green-50'), 500);
+                        }
+                    };
+                    r.readAsText(f);
+                });
+            }
+        }
+
+        // --- DOWNLOAD TEMPLATE ---
+        function downloadCSVTemplate(type) {
+            let content = "";
+            let filename = "";
+
+            if (type === 'material') {
+                content = "Material Code,Description\nMAT001,Sample Description\nMAT002,Another Item";
+                filename = "Material_Master_Template.csv";
+            } else if (type === 'customer') {
+                content = "Customer Code,Customer Name\nC001,Sample Customer Pvt Ltd\nC002,Another Client";
+                filename = "Customer_Master_Template.csv";
+            }
+
+            if (!content) return;
+
+            const blob = new Blob([content], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', filename);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // --- SAVE TO MASTER LOGIC ---
+        async function saveToMasterConfig() {
+            if (!confirm("Are you sure you want to overwrite the System Master Data with the current values in the text areas? This will affect all users.")) return;
+
+            const matData = document.getElementById('txtMaster').value;
+            const custData = document.getElementById('txtCust').value;
+
+            if (typeof updateFeatureFlag === 'function') {
+                const result = await updateFeatureFlag('mlsipl_settings', {
+                    material_master_csv: matData,
+                    customer_master_csv: custData
+                });
+
+                if (result.success) {
+                    alert("Master Data saved to Database successfully!");
+                } else {
+                    alert("Error saving data: " + result.error);
+                }
+            } else {
+                alert("Feature Flag Update function not found. Please contact admin.");
+            }
+        }
+
         async function loadSavedDataForMLSIPL() {
             try {
                 document.getElementById('restore-status').innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Checking saved data...';
@@ -724,6 +814,10 @@
                             <button class="btn-create bg-green-600 hover:bg-green-700" onclick="saveConfig()">
                                 <i class="fas fa-save"></i> Save Config
                             </button>
+                            <button id="btnSaveToMaster" class="btn-create bg-purple-600 hover:bg-purple-700 mt-2"
+                                style="display:none;" onclick="saveToMasterConfig()">
+                                <i class="fas fa-database"></i> Save to System DB
+                            </button>
                         </div>
 
                         <!-- Content -->
@@ -736,7 +830,19 @@
                             <!-- Tab: Master -->
                             <div id="tabMaster" class="config-tab-content p-4 h-full flex flex-col">
                                 <h3 class="font-bold text-gray-700 mb-2">Master Data Map</h3>
-                                <p class="text-xs text-gray-500 mb-2">Format: ScanCode, SAPCode, Description</p>
+                                <div
+                                    class="bg-blue-50 text-blue-800 p-2 rounded text-[10px] mb-2 border border-blue-200">
+                                    <strong>Required CSV Format:</strong><br>
+                                    Option A (Standard): Material Code, Description<br>
+                                    Option B (Advanced): Scan Code (Barcode), SAP Code, Description
+                                </div>
+                                <div class="flex gap-2 mb-2">
+                                    <input type="file" id="fileMasterUpload" accept=".csv, .txt"
+                                        class="text-xs border rounded p-1 flex-1 bg-gray-50">
+                                    <button onclick="downloadCSVTemplate('material')"
+                                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs whitespace-nowrap"
+                                        title="Download Sample CSV"><i class="fas fa-download"></i> Template</button>
+                                </div>
                                 <textarea id="txtMaster"
                                     class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
                             </div>
@@ -744,7 +850,19 @@
                             <!-- Tab: Cust -->
                             <div id="tabCust" class="config-tab-content hidden p-4 h-full flex flex-col">
                                 <h3 class="font-bold text-gray-700 mb-2">Customer Map</h3>
-                                <p class="text-xs text-gray-500 mb-2">Format: Code, Name</p>
+                                <div
+                                    class="bg-blue-50 text-blue-800 p-2 rounded text-[10px] mb-2 border border-blue-200">
+                                    <strong>Required CSV Format:</strong><br>
+                                    Column 1: Customer Code<br>
+                                    Column 2: Customer Name
+                                </div>
+                                <div class="flex gap-2 mb-2">
+                                    <input type="file" id="fileCustUpload" accept=".csv, .txt"
+                                        class="text-xs border rounded p-1 flex-1 bg-gray-50">
+                                    <button onclick="downloadCSVTemplate('customer')"
+                                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs whitespace-nowrap"
+                                        title="Download Sample CSV"><i class="fas fa-download"></i> Template</button>
+                                </div>
                                 <textarea id="txtCust"
                                     class="flex-1 w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 outline-none resize-none bg-gray-50"></textarea>
                             </div>
@@ -1231,7 +1349,17 @@
                             if (m) {
                                 setVal('txtMaster', m);
                                 masterMap = {};
-                                m.split('\n').forEach(l => { let p = l.split(','); if (p.length >= 2) masterMap[p[0].trim().toUpperCase()] = { sap: p[1].trim(), desc: p[2] || '' }; });
+                                m.split('\n').forEach(l => {
+                                    let p = l.split(',');
+                                    if (p.length >= 3) {
+                                        // 3-Column: ScanCode, SAPCode, Desc
+                                        masterMap[p[0].trim().toUpperCase()] = { sap: p[1].trim(), desc: p[2] || '' };
+                                    } else if (p.length === 2) {
+                                        // 2-Column: MaterialCode, Desc (ScanCode = MaterialCode)
+                                        const code = p[0].trim().toUpperCase();
+                                        masterMap[code] = { sap: code, desc: p[1].trim() };
+                                    }
+                                });
                             }
                             if (c) {
                                 setVal('txtCust', c);
