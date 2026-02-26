@@ -745,6 +745,7 @@ async function initRealtimeFeatures() {
     injectZohoUI();
     applyRoleBasedVisibility(user.role);
     await fetchAllProfiles();
+    requestNotificationPermission(); // ask browser for notification permission
 
     globalChannel = sbClient.channel('room-global', {
         config: { presence: { key: user.id } },
@@ -840,10 +841,95 @@ function playNotificationSound() {
     notificationAudio.play().catch(e => console.log("Audio play failed:", e));
 }
 
+// ===== BROWSER NOTIFICATION SYSTEM =====
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+    }
+}
+
+function showChatNotification(senderName, messageText, avatarUrl, contextId, target, type) {
+    // Only show if tab is not focused
+    if (document.hasFocus()) return;
+    if (Notification.permission !== 'granted') return;
+
+    const truncated = messageText?.length > 60 ? messageText.substring(0, 60) + '...' : (messageText || 'New message');
+
+    const notif = new Notification(`💬 ${senderName}`, {
+        body: truncated,
+        icon: avatarUrl || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?s=64&d=mp',
+        badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="%234f46e5"/></svg>',
+        tag: `chat-${contextId}`,       // replaces previous notif for same chat
+        renotify: true,
+        silent: false
+    });
+
+    notif.onclick = () => {
+        window.focus();
+        // Open or focus the chat window
+        if (!openChats.has(contextId)) {
+            openDockedChat(target, type);
+        } else {
+            document.getElementById(`input-${contextId}`)?.focus();
+        }
+        notif.close();
+    };
+
+    // Auto-close after 5s
+    setTimeout(() => notif.close(), 5000);
+}
+
+function showCallNotification(callerName, callType, avatarUrl) {
+    if (Notification.permission !== 'granted') return;
+
+    // Vibrate if supported
+    if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
+
+    const notif = new Notification(`${callType === 'video' ? '📹 Video' : '📞 Audio'} Call`, {
+        body: `${callerName} is calling you... Tap to answer`,
+        icon: avatarUrl || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?s=64&d=mp',
+        tag: 'incoming-call',
+        requireInteraction: true,    // stays until user interacts
+        silent: false
+    });
+
+    notif.onclick = () => {
+        window.focus();
+        notif.close();
+    };
+
+    // Store so we can close it when call is accepted/declined
+    window._callNotif = notif;
+}
+
+function dismissCallNotification() {
+    if (window._callNotif) { window._callNotif.close(); window._callNotif = null; }
+}
+
+
 function handleIncomingMessage(msg, contextId, type) {
-    // Play sound if message is from someone else
-    if ((msg.userId && msg.userId !== currentUser.id) || (msg.senderId && msg.senderId !== currentUser.id)) {
+    const isFromOther = (msg.userId && msg.userId !== currentUser.id) || (msg.senderId && msg.senderId !== currentUser.id);
+
+    if (isFromOther) {
         playNotificationSound();
+
+        // Browser notification when tab is not focused
+        const senderName = msg.user || 'Someone';
+        const senderProfile = allProfiles[msg.senderId || msg.userId];
+        const avatarUrl = senderProfile?.avatar_url || '';
+
+        let target;
+        if (type === 'global') {
+            target = { id: 'global', name: 'Global Chat' };
+        } else if (type === 'group') {
+            target = { groupId: contextId, name: 'Group Chat', isGroup: true };
+        } else {
+            target = { id: msg.senderId, name: senderName, avatar_url: avatarUrl };
+        }
+
+        showChatNotification(senderName, msg.text, avatarUrl, contextId, target, type);
     }
 
     if (openChats.has(contextId)) {
@@ -1871,11 +1957,14 @@ function showIncomingCallModal(callerName, callType) {
     const avatarEl = document.getElementById('call-avatar-ring');
     avatarEl.textContent = callerName.charAt(0).toUpperCase();
     modal.classList.remove('hidden');
-    startRing(); // ring starts here
+    startRing();
+    // Show browser notification for the call
+    showCallNotification(callerName, callType, '');
 }
 
 async function acceptCall() {
-    stopRing(); // stop ring on accept
+    stopRing();
+    dismissCallNotification(); // close the browser call notification
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (!pendingCallOffer) return;
 
@@ -1909,7 +1998,8 @@ async function acceptCall() {
 }
 
 function declineCall() {
-    stopRing(); // stop ring on decline
+    stopRing();
+    dismissCallNotification(); // close the browser call notification
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (pendingCallerId) signalToPeer(pendingCallerId, { type: 'call-declined', contextId: pendingContextId });
     pendingCallOffer = null;
