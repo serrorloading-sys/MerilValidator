@@ -1,4 +1,4 @@
-
+﻿
 // --- SUPABASE CLIENT CONFIGURATION ---
 const SUPABASE_URL = 'https://etdqyrkihsbritcikpbi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0ZHF5cmtpaHNicml0Y2lrcGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0NTMxNzksImV4cCI6MjA4NjAyOTE3OX0.gNVhroMQpc_2Yl3p8UyjdalTqzeUHvLgjcu-XxBWI1I';
@@ -141,7 +141,7 @@ function injectHeaderInfo(name, role) {
 
                     <!-- Text content -->
                     <div style="display:flex; flex-direction:column; align-items:flex-start; line-height:1.1;">
-                        <!-- ADMIN — big neon cyan -->
+                        <!-- ADMIN â€” big neon cyan -->
                         <span style="
                             font-size: 15px;
                             font-weight: 900;
@@ -724,8 +724,10 @@ async function initRealtimeFeatures() {
             id: user.id,
             email: user.email,
             username: displayName,
-            last_seen: new Date(),
-            avatar_url: null
+            last_seen: new Date()
+            // NOTE: avatar_url is intentionally NOT included here —
+            // including it as null would wipe the user's saved photo on every login.
+            // avatar_url is only updated when the user explicitly uploads a new photo.
         }, { onConflict: 'id' });
     } catch (e) { console.warn("Profile sync failed:", e); }
 
@@ -786,9 +788,25 @@ async function initRealtimeFeatures() {
             if (msg.cipher) msg.text = await CryptoUtils.decrypt(msg.cipher, contextId);
             msg.isDetails = true;
 
+            // Update unread count if chat not open
+            if (!openChats.has(contextId)) {
+                unreadCounts[contextId] = (unreadCounts[contextId] || 0) + 1;
+                renderContacts();
+            }
+
             handleIncomingMessage(msg, contextId, type);
         })
+        .on('broadcast', { event: 'typing' }, (payload) => {
+            const { senderId, name, contextId } = payload.payload;
+            if (senderId !== currentUser.id) {
+                showTypingIndicator(contextId, name);
+            }
+        })
+        .on('broadcast', { event: 'webrtc-signal' }, async (payload) => {
+            await handleWebRTCSignal(payload.payload);
+        })
         .subscribe();
+
 
     console.log("Zoho Realtime Initialized");
 }
@@ -805,6 +823,7 @@ async function fetchAllProfiles() {
                 allProfiles[p.id] = {
                     user_id: p.id,
                     name: p.username || p.email,
+                    avatar_url: p.avatar_url || '',
                     last_seen: p.last_seen,
                     role: p.role || 'user'
                 };
@@ -847,7 +866,22 @@ function handleIncomingMessage(msg, contextId, type) {
     }
 }
 
-// --- UI INJECTION & HANDLING (ADVANCED ZOHO STYLE) ---
+
+// --- UI INJECTION & HANDLING (ENHANCED PREMIUM CHAT) ---
+
+const unreadCounts = {};
+let typingTimers = {};
+
+// ===== WEBRTC CALLING STATE =====
+let rtcPeerConnection = null;
+let localStream = null;
+let callTimer = null;
+let callDuration = 0;
+let activeCallContextId = null;
+
+const RTC_CONFIG = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
 
 function injectZohoUI() {
     if (document.getElementById('zoho-container')) return;
@@ -859,59 +893,109 @@ function injectZohoUI() {
     container.innerHTML = `
         <div id="zoho-dock-area" class="flex items-end justify-end mr-4 pointer-events-auto space-x-3 mb-0"></div>
         
-        <div id="zoho-contacts-widget" class="pointer-events-auto bg-white w-80 shadow-2xl border border-gray-200 rounded-t-xl flex flex-col transition-all duration-300 mr-4 overflow-hidden">
-            <div class="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-4 py-3 cursor-pointer flex justify-between items-center h-12" onclick="toggleContactsWidget()">
-                <div class="flex items-center font-semibold tracking-wide text-sm">
-                    <div class="relative">
-                        <i class="fas fa-comment-alt mr-2"></i>
-                        <span id="zoho-online-badge" class="absolute -top-2 -right-1 bg-green-500 text-[9px] px-1 rounded-full border border-gray-900 hidden">0</span>
+        <!-- CONTACTS PANEL -->
+        <div id="zoho-contacts-widget" class="pointer-events-auto flex flex-col transition-all duration-300 mr-4 overflow-hidden"
+            style="width:300px; background:white; box-shadow:0 -8px 40px rgba(99,102,241,0.18), 0 0 0 1px rgba(209,213,219,0.8); border-radius:16px 16px 0 0;">
+            
+            <!-- ===== HEADER ===== -->
+            <div style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 60%,#a78bfa 100%); border-radius:16px 16px 0 0; padding:10px 14px 0 14px;">
+                <!-- Title row -->
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(255,255,255,0.2);">
+                            <i class="fas fa-comment-dots text-white text-xs"></i>
+                        </div>
+                        <span class="text-white font-black text-sm tracking-wide">Messaging</span>
+                        <span id="zoho-unread-total" class="hidden text-white text-[9px] font-black px-1.5 py-0.5 rounded-full" style="background:#ef4444;"></span>
                     </div>
-                    Messaging
+                    <div class="flex items-center gap-2.5" style="color:rgba(255,255,255,0.8);">
+                        <i class="fas fa-clone text-xs cursor-pointer hover:text-white transition-colors" title="New Group"></i>
+                        <i class="fas fa-pen-to-square text-xs cursor-pointer hover:text-white transition-colors" title="New Message"></i>
+                        <i id="zoho-contacts-icon" class="fas fa-chevron-down text-xs cursor-pointer hover:text-white transition-transform duration-300" onclick="toggleContactsWidget()" title="Collapse"></i>
+                        <span id="zoho-online-badge" class="hidden text-white text-[9px] font-black px-1.5 py-0.5 rounded-full" style="background:#22c55e;"></span>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-3">
-                     <i class="fas fa-expand-alt text-xs opacity-50 hover:opacity-100" title="Expand"></i>
-                     <i id="zoho-contacts-icon" class="fas fa-chevron-up text-xs transition-transform duration-300"></i>
+
+                <!-- 3-Tab bar: Chats / Calls / Video Calls -->
+                <div class="flex" style="gap:1px;">
+                    <button id="main-tab-chats" class="flex-1 py-2 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                        style="background:rgba(255,255,255,0.2); color:white; border-radius:8px 8px 0 0;"
+                        onclick="switchMainTab('chats')">
+                        <span class="w-1.5 h-1.5 rounded-full" style="background:#ef4444;"></span> Chats
+                    </button>
+                    <button id="main-tab-calls" class="flex-1 py-2 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all"
+                        style="background:transparent; color:rgba(255,255,255,0.7); border-radius:8px 8px 0 0;"
+                        onclick="switchMainTab('calls')">
+                        <span class="w-1.5 h-1.5 rounded-full" style="background:#22c55e;"></span> Calls
+                    </button>
+                    <button id="main-tab-video" class="flex-1 py-2 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all"
+                        style="background:transparent; color:rgba(255,255,255,0.7); border-radius:8px 8px 0 0;"
+                        onclick="switchMainTab('video')">
+                        <span class="w-1.5 h-1.5 rounded-full" style="background:#f59e0b;"></span> Video Calls
+                    </button>
                 </div>
             </div>
             
-            <div id="zoho-contacts-body" class="bg-gray-50 flex-1 flex flex-col hidden" style="height: 450px; max-height: 85vh;">
-                <div class="bg-white border-b border-gray-200 p-2">
-                    <div class="relative mb-2">
-                        <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
-                        <input type="text" placeholder="Search contacts..." 
-                            class="w-full bg-gray-100 text-sm pl-8 pr-3 py-1.5 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+            <!-- ===== BODY ===== -->
+            <div id="zoho-contacts-body" class="flex-1 flex flex-col hidden" style="height:420px; max-height:80vh; background:#f0f2ff;">
+                <!-- Search bar -->
+                <div class="px-3 pt-2.5 pb-1.5">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-3 top-2.5 text-[10px]" style="color:#a5b4fc;"></i>
+                        <input type="text" placeholder="Search people..."
+                            class="w-full text-xs pl-8 pr-3 py-2 focus:outline-none transition-all"
+                            style="background:rgba(255,255,255,0.85); color:#374151; border-radius:50px; border:none; box-shadow:0 2px 8px rgba(99,102,241,0.1);"
+                            onfocus="this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.2)';"
+                            onblur="this.style.boxShadow='0 2px 8px rgba(99,102,241,0.1)';"
                             onkeyup="handleSearch(event)">
                     </div>
-                    <div class="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                        <button id="tab-all" class="flex-1 py-1 text-xs font-medium rounded-md bg-white shadow-sm text-gray-800 transition-all border border-gray-200" onclick="switchTab('all')">All</button>
-                        <button id="tab-online" class="flex-1 py-1 text-xs font-medium rounded-md text-gray-500 hover:bg-gray-200 transition-all" onclick="switchTab('online')">Online</button>
+                </div>
+
+                <!-- All / Online pill toggle -->
+                <div class="px-3 pb-1.5">
+                    <div class="flex rounded-full p-0.5" style="background:rgba(255,255,255,0.7); box-shadow:0 1px 4px rgba(99,102,241,0.1);">
+                        <button id="tab-all" class="flex-1 py-1.5 text-[11px] font-bold rounded-full transition-all"
+                            style="background:white; color:#4f46e5; box-shadow:0 2px 6px rgba(99,102,241,0.15);"
+                            onclick="switchTab('all')">All</button>
+                        <button id="tab-online" class="flex-1 py-1.5 text-[11px] font-semibold rounded-full flex items-center justify-center gap-1 transition-all"
+                            style="background:transparent; color:#6b7280;"
+                            onclick="switchTab('online')">
+                            <span class="w-1.5 h-1.5 rounded-full" style="background:#22c55e;"></span> Online
+                        </button>
                     </div>
                 </div>
 
-                <div id="group-action-bar" class="hidden bg-indigo-50 px-3 py-2 flex justify-between items-center border-b border-indigo-100">
-                    <span class="text-xs text-indigo-700 font-bold"><span id="sel-count">0</span> selected</span>
-                    <button class="bg-indigo-600 text-white text-[10px] px-2 py-1 rounded hover:bg-indigo-700 transition shadow-sm" onclick="createGroupFromSelection()">
-                        Start Group
-                    </button>
+                <!-- Group selection bar -->
+                <div id="group-action-bar" class="hidden mx-4 mb-2 px-3 py-2 flex justify-between items-center rounded-xl" style="background:#ede9fe;">
+                    <span class="text-xs font-bold" style="color:#4f46e5;"><span id="sel-count">0</span> selected</span>
+                    <button class="text-white text-[10px] px-3 py-1.5 rounded-full font-bold hover:opacity-90"
+                        style="background:linear-gradient(90deg,#4f46e5,#7c3aed);"
+                        onclick="createGroupFromSelection()">Start Group Chat</button>
                 </div>
 
-                <ul id="zoho-contact-list" class="flex-1 overflow-y-auto p-0 m-0 custom-scrollbar relative">
-                    <div class="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
-                        <i class="fas fa-circle-notch fa-spin"></i>
-                        <span class="text-xs">Loading contacts...</span>
+                <!-- Contacts list -->
+                <ul id="zoho-contact-list" class="flex-1 overflow-y-auto px-3 space-y-2 pt-1 pb-2 custom-scrollbar">
+                    <div class="flex flex-col items-center justify-center h-40 space-y-2">
+                        <i class="fas fa-circle-notch fa-spin" style="color:#6366f1;"></i>
+                        <span class="text-xs text-gray-400">Loading contacts...</span>
                     </div>
                 </ul>
 
-                <div class="p-2 border-t border-gray-200 bg-white flex justify-between items-center text-xs text-gray-500">
-                    <div class="hover:text-indigo-600 cursor-pointer flex items-center px-2 py-1 hover:bg-gray-50 rounded" onclick="openDockedChat({id:'global',name:'Global Chat'}, 'global')">
-                        <i class="fas fa-globe mr-1"></i> Global Chat
-                    </div>
-                    
-                    <!-- Admin Button Removed -->
-
-                    <div class="hover:text-gray-800 cursor-pointer p-1" onclick="fetchAllProfiles()">
-                        <i class="fas fa-sync-alt" title="Refresh"></i>
-                    </div>
+                <!-- Footer -->
+                <div class="px-3 py-2 flex justify-between items-center" style="background:white; border-top:1px solid #e5e7eb;">
+                    <button class="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full transition-all"
+                        style="color:#4f46e5;"
+                        onmouseover="this.style.background='#ede9fe';"
+                        onmouseout="this.style.background='transparent';"
+                        onclick="openDockedChat({id:'global',name:'Global Chat'}, 'global')">
+                        <i class="fas fa-globe text-xs"></i> Global Chat
+                    </button>
+                    <button class="w-7 h-7 rounded-full flex items-center justify-center transition-all" style="color:#9ca3af;"
+                        onmouseover="this.style.color='#4f46e5'; this.style.background='#ede9fe';"
+                        onmouseout="this.style.color='#9ca3af'; this.style.background='transparent';"
+                        onclick="fetchAllProfiles()" title="Refresh">
+                        <i class="fas fa-rotate-right text-xs"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -920,30 +1004,155 @@ function injectZohoUI() {
     const style = document.createElement('style');
     style.innerHTML = `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f3f4f6; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+        .animate-fade-in-up { animation: fadeInUp 0.22s cubic-bezier(0.34,1.56,0.64,1); }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(14px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+        .typing-dot { animation: typingBounce 1.2s infinite; display:inline-block; width:5px; height:5px; border-radius:50%; background:#6366f1; margin:0 1.5px; }
+        .typing-dot:nth-child(2) { animation-delay:0.2s; background:#8b5cf6; }
+        .typing-dot:nth-child(3) { animation-delay:0.4s; background:#a78bfa; }
+        @keyframes ringPulse { 0%{box-shadow:0 0 0 0 rgba(34,197,94,0.7)} 70%{box-shadow:0 0 0 6px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+        .online-ring { animation: ringPulse 2s infinite; }
+        @keyframes callRing { 0%,100%{transform:rotate(-12deg) scale(1.05)} 50%{transform:rotate(12deg) scale(1.05)} }
+        .call-ring { animation: callRing 0.35s infinite ease-in-out; }
+        @keyframes incomingGlow { 0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,0.4)} 50%{box-shadow:0 0 0 14px rgba(99,102,241,0)} }
+        .incoming-glow { animation: incomingGlow 1.6s infinite; }
+        .emoji-bar { transition: opacity 0.18s ease, transform 0.18s ease; }
+        .msg-bubble:hover .emoji-bar { opacity:1 !important; transform:translateY(0) !important; pointer-events:auto !important; }
+        .chat-contact-row { transition: background 0.12s; }
+        .chat-contact-row:hover { background: #f5f3ff !important; }
     `;
     document.head.appendChild(style);
     document.body.appendChild(container);
 
+    // Incoming call modal
+    const callModal = document.createElement('div');
+    callModal.id = 'incoming-call-modal';
+    callModal.className = 'hidden fixed inset-0 z-[999] flex items-center justify-center';
+    callModal.innerHTML = `
+        <div class="absolute inset-0 backdrop-blur-sm" style="background:rgba(0,0,0,0.4);"></div>
+        <div class="relative rounded-3xl shadow-2xl p-8 flex flex-col items-center gap-5 w-80 animate-fade-in-up"
+            style="background:white; border:1px solid #e5e7eb; box-shadow:0 25px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(99,102,241,0.1);">
+            
+            <!-- Glowing avatar -->
+            <div class="relative flex items-center justify-center">
+                <div class="absolute w-32 h-32 rounded-full incoming-glow" style="background:transparent;"></div>
+                <div class="absolute w-28 h-28 rounded-full" style="border:2px solid rgba(99,102,241,0.2);"></div>
+                <div id="call-avatar-ring" class="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-black"
+                    style="background:linear-gradient(135deg,#4f46e5,#7c3aed); box-shadow:0 0 20px rgba(99,102,241,0.35);">?</div>
+            </div>
+            
+            <div class="text-center">
+                <p class="font-black text-xl text-gray-900" id="incoming-caller-name">Someone</p>
+                <p class="text-sm mt-1.5 text-indigo-500" id="incoming-call-type">ðŸ“¹ Incoming Video Call...</p>
+            </div>
+            
+            <div class="flex gap-8 mt-1">
+                <button onclick="declineCall()" 
+                    class="w-16 h-16 rounded-full text-white text-xl flex items-center justify-center transition-all hover:scale-110"
+                    style="background:linear-gradient(135deg,#dc2626,#ef4444); box-shadow:0 4px 15px rgba(239,68,68,0.4);">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+                <button onclick="acceptCall()" 
+                    class="w-16 h-16 rounded-full text-white text-xl flex items-center justify-center transition-all hover:scale-110 call-ring"
+                    style="background:linear-gradient(135deg,#16a34a,#22c55e); box-shadow:0 4px 15px rgba(34,197,94,0.4);">
+                    <i id="accept-call-icon" class="fas fa-video"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(callModal);
+
+    // Active call window
+    const callWindow = document.createElement('div');
+    callWindow.id = 'active-call-window';
+    callWindow.className = 'hidden fixed bottom-20 right-4 z-[998] w-80 rounded-2xl overflow-hidden shadow-2xl';
+    callWindow.style.cssText = 'background:white; border:1px solid #e5e7eb; box-shadow:0 10px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(99,102,241,0.1);';
+    callWindow.innerHTML = `
+        <!-- Header -->
+        <div id="call-window-drag-handle" class="px-3 py-2.5 flex items-center justify-between cursor-move select-none"
+            style="background:linear-gradient(90deg,#4f46e5,#7c3aed);">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white" 
+                    id="call-peer-avatar"
+                    style="background:rgba(255,255,255,0.25); border:2px solid rgba(255,255,255,0.4);">?</div>
+                <div>
+                    <p class="text-xs font-bold text-white" id="call-peer-name">Calling...</p>
+                    <p class="text-[10px] font-mono font-bold" id="call-timer" style="color:#bbf7d0;">00:00</p>
+                </div>
+            </div>
+            <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" id="call-type-label"
+                style="background:rgba(255,255,255,0.2); color:white;">VIDEO</span>
+        </div>
+        
+        <!-- Video area -->
+        <div class="relative" style="height:185px; background:#0f0e2a;" id="video-area">
+            <video id="remote-video" autoplay playsinline class="w-full h-full object-cover"></video>
+            <video id="local-video" autoplay playsinline muted 
+                class="absolute bottom-2 right-2 w-20 h-16 rounded-xl object-cover" 
+                style="border:2.5px solid #6366f1; box-shadow:0 0 10px rgba(99,102,241,0.4);"></video>
+            <div id="audio-call-placeholder" class="hidden w-full h-full flex items-center justify-center">
+                <div class="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black" 
+                    id="audio-peer-avatar-big"
+                    style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">?</div>
+            </div>
+        </div>
+        
+        <!-- Controls -->
+        <div class="flex justify-center items-center gap-4 py-3" style="background:white; border-top:1px solid #f3f4f6;">
+            <button onclick="toggleMute()" id="btn-mute" title="Mute"
+                class="w-11 h-11 rounded-full text-sm flex items-center justify-center transition-all hover:scale-110"
+                style="background:#f3f4f6; color:#4f46e5; border:1px solid #e5e7eb;">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button onclick="toggleCamera()" id="btn-camera" title="Camera"
+                class="w-11 h-11 rounded-full text-sm flex items-center justify-center transition-all hover:scale-110"
+                style="background:#f3f4f6; color:#4f46e5; border:1px solid #e5e7eb;">
+                <i class="fas fa-video"></i>
+            </button>
+            <button onclick="endCall()" title="End Call"
+                class="w-12 h-12 rounded-full text-white text-sm flex items-center justify-center transition-all hover:scale-110"
+                style="background:linear-gradient(135deg,#dc2626,#ef4444); box-shadow:0 4px 12px rgba(239,68,68,0.35);">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    `;
+    document.body.appendChild(callWindow);
+
     // Image Upload Logic (Paste & Drag)
     window.addEventListener('paste', handleGlobalPaste);
+
+    // Make call window draggable
+    makeDraggable(callWindow, document.getElementById('call-window-drag-handle'));
+}
+
+function makeDraggable(el, handle) {
+    let ox = 0, oy = 0, mx = 0, my = 0;
+    if (!handle) handle = el;
+    handle.onmousedown = function (e) {
+        e.preventDefault();
+        ox = e.clientX; oy = e.clientY;
+        document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+        document.onmousemove = function (e) {
+            mx = ox - e.clientX; my = oy - e.clientY;
+            ox = e.clientX; oy = e.clientY;
+            el.style.top = (el.offsetTop - my) + "px";
+            el.style.left = (el.offsetLeft - mx) + "px";
+            el.style.right = 'auto'; el.style.bottom = 'auto';
+        };
+    };
 }
 
 function toggleContactsWidget() {
-    const widget = document.getElementById('zoho-contacts-widget');
     const body = document.getElementById('zoho-contacts-body');
     const icon = document.getElementById('zoho-contacts-icon');
-
     if (body.classList.contains('hidden')) {
         body.classList.remove('hidden');
-        widget.style.height = 'auto';
         icon.style.transform = 'rotate(180deg)';
     } else {
         body.classList.add('hidden');
-        widget.style.height = '48px';
         icon.style.transform = 'rotate(0deg)';
     }
 }
@@ -955,14 +1164,39 @@ function handleSearch(e) {
 
 function switchTab(tab) {
     currentTab = tab;
-    document.getElementById('tab-all').className = tab === 'all'
-        ? "flex-1 py-1 text-xs font-medium rounded-md bg-white shadow-sm text-gray-800 transition-all border border-gray-200"
-        : "flex-1 py-1 text-xs font-medium rounded-md text-gray-500 hover:bg-gray-200 transition-all";
-    document.getElementById('tab-online').className = tab === 'online'
-        ? "flex-1 py-1 text-xs font-medium rounded-md bg-white shadow-sm text-gray-800 transition-all border border-gray-200"
-        : "flex-1 py-1 text-xs font-medium rounded-md text-gray-500 hover:bg-gray-200 transition-all";
+    const allBtn = document.getElementById('tab-all');
+    const onlineBtn = document.getElementById('tab-online');
+    if (!allBtn || !onlineBtn) return;
+    if (tab === 'all') {
+        allBtn.style.cssText = 'flex:1; padding:8px; font-size:12px; font-weight:700; border-radius:50px; background:white; color:#4f46e5; box-shadow:0 2px 6px rgba(99,102,241,0.15); transition:all 0.2s;';
+        onlineBtn.style.cssText = 'flex:1; padding:8px; font-size:12px; font-weight:600; border-radius:50px; background:transparent; color:#6b7280; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s;';
+    } else {
+        onlineBtn.style.cssText = 'flex:1; padding:8px; font-size:12px; font-weight:700; border-radius:50px; background:white; color:#4f46e5; box-shadow:0 2px 6px rgba(99,102,241,0.15); display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s;';
+        allBtn.style.cssText = 'flex:1; padding:8px; font-size:12px; font-weight:600; border-radius:50px; background:transparent; color:#6b7280; transition:all 0.2s;';
+    }
     renderContacts();
 }
+
+function switchMainTab(tab) {
+    ['chats', 'calls', 'video'].forEach(t => {
+        const btn = document.getElementById(`main-tab-${t}`);
+        if (!btn) return;
+        if (t === tab) {
+            btn.style.background = 'rgba(255,255,255,0.2)';
+            btn.style.color = 'white';
+            btn.style.fontWeight = '700';
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.color = 'rgba(255,255,255,0.65)';
+            btn.style.fontWeight = '500';
+        }
+    });
+    // For now all tabs show the same contacts list (calls/video can be extended later)
+    renderContacts();
+}
+window.switchMainTab = switchMainTab;
+
+
 
 function updateContactsList(state) {
     lastPresenceState = state;
@@ -972,105 +1206,135 @@ function updateContactsList(state) {
 function renderContacts() {
     const list = document.getElementById('zoho-contact-list');
     const badge = document.getElementById('zoho-online-badge');
-    const selCount = document.getElementById('sel-count');
-    const groupBar = document.getElementById('group-action-bar');
-
     if (!list) return;
 
     const onlineUserIds = new Set();
     if (lastPresenceState) {
-        Object.keys(lastPresenceState).forEach(key => {
-            lastPresenceState[key].forEach(u => onlineUserIds.add(u.user_id));
-        });
+        Object.keys(lastPresenceState).forEach(key => lastPresenceState[key].forEach(u => onlineUserIds.add(u.user_id)));
     }
 
     let combinedUsers = { ...allProfiles };
     if (lastPresenceState) {
         Object.keys(lastPresenceState).forEach(key => {
             lastPresenceState[key].forEach(u => {
-                if (!combinedUsers[u.user_id]) {
-                    combinedUsers[u.user_id] = {
-                        user_id: u.user_id,
-                        name: u.name,
-                        last_seen: new Date(),
-                        role: u.role || 'user'
-                    };
-                }
+                if (!combinedUsers[u.user_id]) combinedUsers[u.user_id] = { user_id: u.user_id, name: u.name, last_seen: new Date(), role: 'user' };
             });
         });
     }
 
-    let users = Object.values(combinedUsers).filter(u => u.user_id !== currentUser.id);
+    let users = Object.values(combinedUsers).filter(u => u.user_id !== currentUser?.id);
     users.sort((a, b) => {
-        const aOnline = onlineUserIds.has(a.user_id);
-        const bOnline = onlineUserIds.has(b.user_id);
-        if (aOnline && !bOnline) return -1;
-        if (!aOnline && bOnline) return 1;
+        const aOn = onlineUserIds.has(a.user_id), bOn = onlineUserIds.has(b.user_id);
+        if (aOn && !bOn) return -1;
+        if (!aOn && bOn) return 1;
         return (a.name || '').localeCompare(b.name || '');
     });
 
     list.innerHTML = '';
     let totalOnline = 0;
+    let totalUnread = 0;
 
     users.forEach(user => {
         const isOnline = onlineUserIds.has(user.user_id);
         if (isOnline) totalOnline++;
-
         if (currentTab === 'online' && !isOnline) return;
-        if (searchQuery && !user.name.toLowerCase().includes(searchQuery)) return;
+        if (searchQuery && !user.name?.toLowerCase().includes(searchQuery)) return;
 
         const isSelected = selectedUsersForGroup.has(user.user_id);
-        const li = document.createElement('li');
-        li.className = `px-3 py-2 flex items-center cursor-pointer border-b border-gray-50 transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'}`;
-
-        // Admin Badge Logic
+        const contextId = [currentUser?.id, user.user_id].sort().join('_');
+        const unread = unreadCounts[contextId] || 0;
+        totalUnread += unread;
+        const avatarUrl = user.avatar_url;
         const isAdmin = user.role === 'admin';
-        const adminBadge = isAdmin ? `<span class="ml-1 text-[9px] bg-red-100 text-red-600 px-1 rounded border border-red-200 font-bold">ADMIN</span>` : '';
+
+        const avatarGradients = [
+            'linear-gradient(135deg,#06b6d4,#6366f1)',
+            'linear-gradient(135deg,#8b5cf6,#06b6d4)',
+            'linear-gradient(135deg,#6366f1,#a78bfa)',
+            'linear-gradient(135deg,#0ea5e9,#8b5cf6)',
+            'linear-gradient(135deg,#14b8a6,#6366f1)',
+        ];
+        const gradIdx = (user.name || 'A').charCodeAt(0) % avatarGradients.length;
+        const avatarGrad = avatarGradients[gradIdx];
+
+        const li = document.createElement('li');
+        li.style.cssText = `
+            background:${isSelected ? '#ede9fe' : 'white'};
+            border-radius:12px;
+            box-shadow:0 1px 6px rgba(99,102,241,0.08);
+            padding:7px 10px;
+            display:flex;
+            align-items:center;
+            gap:8px;
+            cursor:default;
+            transition:box-shadow 0.15s, transform 0.1s;
+        `;
+        li.onmouseover = () => { li.style.boxShadow = '0 4px 14px rgba(99,102,241,0.15)'; li.style.transform = 'translateY(-1px)'; };
+        li.onmouseout = () => { li.style.boxShadow = '0 1px 6px rgba(99,102,241,0.08)'; li.style.transform = 'translateY(0)'; };
 
         li.innerHTML = `
-            <div class="flex items-center justify-center mr-3" onclick="event.stopPropagation()">
-                 <input type="checkbox" class="form-checkbox h-3 w-3 text-indigo-600 rounded focus:ring-0 cursor-pointer" 
-                 ${isSelected ? 'checked' : ''} 
-                 onchange="toggleZohoSelection(event, '${user.user_id}')">
+            <!-- Checkbox -->
+            <div onclick="event.stopPropagation()">
+                <input type="checkbox" class="w-3 h-3 rounded cursor-pointer focus:ring-0"
+                    style="accent-color:#4f46e5;"
+                    ${isSelected ? 'checked' : ''}
+                    onchange="toggleZohoSelection(event, '${user.user_id}')">
             </div>
-            
-            <div class="flex items-center flex-1" onclick="openDockedChat({id: '${user.user_id}', name: '${user.name}'}, 'private')">
-                <div class="relative mr-3">
-                     <div class="w-8 h-8 rounded-full ${isOnline ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500'} flex items-center justify-center font-bold text-xs uppercase shadow-sm">
-                        ${user.name.charAt(0)}
-                     </div>
-                     ${isOnline ? '<span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>' : ''}
+
+            <!-- Avatar -->
+            <div class="relative flex-shrink-0" onclick="openDockedChat({id:'${user.user_id}',name:'${user.name}',avatar_url:'${avatarUrl || ''}'},'private')" style="cursor:pointer;">
+                ${avatarUrl
+                ? `<img src="${avatarUrl}" class="w-9 h-9 rounded-full object-cover" style="border:2px solid #e0e7ff;" alt="${user.name}">`
+                : `<div class="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm text-white select-none" style="background:${avatarGrad};">${(user.name || '?').charAt(0).toUpperCase()}</div>`
+            }
+                ${isOnline ? `<span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full online-ring" style="background:#22c55e; border:2px solid white;"></span>` : ''}
+            </div>
+
+            <!-- Name + Status -->
+            <div class="flex-1 min-w-0" onclick="openDockedChat({id:'${user.user_id}',name:'${user.name}',avatar_url:'${avatarUrl || ''}'},'private')" style="cursor:pointer;">
+                <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-xs font-black truncate" style="color:#1e1b4b;">${user.name}</span>
+                    ${isAdmin ? `<span class="text-[7px] px-1 py-0.5 rounded-full font-black" style="background:#dbeafe; color:#2563eb; border:1px solid #bfdbfe;">ADMIN</span>` : ''}
+                    ${unread > 0 ? `<span class="text-[8px] font-black px-1 py-0.5 rounded-full text-white" style="background:#ef4444;">${unread}</span>` : ''}
                 </div>
-                <div class="flex-1 min-w-0">
-                    <h5 class="text-xs font-semibold text-gray-800 truncate flex items-center">${user.name} ${adminBadge}</h5>
-                    <p class="text-[10px] ${isOnline ? 'text-green-600 font-medium' : 'text-gray-400'}">${isOnline ? 'Online' : 'Offline'}</p>
-                </div>
+                <p class="text-[10px] font-medium" style="color:${isOnline ? '#16a34a' : '#9ca3af'};">${isOnline ? 'Online' : 'Offline'}</p>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button onclick="event.stopPropagation(); openDockedChat({id:'${user.user_id}',name:'${user.name}',avatar_url:'${avatarUrl || ''}'},'private')"
+                    class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style="background:#ede9fe;" title="Chat">
+                    <i class="fas fa-comment text-[10px]" style="color:#6366f1;"></i>
+                </button>
+                <button onclick="event.stopPropagation(); startCall('${contextId}','audio')"
+                    class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style="background:#e0f2fe;" title="Audio Call">
+                    <i class="fas fa-phone text-[10px]" style="color:#0284c7;"></i>
+                </button>
+                <button onclick="event.stopPropagation(); startCall('${contextId}','video')"
+                    class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                    style="background:#ede9fe;" title="Video Call">
+                    <i class="fas fa-video text-[10px]" style="color:#7c3aed;"></i>
+                </button>
             </div>
         `;
         list.appendChild(li);
     });
 
     if (list.children.length === 0) {
-        list.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-32 text-gray-400">
-                <i class="fas fa-user-slash text-2xl mb-2 opacity-50"></i>
-                <span class="text-xs">No contacts found</span>
-            </div>
-        `;
+        list.innerHTML = `<div class="flex flex-col items-center justify-center h-32 gap-2 text-gray-400"><i class="fas fa-user-slash text-2xl opacity-40"></i><span class="text-xs">No contacts found</span></div>`;
     }
 
-    if (badge) {
-        badge.innerText = totalOnline;
-        if (totalOnline > 0) badge.classList.remove('hidden');
-        else badge.classList.add('hidden');
-    }
+    if (badge) { badge.innerText = totalOnline; totalOnline > 0 ? badge.classList.remove('hidden') : badge.classList.add('hidden'); }
 
-    if (selectedUsersForGroup.size > 0) {
-        groupBar.classList.remove('hidden');
-        selCount.innerText = selectedUsersForGroup.size;
-    } else {
-        groupBar.classList.add('hidden');
-    }
+    const unreadBadge = document.getElementById('zoho-unread-total');
+    if (unreadBadge) { unreadBadge.innerText = totalUnread; totalUnread > 0 ? unreadBadge.classList.remove('hidden') : unreadBadge.classList.add('hidden'); }
+
+    const groupBar = document.getElementById('group-action-bar');
+    const selCount = document.getElementById('sel-count');
+    if (selectedUsersForGroup.size > 0) { groupBar.classList.remove('hidden'); selCount.innerText = selectedUsersForGroup.size; }
+    else groupBar.classList.add('hidden');
 }
 
 function toggleZohoSelection(e, userId) {
@@ -1081,324 +1345,693 @@ function toggleZohoSelection(e, userId) {
 
 function createGroupFromSelection() {
     if (selectedUsersForGroup.size === 0) return;
-
-    const members = Array.from(selectedUsersForGroup);
-    members.push(currentUser.id);
+    const members = [...selectedUsersForGroup, currentUser.id];
     const groupId = members.sort().join('_');
-    const groupName = `Group (${members.length})`;
-
-    const target = {
-        groupId: groupId,
-        name: groupName,
-        members: members,
-        isGroup: true
-    };
-
-    openDockedChat(target, 'group');
+    openDockedChat({ groupId, name: `Group (${members.length})`, members, isGroup: true }, 'group');
     selectedUsersForGroup.clear();
     renderContacts();
 }
 
+// --- DOCKED CHAT WINDOW ---
 
-// --- DOCKED CHAT WINDOW LOGIC ---
-
-function openDockedChat(target, type) {
-    let contextId;
-    if (type === 'global') contextId = 'global';
-    else if (type === 'group') contextId = target.groupId;
-    else contextId = [currentUser.id, target.id].sort().join('_');
+async function openDockedChat(target, type) {
+    let contextId = type === 'global' ? 'global' : type === 'group' ? target.groupId : [currentUser.id, target.id].sort().join('_');
 
     if (openChats.has(contextId)) {
-        const input = document.getElementById(`input-${contextId}`);
-        if (input) input.focus();
+        document.getElementById(`input-${contextId}`)?.focus();
         return;
     }
-
-    if (openChats.size >= 3) {
-        const firstKey = openChats.keys().next().value;
-        closeDockedChat(firstKey);
-    }
+    if (openChats.size >= 3) closeDockedChat(openChats.keys().next().value);
 
     openChats.set(contextId, { target, type });
+    unreadCounts[contextId] = 0;
+    renderContacts();
 
     const dockArea = document.getElementById('zoho-dock-area');
     const win = document.createElement('div');
     win.id = `chat-window-${contextId}`;
-    win.className = "bg-white w-72 border border-blue-100 rounded-t-lg shadow-xl flex flex-col pointer-events-auto transition-all animate-fade-in-up relative";
-    win.style.height = "350px";
+    win.className = 'flex flex-col pointer-events-auto animate-fade-in-up border border-white/10 rounded-t-xl shadow-2xl overflow-hidden';
+    win.style.cssText = 'width:300px; height:400px; background: linear-gradient(145deg, #1e1b4b, #312e81);';
 
-    let colorClass, iconClass;
-    if (type === 'global') { colorClass = 'text-blue-500'; iconClass = 'fa-globe'; }
-    else if (type === 'group') { colorClass = 'text-indigo-500'; iconClass = 'fa-users'; }
-    else { colorClass = 'text-green-500'; iconClass = 'fa-circle'; }
+    const isPrivate = type === 'private';
+    const avatarUrl = target.avatar_url || '';
+    const avatarHtml = avatarUrl
+        ? `<img src="${avatarUrl}" class="w-7 h-7 rounded-full object-cover border border-indigo-400">`
+        : `<div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black text-white" style="background:linear-gradient(135deg,#6366f1,#a78bfa)">${(target.name || '?').charAt(0).toUpperCase()}</div>`;
 
     win.innerHTML = `
-        <div class="bg-white border-b border-gray-200 px-3 py-2 rounded-t-lg flex justify-between items-center cursor-pointer hover:bg-gray-50 h-10 select-none" onclick="toggleDockBody('${contextId}')">
-            <div class="flex items-center text-sm font-bold text-gray-700 truncate flex-1 mr-2">
-                <i class="fas ${iconClass} ${colorClass} mr-2 text-xs"></i>
-                <span class="truncate">${target.name}</span>
+        <!-- Chat header -->
+        <div class="px-3 py-2 flex items-center justify-between select-none border-b border-white/10 cursor-pointer" onclick="toggleDockBody('${contextId}')">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="flex-shrink-0">${avatarHtml}</div>
+                <div class="min-w-0">
+                    <p class="text-xs font-bold text-white truncate">${target.name}</p>
+                    <p id="status-${contextId}" class="text-[9px]" style="color:#818cf8;">...</p>
+                </div>
             </div>
-            <div class="flex items-center text-gray-400 space-x-3">
-                <i class="fas fa-minus text-xs hover:text-gray-600" title="Minimize"></i>
-                <i class="fas fa-times text-xs hover:text-red-500" onclick="closeDockedChat('${contextId}', event)" title="Close"></i>
+            <div class="flex items-center gap-3 flex-shrink-0">
+                ${isPrivate ? `
+                <i class="fas fa-phone text-xs cursor-pointer transition-all hover:scale-110" 
+                    style="color:#a5b4fc;"
+                    onmouseover="this.style.color='#4ade80'; this.style.textShadow='0 0 8px rgba(74,222,128,0.7)';" 
+                    onmouseout="this.style.color='#a5b4fc'; this.style.textShadow='none';"
+                    title="Audio Call" onclick="event.stopPropagation(); startCall('${contextId}','audio')"></i>
+                <i class="fas fa-video text-xs cursor-pointer transition-all hover:scale-110"
+                    style="color:#a5b4fc;"
+                    onmouseover="this.style.color='#60a5fa'; this.style.textShadow='0 0 8px rgba(96,165,250,0.7)';" 
+                    onmouseout="this.style.color='#a5b4fc'; this.style.textShadow='none';"
+                    title="Video Call" onclick="event.stopPropagation(); startCall('${contextId}','video')"></i>
+                ` : ''}
+                <i class="fas fa-minus text-xs cursor-pointer transition-colors" style="color:#818cf8;"
+                    onmouseover="this.style.color='white';" onmouseout="this.style.color='#818cf8';"
+                    onclick="event.stopPropagation(); toggleDockBody('${contextId}')" title="Minimize"></i>
+                <i class="fas fa-times text-xs cursor-pointer transition-all hover:scale-110" style="color:#818cf8;"
+                    onmouseover="this.style.color='#f87171'; this.style.textShadow='0 0 6px rgba(248,113,113,0.6)';" 
+                    onmouseout="this.style.color='#818cf8'; this.style.textShadow='none';"
+                    onclick="closeDockedChat('${contextId}', event)" title="Close"></i>
             </div>
         </div>
-        
-        <div id="chat-body-${contextId}" class="flex flex-col flex-1 bg-gray-50 overflow-hidden relative">
-            <div id="drop-zone-${contextId}" class="absolute inset-0 bg-indigo-50 bg-opacity-95 flex flex-col items-center justify-center z-20 hidden border-2 border-dashed border-indigo-400 m-2 rounded-lg pointer-events-none">
-                <i class="fas fa-cloud-upload-alt text-3xl text-indigo-500 mb-2"></i>
-                <span class="text-xs font-bold text-indigo-700">Drop files to share</span>
+
+        <!-- Chat body -->
+        <div id="chat-body-${contextId}" class="flex flex-col flex-1 overflow-hidden" style="background:#f9fafb;">
+            <!-- Drop zone -->
+            <div id="drop-zone-${contextId}" class="absolute inset-0 flex flex-col items-center justify-center z-20 hidden m-2 rounded-xl pointer-events-none"
+                style="background:rgba(99,102,241,0.08); border:2px dashed #c7d2fe;">
+                <i class="fas fa-cloud-upload-alt text-3xl mb-2 text-indigo-400"></i>
+                <span class="text-xs font-bold text-indigo-500">Drop to share</span>
             </div>
 
-            <div id="msg-container-${contextId}" class="flex-1 overflow-y-auto p-3 space-y-2 text-xs">
-                <div class="text-center text-gray-300 text-[10px] mt-2 mb-2 italic">Start of conversation</div>
+            <!-- Messages -->
+            <div id="msg-container-${contextId}" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar text-xs">
+                <div class="text-center text-[10px] my-2 italic flex items-center gap-2 justify-center text-gray-400">
+                    <div class="flex-1 h-px bg-gray-200"></div>
+                    <span>Loading messages...</span>
+                    <div class="flex-1 h-px bg-gray-200"></div>
+                </div>
             </div>
-            
-            <div class="p-2 bg-white border-t border-gray-200 flex items-center gap-2">
-                <button class="text-gray-400 hover:text-indigo-600 transition-colors p-1" onclick="document.getElementById('file-input-${contextId}').click()" title="Attach File">
-                    <i class="fas fa-paperclip"></i>
+
+            <!-- Typing indicator -->
+            <div id="typing-${contextId}" class="hidden px-3 py-1.5 text-[10px] italic flex items-center gap-1 text-indigo-500">
+                <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+                <span id="typing-name-${contextId}" class="ml-1.5">typing...</span>
+            </div>
+
+            <!-- Input bar -->
+            <div class="p-2 flex items-center gap-1.5" style="border-top:1px solid #e5e7eb; background:white;">
+                <button class="p-1.5 rounded-lg transition-all hover:scale-110 flex-shrink-0 text-gray-400"
+                    onmouseover="this.style.background='#ede9fe'; this.style.color='#4f46e5';"
+                    onmouseout="this.style.background='transparent'; this.style.color='#9ca3af';"
+                    onclick="document.getElementById('file-input-${contextId}').click()" title="Attach">
+                    <i class="fas fa-paperclip text-xs"></i>
                 </button>
-                <input type="file" id="file-input-${contextId}" class="hidden" onchange="handleFileUpload(event, '${contextId}')" />
-                
-                <input id="input-${contextId}" type="text" 
-                    class="flex-1 bg-gray-100 border-0 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500" 
-                    placeholder="Type..." 
-                    onkeypress="handleDockKey(event, '${contextId}')">
-                    
-                <button class="text-indigo-600 hover:text-indigo-800 p-1" onclick="sendDockMessage('${contextId}')">
-                    <i class="fas fa-paper-plane"></i>
+                <input type="file" id="file-input-${contextId}" class="hidden" onchange="handleFileUpload(event, '${contextId}')">
+                <button class="p-1.5 rounded-lg transition-all hover:scale-110 flex-shrink-0 text-gray-400"
+                    onmouseover="this.style.background='#ede9fe'; this.style.color='#4f46e5';"
+                    onmouseout="this.style.background='transparent'; this.style.color='#9ca3af';"
+                    onclick="toggleEmojiPicker('${contextId}')" title="Emoji">
+                    <i class="fas fa-face-smile text-xs"></i>
                 </button>
+                <input id="input-${contextId}" type="text"
+                    class="flex-1 text-sm px-3 py-1.5 rounded-xl focus:outline-none transition-all text-gray-800"
+                    style="background:#f3f4f6; border:1px solid #e5e7eb; caret-color:#4f46e5;"
+                    onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 2px rgba(99,102,241,0.15)';"
+                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
+                    placeholder="Message..."
+                    onkeypress="handleDockKey(event, '${contextId}')"
+                    oninput="broadcastTyping('${contextId}')">
+                <button class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
+                    style="background:linear-gradient(135deg,#4f46e5,#7c3aed); box-shadow:0 2px 8px rgba(79,70,229,0.35);"
+                    onclick="sendDockMessage('${contextId}')">
+                    <i class="fas fa-paper-plane text-xs text-white"></i>
+                </button>
+            </div>
+
+            <!-- Emoji picker -->
+            <div id="emoji-picker-${contextId}" class="hidden flex-wrap gap-1 p-2" style="background:white; border-top:1px solid #f3f4f6;">
+                ${['ðŸ˜€', 'ðŸ˜‚', 'â¤ï¸', 'ðŸ‘', 'ðŸ”¥', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸŽ‰', 'ðŸ‘', 'ðŸ™', 'ðŸ˜', 'ðŸ¤”', 'ðŸ˜Ž', 'ðŸ’¯', 'âœ…'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
             </div>
         </div>
     `;
 
     dockArea.appendChild(win);
 
-    const body = document.getElementById(`chat-body-${contextId}`);
-    const dropZone = document.getElementById(`drop-zone-${contextId}`);
+    // Drag & drop
+    const body = win.querySelector(`#chat-body-${contextId}`);
+    const dropZone = win.querySelector(`#drop-zone-${contextId} `);
+    win.addEventListener('dragenter', e => { e.preventDefault(); dropZone.classList.remove('hidden'); });
+    win.addEventListener('dragleave', e => { if (!win.contains(e.relatedTarget)) dropZone.classList.add('hidden'); });
+    win.addEventListener('dragover', e => e.preventDefault());
+    win.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.add('hidden'); if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0], contextId); });
 
-    // Drag & Drop
-    win.addEventListener('dragenter', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('hidden'); });
-    win.addEventListener('dragleave', (e) => {
-        if (e.relatedTarget && !win.contains(e.relatedTarget)) {
-            dropZone.classList.add('hidden');
-        }
-    });
-    win.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
-    win.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add('hidden');
-        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0], contextId);
-    });
+    setTimeout(() => document.getElementById(`input-${contextId}`)?.focus(), 100);
 
-    setTimeout(() => document.getElementById(`input-${contextId}`).focus(), 100);
+    // Load message history
+    await loadMessageHistory(contextId);
+
+    // Subscribe to typing events for this chat
+    if (type === 'private' && target.id) {
+        subscribeToTyping(contextId, target.id);
+    }
 }
 
 function toggleDockBody(contextId) {
     const body = document.getElementById(`chat-body-${contextId}`);
     const win = document.getElementById(`chat-window-${contextId}`);
-
-    if (body.classList.contains('hidden')) {
-        body.classList.remove('hidden');
-        win.style.height = "350px";
-    } else {
-        body.classList.add('hidden');
-        win.style.height = "40px";
-    }
+    if (!body || !win) return;
+    if (body.classList.contains('hidden')) { body.classList.remove('hidden'); win.style.height = '400px'; }
+    else { body.classList.add('hidden'); win.style.height = '44px'; }
 }
+window.toggleDockBody = toggleDockBody;
 
 function closeDockedChat(contextId, e) {
     if (e) e.stopPropagation();
-    const win = document.getElementById(`chat-window-${contextId}`);
-    if (win) win.remove();
+    document.getElementById(`chat-window-${contextId}`)?.remove();
     openChats.delete(contextId);
 }
+window.closeDockedChat = closeDockedChat;
 
 window.handleDockKey = function (e, contextId) {
     if (e.key === 'Enter') sendDockMessage(contextId);
+};
+
+function toggleEmojiPicker(contextId) {
+    const picker = document.getElementById(`emoji-picker-${contextId} `);
+    picker.classList.toggle('hidden');
 }
 
-function handleGlobalPaste(e) {
-    // Only sort of works if focus is on a specific input, but let's try to detect active element
-    const activeEl = document.activeElement;
-    if (activeEl && activeEl.id && activeEl.id.startsWith('input-')) {
-        const contextId = activeEl.id.replace('input-', '');
-        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-        for (const item of items) {
-            if (item.kind === 'file') {
-                const blob = item.getAsFile();
-                uploadFile(blob, contextId);
-                // Don't prevent default if it's text, but do if it's file
-            }
-        }
-    }
+function insertEmoji(contextId, emoji) {
+    const input = document.getElementById(`input-${contextId}`);
+    if (input) { input.value += emoji; input.focus(); }
 }
 
-async function handleFileUpload(e, contextId) {
-    if (e.target.files.length > 0) {
-        await uploadFile(e.target.files[0], contextId);
-        e.target.value = '';
-    }
-}
+// --- MESSAGE PERSISTENCE ---
 
-async function uploadFile(file, contextId) {
-    if (file.size > 10 * 1024 * 1024) {
-        alert("File too large! Max 10MB.");
-        return;
-    }
-
-    const tempId = 'upload-' + Date.now();
-    appendMessageToWindow(contextId, {
-        userId: currentUser.id,
-        text: `<i class="fas fa-spinner fa-spin mr-1"></i> Uploading ${file.name}...`,
-        time: 'Now',
-        isSystem: true,
-        id: tempId
-    });
+async function loadMessageHistory(contextId) {
+    const container = document.getElementById(`msg-container-${contextId} `);
+    if (!container) return;
 
     try {
-        const fileExt = file.name.split('.').pop();
-        // folder structure: chat-attachments/userId/timestamp.ext
-        const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
+        const { data, error } = await sbClient
+            .from('messages')
+            .select('*')
+            .eq('context_id', contextId)
+            .order('created_at', { ascending: true })
+            .limit(30);
 
-        const { data, error } = await sbClient.storage
-            .from('chat-attachments')
-            .upload(fileName, file);
+        container.innerHTML = `< div class="text-center text-indigo-400/60 text-[10px] my-2 italic flex items-center gap-2 justify-center" ><div class="flex-1 h-px bg-indigo-900/40"></div><span>Start of conversation</span><div class="flex-1 h-px bg-indigo-900/40"></div></div > `;
 
-        if (error) throw error;
-
-        const { data: { publicUrl } } = sbClient.storage
-            .from('chat-attachments')
-            .getPublicUrl(fileName);
-
-        const tempEl = document.getElementById(tempId);
-        if (tempEl) tempEl.remove();
-
-        await sendDockMessage(contextId, {
-            type: file.type.startsWith('image/') ? 'image' : 'file',
-            url: publicUrl,
-            name: file.name
-        });
-
-    } catch (err) {
-        console.error("Upload failed", err);
-        const tempEl = document.getElementById(tempId);
-        if (tempEl) tempEl.innerHTML = `<span class="text-red-500 text-[10px]">Upload failed: ${err.message}. (Did you create the bucket?)</span>`;
+        if (data && data.length > 0) {
+            for (const msg of data) {
+                let text = '';
+                if (msg.cipher) {
+                    try { text = await CryptoUtils.decrypt(msg.cipher, contextId); } catch { text = '[Encrypted]'; }
+                }
+                const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                appendMessageToWindow(contextId, {
+                    userId: msg.sender_id,
+                    user: msg.sender_name,
+                    text,
+                    time,
+                    attachment: msg.file_url ? { type: msg.message_type, url: msg.file_url, name: msg.file_name } : null,
+                    messageId: msg.id
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('Could not load message history:', e);
+        const container = document.getElementById(`msg-container-${contextId} `);
+        if (container) container.innerHTML = `< div class="text-center text-indigo-400/60 text-[10px] my-2 italic" > Could not load history</div > `;
     }
 }
+
+async function saveMessageToDB(contextId, payload, text) {
+    try {
+        const { data: { user } } = await sbClient.auth.getUser();
+        if (!user) return;
+
+        const cipher = text ? await CryptoUtils.encrypt(text, contextId) : null;
+
+        await sbClient.from('messages').insert({
+            context_id: contextId,
+            sender_id: user.id,
+            sender_name: payload.user,
+            cipher,
+            message_type: payload.attachment?.type || 'text',
+            file_url: payload.attachment?.url || null,
+            file_name: payload.attachment?.name || null,
+        });
+    } catch (e) {
+        console.warn('Could not save message to DB:', e);
+    }
+}
+
+// --- TYPING INDICATOR ---
+
+function broadcastTyping(contextId) {
+    const chatData = openChats.get(contextId);
+    if (!chatData || chatData.type !== 'private') return;
+    const { target } = chatData;
+    const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'Someone';
+
+    const ch = sbClient.channel(`room - private - ${target.id} `);
+    ch.subscribe().then(() => {
+        ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
+        setTimeout(() => sbClient.removeChannel(ch), 500);
+    });
+}
+
+function subscribeToTyping(contextId) {
+    // privateChannel already handles incoming typing events
+    // handled in initRealtimeFeatures
+}
+
+function showTypingIndicator(contextId, name) {
+    const el = document.getElementById(`typing-${contextId} `);
+    const nameEl = document.getElementById(`typing-name-${contextId} `);
+    if (!el) return;
+    if (nameEl) nameEl.textContent = `${name} is typing...`;
+    el.classList.remove('hidden');
+    clearTimeout(typingTimers[contextId]);
+    typingTimers[contextId] = setTimeout(() => el.classList.add('hidden'), 2500);
+}
+
+// --- SEND MESSAGE ---
 
 async function sendDockMessage(contextId, attachment = null) {
     const input = document.getElementById(`input-${contextId}`);
-    let text = input ? input.value.trim() : '';
-
+    const text = input ? input.value.trim() : '';
     if (!text && !attachment) return;
 
     const chatData = openChats.get(contextId);
     if (!chatData) return;
-
     const { target, type } = chatData;
+
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const displayName = currentUser.user_metadata.display_name || currentUser.email.split('@')[0];
+    const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
 
     let payload = {
         user: displayName,
         userId: currentUser.id,
         senderId: currentUser.id,
-        time: time,
-        attachment: attachment
+        time,
+        attachment
     };
 
     if (text) {
         const cipher = await CryptoUtils.encrypt(text, contextId);
         payload.cipher = cipher;
-    } else {
-        payload.text = "";
     }
 
-    payload.isPrivate = (type !== 'global');
+    payload.isPrivate = type !== 'global';
     if (payload.isPrivate && type === 'group') payload.groupId = contextId;
 
+    // Broadcast realtime
     if (type === 'global') {
         globalChannel.send({ type: 'broadcast', event: 'chat', payload });
     } else {
         const recipients = type === 'group' ? target.members : [target.id];
         recipients.forEach(async (rid) => {
             if (rid === currentUser.id) return;
-            const ch = sbClient.channel(`room-private-${rid}`);
+            const ch = sbClient.channel(`room - private - ${rid} `);
             await ch.subscribe();
             await ch.send({ type: 'broadcast', event: 'dm', payload });
             sbClient.removeChannel(ch);
         });
     }
 
-    appendMessageToWindow(contextId, { ...payload, text: text, isDetails: true });
+    // Save to DB
+    await saveMessageToDB(contextId, payload, text);
+
+    appendMessageToWindow(contextId, { ...payload, text, isDetails: true });
     if (input) input.value = '';
+
+    // Close emoji picker if open
+    document.getElementById(`emoji-picker-${contextId} `)?.classList.add('hidden');
 }
 
+// --- RENDER MESSAGE BUBBLE ---
+
 function appendMessageToWindow(contextId, msg) {
-    const container = document.getElementById(`msg-container-${contextId}`);
+    const container = document.getElementById(`msg-container-${contextId} `);
     if (!container) return;
 
     if (msg.isSystem) {
         const div = document.createElement('div');
         div.id = msg.id || '';
-        div.className = "text-center text-xs text-gray-400 my-1";
+        div.className = 'text-center text-xs text-indigo-400/60 my-1 italic';
         div.innerHTML = msg.text;
         container.appendChild(div);
         container.scrollTop = container.scrollHeight;
         return;
     }
 
-    const isMe = msg.userId === currentUser.id || msg.senderId === currentUser.id;
+    const isMe = msg.userId === currentUser?.id || msg.senderId === currentUser?.id;
     const div = document.createElement('div');
-    div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-fade-in-up mb-2`;
+    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate - fade -in -up`;
 
     let contentHtml = '';
-
     if (msg.attachment) {
         if (msg.attachment.type === 'image') {
-            contentHtml += `
-                <div class="mb-1 transform transition hover:scale-[1.02]">
-                    <img src="${msg.attachment.url}" alt="Image" 
-                        class="max-w-[200px] max-h-[150px] rounded-lg border border-gray-200 cursor-pointer shadow-sm"
-                        onclick="window.open('${msg.attachment.url}', '_blank')">
-                </div>
-            `;
+            contentHtml = `< img src = "${msg.attachment.url}" class= "max-w-[180px] max-h-[130px] rounded-xl border border-white/10 cursor-pointer shadow-md hover:scale-105 transition-transform mb-1" onclick = "window.open('${msg.attachment.url}','_blank')" > `;
         } else {
-            contentHtml += `
-                <div class="mb-1 bg-gray-50 p-2 rounded border border-gray-100 flex items-center gap-2 max-w-[200px]">
-                    <i class="fas fa-file-alt text-gray-400 text-lg"></i>
-                    <a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-600 font-medium hover:underline truncate flex-1">${msg.attachment.name}</a>
-                </div>
-            `;
+            contentHtml = `< div class= "flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10" ><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div > `;
         }
     }
+    if (msg.text) contentHtml += `< div class= "break-words leading-snug" > ${msg.text}</div > `;
 
-    if (msg.text) {
-        contentHtml += `<div class="leading-snug break-words">${msg.text}</div>`;
-    }
+    const bubbleBg = isMe
+        ? 'background: linear-gradient(135deg,#6366f1,#8b5cf6); color:white;'
+        : 'background:rgba(255,255,255,0.12); color:white; border: 1px solid rgba(255,255,255,0.1);';
+
+    const messageId = msg.messageId || ('msg_' + Date.now());
 
     div.innerHTML = `
-        <div class="max-w-[85%] ${isMe ? 'bg-indigo-600 text-white rounded-t-lg rounded-bl-lg' : 'bg-white border border-gray-200 text-gray-800 rounded-t-lg rounded-br-lg shadow-sm'} px-3 py-2 relative group">
-            ${!isMe && msg.groupId ? `<div class="text-[9px] font-bold text-indigo-300 mb-0.5">${msg.user}</div>` : ''}
-            ${contentHtml}
-            <div class="text-[9px] opacity-60 text-right mt-0.5 select-none">${msg.time}</div>
-        </div>
-    `;
+        < div class= "max-w-[80%] relative msg-bubble group" >
+            ${!isMe && msg.groupId ? `<p class="text-[9px] font-bold text-indigo-300 mb-0.5 ml-1">${msg.user}</p>` : ''}
+            <div id="${messageId}" style="${bubbleBg}" class="px-3 py-2 rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-md">
+                ${contentHtml}
+                <div class="flex items-center justify-end gap-1 mt-0.5">
+                    <span class="text-[9px] opacity-50 select-none">${msg.time}</span>
+                    ${isMe ? '<i class="fas fa-check-double text-[8px] opacity-50"></i>' : ''}
+                </div>
+            </div>
+            <!--Emoji reaction bar-- >
+            <div class="emoji-bar flex gap-0.5 ${isMe ? 'justify-end' : 'justify-start'} mt-0.5 opacity-0 translate-y-1 pointer-events-auto">
+                ${['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ”¥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
+            </div>
+            <div id="reactions-${messageId}" class="flex gap-1 flex-wrap mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}"></div>
+        </div >
+        `;
 
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
+async function sendReaction(messageId, emoji) {
+    try {
+        const { data: { user } } = await sbClient.auth.getUser();
+        if (!user) return;
+        await sbClient.from('message_reactions').upsert({ message_id: messageId, user_id: user.id, emoji }, { onConflict: 'message_id,user_id,emoji' });
+        const el = document.getElementById(`reactions - ${messageId} `);
+        if (el) el.innerHTML += `< span class="text-sm bg-indigo-900/60 rounded-full px-1.5 py-0.5 text-xs" > ${emoji}</span > `;
+    } catch (e) { console.warn('Reaction failed:', e); }
+}
+
+// --- FILE UPLOAD ---
+
+function handleGlobalPaste(e) {
+    const activeEl = document.activeElement;
+    if (activeEl?.id?.startsWith('input-')) {
+        const contextId = activeEl.id.replace('input-', '');
+        const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items || [];
+        for (const item of items) {
+            if (item.kind === 'file') uploadFile(item.getAsFile(), contextId);
+        }
+    }
+}
+
+async function handleFileUpload(e, contextId) {
+    if (e.target.files.length > 0) { await uploadFile(e.target.files[0], contextId); e.target.value = ''; }
+}
+
+async function uploadFile(file, contextId) {
+    if (file.size > 10 * 1024 * 1024) { showToast('File too large! Max 10MB.', 'error'); return; }
+    const tempId = 'upload-' + Date.now();
+    appendMessageToWindow(contextId, { userId: currentUser.id, text: `< i class="fas fa-spinner fa-spin mr-1" ></i > Uploading ${file.name}...`, time: 'Now', isSystem: true, id: tempId });
+    try {
+        const fileName = `${currentUser.id}/${Date.now()}.${file.name.split('.').pop()}`;
+        const { error } = await sbClient.storage.from('chat-attachments').upload(fileName, file);
+        if (error) throw error;
+        const { data: { publicUrl } } = sbClient.storage.from('chat-attachments').getPublicUrl(fileName);
+        document.getElementById(tempId)?.remove();
+        await sendDockMessage(contextId, { type: file.type.startsWith('image/') ? 'image' : 'file', url: publicUrl, name: file.name });
+    } catch (err) {
+        const el = document.getElementById(tempId);
+        if (el) el.innerHTML = `<span class="text-red-400">Upload failed: ${err.message}</span>`;
+    }
+}
+
+// ============================================================
+// WEBRTC CALLING
+// ============================================================
+
+let pendingCallOffer = null;
+let pendingCallType = null;
+let pendingCallerId = null;
+let pendingCallerName = null;
+let pendingContextId = null;
+
+async function startCall(contextId, callType) {
+    if (rtcPeerConnection) { showToast('Already in a call.', 'error'); return; }
+    const chatData = openChats.get(contextId);
+    if (!chatData || chatData.type !== 'private') return;
+
+    activeCallContextId = contextId;
+    const { target } = chatData;
+    const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
+    } catch (e) {
+        showToast('Could not access camera/microphone.', 'error');
+        return;
+    }
+
+    rtcPeerConnection = new RTCPeerConnection(RTC_CONFIG);
+    localStream.getTracks().forEach(track => rtcPeerConnection.addTrack(track, localStream));
+
+    rtcPeerConnection.onicecandidate = (e) => {
+        if (e.candidate) signalToPeer(target.id, { type: 'ice-candidate', candidate: e.candidate, contextId });
+    };
+
+    rtcPeerConnection.ontrack = (e) => {
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteVideo) remoteVideo.srcObject = e.streams[0];
+    };
+
+    const offer = await rtcPeerConnection.createOffer();
+    await rtcPeerConnection.setLocalDescription(offer);
+
+    signalToPeer(target.id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId });
+
+    // Show lightweight "Calling..." notification — do NOT open call window/start timer yet
+    // Timer + call window open only when peer ACCEPTS (call-answer signal received)
+    showToast(`${callType === 'video' ? 'Video' : 'Audio'} call ringing... waiting for ${target.name}`, 'info');
+    appendMessageToWindow(contextId, {
+        userId: currentUser.id,
+        text: `${callType === 'video' ? 'Video' : 'Audio'} call started...`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isSystem: true
+    });
+    // Store call meta for when answer comes back
+    window._pendingOutCallTarget = target;
+    window._pendingOutCallType = callType;
+}
+
+async function signalToPeer(peerId, payload) {
+    const ch = sbClient.channel(`room-private-${peerId}`);
+    await ch.subscribe();
+    await ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
+    setTimeout(() => sbClient.removeChannel(ch), 500);
+}
+
+// ===== RING TONE =====
+let _ringInterval = null;
+let _ringCtx = null;
+function startRing() {
+    stopRing();
+    function beep() {
+        try {
+            _ringCtx = new (window.AudioContext || window.webkitAudioContext)();
+            [0, 0.2].forEach(delay => {
+                const osc = _ringCtx.createOscillator();
+                const gain = _ringCtx.createGain();
+                osc.connect(gain); gain.connect(_ringCtx.destination);
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.35, _ringCtx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(0.001, _ringCtx.currentTime + delay + 0.16);
+                osc.start(_ringCtx.currentTime + delay);
+                osc.stop(_ringCtx.currentTime + delay + 0.16);
+            });
+        } catch (e) { }
+    }
+    beep();
+    _ringInterval = setInterval(beep, 1800);
+}
+function stopRing() {
+    clearInterval(_ringInterval); _ringInterval = null;
+    if (_ringCtx) { try { _ringCtx.close(); } catch (e) { } _ringCtx = null; }
+}
+
+function showIncomingCallModal(callerName, callType) {
+    const modal = document.getElementById('incoming-call-modal');
+    document.getElementById('incoming-caller-name').textContent = callerName;
+    document.getElementById('incoming-call-type').textContent = callType === 'video' ? 'Video Incoming Call...' : 'Audio Incoming Call...';
+    document.getElementById('accept-call-icon').className = callType === 'video' ? 'fas fa-video' : 'fas fa-phone';
+    const avatarEl = document.getElementById('call-avatar-ring');
+    avatarEl.textContent = callerName.charAt(0).toUpperCase();
+    modal.classList.remove('hidden');
+    startRing(); // ring starts here
+}
+
+async function acceptCall() {
+    stopRing(); // stop ring on accept
+    document.getElementById('incoming-call-modal').classList.add('hidden');
+    if (!pendingCallOffer) return;
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: pendingCallType === 'video', audio: true });
+    } catch (e) {
+        showToast('Could not access camera/microphone.', 'error');
+        return;
+    }
+
+    rtcPeerConnection = new RTCPeerConnection(RTC_CONFIG);
+    localStream.getTracks().forEach(track => rtcPeerConnection.addTrack(track, localStream));
+
+    rtcPeerConnection.onicecandidate = (e) => {
+        if (e.candidate) signalToPeer(pendingCallerId, { type: 'ice-candidate', candidate: e.candidate, contextId: pendingContextId });
+    };
+
+    rtcPeerConnection.ontrack = (e) => {
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteVideo) remoteVideo.srcObject = e.streams[0];
+    };
+
+    await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(pendingCallOffer));
+    const answer = await rtcPeerConnection.createAnswer();
+    await rtcPeerConnection.setLocalDescription(answer);
+
+    signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId });
+
+    activeCallContextId = pendingContextId;
+    showActiveCallWindow(pendingCallerName, pendingCallType);
+}
+
+function declineCall() {
+    stopRing(); // stop ring on decline
+    document.getElementById('incoming-call-modal').classList.add('hidden');
+    if (pendingCallerId) signalToPeer(pendingCallerId, { type: 'call-declined', contextId: pendingContextId });
+    pendingCallOffer = null;
+}
+
+function endCall() {
+    rtcPeerConnection?.close();
+    rtcPeerConnection = null;
+    localStream?.getTracks().forEach(t => t.stop());
+    localStream = null;
+    clearInterval(callTimer);
+    callDuration = 0;
+    document.getElementById('active-call-window').classList.add('hidden');
+    document.getElementById('incoming-call-modal').classList.add('hidden');
+    if (activeCallContextId) {
+        appendMessageToWindow(activeCallContextId, { userId: currentUser.id, text: `ðŸ“µ Call ended`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
+    }
+    activeCallContextId = null;
+}
+
+function showActiveCallWindow(peerName, callType) {
+    const win = document.getElementById('active-call-window');
+    win.classList.remove('hidden');
+
+    document.getElementById('call-peer-name').textContent = peerName;
+    document.getElementById('call-type-label').textContent = callType === 'video' ? 'Video Call' : 'Audio Call';
+    document.getElementById('call-peer-avatar').textContent = peerName.charAt(0).toUpperCase();
+    document.getElementById('audio-peer-avatar-big').textContent = peerName.charAt(0).toUpperCase();
+
+    const videoArea = document.getElementById('video-area');
+    const audioPlaceholder = document.getElementById('audio-call-placeholder');
+    if (callType === 'audio') {
+        document.getElementById('remote-video').classList.add('hidden');
+        document.getElementById('local-video').classList.add('hidden');
+        audioPlaceholder.classList.remove('hidden');
+        audioPlaceholder.style.display = 'flex';
+    } else {
+        document.getElementById('remote-video').classList.remove('hidden');
+        document.getElementById('local-video').classList.remove('hidden');
+        audioPlaceholder.classList.add('hidden');
+        const localVideo = document.getElementById('local-video');
+        if (localStream) localVideo.srcObject = localStream;
+    }
+
+    // Start timer
+    callDuration = 0;
+    clearInterval(callTimer);
+    callTimer = setInterval(() => {
+        callDuration++;
+        const m = String(Math.floor(callDuration / 60)).padStart(2, '0');
+        const s = String(callDuration % 60).padStart(2, '0');
+        const timerEl = document.getElementById('call-timer');
+        if (timerEl) timerEl.textContent = `${m}:${s}`;
+    }, 1000);
+}
+
+function toggleMute() {
+    if (!localStream) return;
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (!audioTrack) return;
+    audioTrack.enabled = !audioTrack.enabled;
+    const btn = document.getElementById('btn-mute');
+    btn.innerHTML = audioTrack.enabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash text-red-400"></i>';
+}
+
+function toggleCamera() {
+    if (!localStream) return;
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+    videoTrack.enabled = !videoTrack.enabled;
+    const btn = document.getElementById('btn-camera');
+    btn.innerHTML = videoTrack.enabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash text-red-400"></i>';
+}
+
+async function handleWebRTCSignal(payload) {
+    const { type, contextId } = payload;
+
+    if (type === 'call-offer') {
+        pendingCallOffer = payload.offer;
+        pendingCallType = payload.callType;
+        pendingCallerId = payload.callerId;
+        pendingCallerName = payload.callerName;
+        pendingContextId = contextId;
+        showIncomingCallModal(payload.callerName, payload.callType);
+        playNotificationSound();
+    }
+    else if (type === 'call-answer' && rtcPeerConnection) {
+        await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        // Caller's side: peer accepted — NOW open the call window and start the timer
+        if (window._pendingOutCallTarget && window._pendingOutCallType) {
+            showActiveCallWindow(window._pendingOutCallTarget.name, window._pendingOutCallType);
+            window._pendingOutCallTarget = null;
+            window._pendingOutCallType = null;
+        }
+    }
+    else if (type === 'ice-candidate' && rtcPeerConnection) {
+        await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+    }
+    else if (type === 'call-declined') {
+        showToast('Call declined.', 'error');
+        endCall();
+    }
+}
+
+// expose for external call
+window.startCall = startCall;
+window.acceptCall = acceptCall;
+window.declineCall = declineCall;
+window.endCall = endCall;
+window.toggleMute = toggleMute;
+window.toggleCamera = toggleCamera;
+window.sendReaction = sendReaction;
+window.toggleEmojiPicker = toggleEmojiPicker;
+window.insertEmoji = insertEmoji;
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        if (typeof sbClient !== 'undefined') {
-            initRealtimeFeatures();
-        }
+        if (typeof sbClient !== 'undefined') initRealtimeFeatures();
     }, 1500);
 });
+
+
 
 
 // --- ADMIN UI VISIBILITY ---
@@ -1427,3 +2060,5 @@ function applyRoleBasedVisibility(role) {
         }
     });
 }
+
+
