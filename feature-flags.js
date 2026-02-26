@@ -12,7 +12,7 @@
 async function initFeatureFlags(toolKey) {
     if (typeof sbClient === 'undefined') {
         console.error("Supabase client not found. Feature flags disabled.");
-        return;
+        return null;
     }
 
     console.log(`[FeatureFlags] Initializing for ${toolKey}...`);
@@ -24,18 +24,25 @@ async function initFeatureFlags(toolKey) {
             .eq('key', toolKey)
             .single();
 
-        if (error || !data || !data.value || !data.value.features) {
-            console.warn(`[FeatureFlags] No config or features found for ${toolKey}. Defaulting to enabled.`);
-            return;
+        if (error || !data || !data.value) {
+            console.warn(`[FeatureFlags] No config found for ${toolKey}. Defaulting to enabled.`);
+            return null;
         }
 
-        const features = data.value.features;
-        console.log("[FeatureFlags] Loaded settings:", features);
+        const config = data.value;
 
-        applyFeatureFlags(features);
+        // Apply feature flag visibility if 'features' object exists
+        if (config.features) {
+            applyFeatureFlags(config.features);
+            console.log("[FeatureFlags] Loaded settings:", config.features);
+        }
+
+        // ✅ Return full config so caller can access material_master_csv, customer_master_csv, etc.
+        return config;
 
     } catch (e) {
         console.error("[FeatureFlags] Error loading settings:", e);
+        return null;
     }
 }
 
