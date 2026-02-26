@@ -78,8 +78,107 @@ async function requireAuth() {
         displayName = displayName || "User";
 
         injectHeaderInfo(displayName, profile?.role || 'user');
+        // Show What's New on first visit for this version
+        setTimeout(() => showWhatsNewModal(), 800);
     }
 }
+
+// ===== WHAT'S NEW / CHANGELOG MODAL =====
+
+const WHATS_NEW_VERSION = 'v2.4.0'; // bump this string whenever you add new entries
+
+function showWhatsNewModal() {
+    const seenKey = `whatsNew_seen_${WHATS_NEW_VERSION}`;
+    if (localStorage.getItem(seenKey)) return; // already seen this version
+
+    if (document.getElementById('whats-new-modal')) return;
+
+    const updates = [
+        { cat: '🎨 UI', color: '#e0e7ff', text: 'color:#4f46e5', label: 'New Messaging Panel — 3-tab design (Chats / Calls / Video Calls) with gradient header' },
+        { cat: '🎨 UI', color: '#e0e7ff', text: 'color:#4f46e5', label: 'Contact cards with gradient avatars, quick Chat / Call / Video buttons per contact' },
+        { cat: '🎨 UI', color: '#e0e7ff', text: 'color:#4f46e5', label: 'Compact frosted search bar + All / Online pill toggle' },
+        { cat: '✅ Fix', color: '#dcfce7', text: 'color:#16a34a', label: 'Chat window Close (×) and Minimize (−) buttons now work correctly' },
+        { cat: '✅ Fix', color: '#dcfce7', text: 'color:#16a34a', label: 'Call timer now starts only AFTER the other person accepts — not before' },
+        { cat: '✅ Fix', color: '#dcfce7', text: 'color:#16a34a', label: 'Profile photo no longer disappears on login — database persistence fixed' },
+        { cat: '✅ Fix', color: '#dcfce7', text: 'color:#16a34a', label: 'Profile photos now correctly show in chat window header and contact list' },
+        { cat: '🔔 New', color: '#fef9c3', text: 'color:#ca8a04', label: 'Incoming call ring tone using Web Audio API' },
+        { cat: '🔔 New', color: '#fef9c3', text: 'color:#ca8a04', label: 'Browser push notifications for new messages and incoming calls (even when tab is minimized)' },
+    ];
+
+    const rows = updates.map(u => `
+        <li style="display:flex; align-items:flex-start; gap:10px; padding:7px 0; border-bottom:1px solid #f3f4f6;">
+            <span style="flex-shrink:0; font-size:10px; font-weight:700; padding:2px 8px; border-radius:50px; background:${u.color}; ${u.text};">${u.cat}</span>
+            <span style="font-size:12.5px; color:#374151; line-height:1.4;">${u.label}</span>
+        </li>`).join('');
+
+    const html = `
+    <div id="whats-new-modal" style="
+        position:fixed; inset:0; z-index:9999;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(15,15,40,0.55); backdrop-filter:blur(4px);
+        animation:fadeInBg 0.3s ease;">
+        <style>
+            @keyframes fadeInBg { from{opacity:0} to{opacity:1} }
+            @keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
+        </style>
+        <div style="
+            background:white; border-radius:20px; width:100%; max-width:480px; margin:16px;
+            box-shadow:0 25px 60px rgba(0,0,0,0.25);
+            animation:slideUp 0.35s ease; overflow:hidden;">
+
+            <!-- Header -->
+            <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed); padding:20px 24px 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <div style="font-size:11px; font-weight:700; color:rgba(255,255,255,0.7); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px;">✨ What's New</div>
+                        <div style="font-size:20px; font-weight:900; color:white;">${WHATS_NEW_VERSION} — Latest Updates</div>
+                        <div style="font-size:11px; color:rgba(255,255,255,0.65); margin-top:2px;">February 2026</div>
+                    </div>
+                    <button onclick="closeWhatsNew()" style="
+                        background:rgba(255,255,255,0.15); border:none; color:white;
+                        width:30px; height:30px; border-radius:50%; cursor:pointer;
+                        font-size:14px; display:flex; align-items:center; justify-content:center;">×</button>
+                </div>
+            </div>
+
+            <!-- Update list -->
+            <div style="padding:4px 24px 0; max-height:340px; overflow-y:auto;">
+                <ul style="list-style:none; margin:0; padding:0;">
+                    ${rows}
+                </ul>
+            </div>
+
+            <!-- Footer -->
+            <div style="padding:14px 24px 18px; border-top:1px solid #f3f4f6; display:flex; justify-content:space-between; align-items:center;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6b7280; cursor:pointer;">
+                    <input type="checkbox" id="wn-dont-show" style="accent-color:#4f46e5;"> Don't show again
+                </label>
+                <button onclick="closeWhatsNew()" style="
+                    background:linear-gradient(135deg,#4f46e5,#7c3aed); color:white; border:none;
+                    padding:8px 22px; border-radius:50px; font-size:13px; font-weight:700;
+                    cursor:pointer; box-shadow:0 4px 12px rgba(79,70,229,0.35);">
+                    Got it! 🎉
+                </button>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+window.closeWhatsNew = function () {
+    const modal = document.getElementById('whats-new-modal');
+    if (!modal) return;
+    if (document.getElementById('wn-dont-show')?.checked) {
+        localStorage.setItem(`whatsNew_seen_${WHATS_NEW_VERSION}`, '1');
+    }
+    modal.style.opacity = '0';
+    modal.style.transition = 'opacity 0.25s';
+    setTimeout(() => modal.remove(), 280);
+};
+
+window.showWhatsNewModal = showWhatsNewModal;
+
 
 function injectHeaderInfo(name, role) {
     const startBtn = document.querySelector('button[onclick="location.reload()"]');
