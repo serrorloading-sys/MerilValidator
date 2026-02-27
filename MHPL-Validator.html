@@ -258,7 +258,9 @@
                                         listEl.innerHTML = `<li class="text-green-600 font-bold"><i class="fas fa-magic"></i> Config Loaded: ${count} items</li>`;
                                         document.getElementById('masterCount').innerText = `${count} (Config)`;
                                         const input = document.getElementById('fileMaster');
-                                        if (input) input.style.display = 'none';
+                                        if (input && (!window.currentUser || window.currentUser.role !== 'admin')) {
+                                            input.style.display = 'none';
+                                        }
                                     }
                                 }
                             }
@@ -305,7 +307,9 @@
                                         listEl.innerHTML = `<li class="text-green-600 font-bold"><i class="fas fa-magic"></i> Config Loaded: ${count} items</li>`;
                                         document.getElementById('custMasterCount').innerText = `${count} (Config)`;
                                         const input = document.getElementById('fileCustomerMaster');
-                                        if (input) input.style.display = 'none';
+                                        if (input && (!window.currentUser || window.currentUser.role !== 'admin')) {
+                                            input.style.display = 'none';
+                                        }
                                     }
                                 }
                             }

@@ -875,6 +875,13 @@ async function initRealtimeFeatures() {
     privateChannel
         .on('broadcast', { event: 'dm' }, async (payload) => {
             const msg = payload.payload;
+
+            // Handle Stream UI embedded call chats first
+            if (msg.isCallChat) {
+                appendCallChatMessage(msg.text, false, msg.user);
+                return; // Do not process as standard DM
+            }
+
             let contextId;
             let type = 'private';
 
@@ -1250,67 +1257,246 @@ function injectZohoUI() {
     `;
     document.body.appendChild(callModal);
 
-    // Active call window
+    // Premium Stream Chat Active Call Window
     const callWindow = document.createElement('div');
     callWindow.id = 'active-call-window';
-    callWindow.className = 'hidden fixed bottom-20 right-4 z-[998] w-80 rounded-2xl overflow-hidden shadow-2xl';
-    callWindow.style.cssText = 'background:white; border:1px solid #e5e7eb; box-shadow:0 10px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(99,102,241,0.1);';
+    // Full screen overlay with hidden by default
+    callWindow.className = 'hidden fixed inset-0 z-[9999] flex overflow-hidden animate-fade-in-up';
+    callWindow.style.cssText = 'background:#000000; font-family:"Inter", sans-serif;';
     callWindow.innerHTML = `
-        <!-- Header -->
-        <div id="call-window-drag-handle" class="px-3 py-2.5 flex items-center justify-between cursor-move select-none"
-            style="background:linear-gradient(90deg,#4f46e5,#7c3aed);">
-            <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white" 
-                    id="call-peer-avatar"
-                    style="background:rgba(255,255,255,0.25); border:2px solid rgba(255,255,255,0.4);">?</div>
-                <div>
-                    <p class="text-xs font-bold text-white" id="call-peer-name">Calling...</p>
-                    <p class="text-[10px] font-mono font-bold" id="call-timer" style="color:#bbf7d0;">00:00</p>
+        <!-- Left Sidebar (Navigation/Participants) -->
+        <div class="w-64 flex flex-col flex-shrink-0 relative z-20 transition-all duration-300 transform" 
+            style="background:rgba(20,20,30,0.85); backdrop-filter:blur(20px); border-right:1px solid rgba(255,255,255,0.08);" id="call-left-sidebar">
+            <div class="p-4 border-b border-white/10 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-white">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-600 shadow-lg shadow-indigo-500/30">
+                        <i class="fas fa-video text-sm"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-black tracking-wide">Stream<span class="text-indigo-400">Call</span></h2>
+                        <div class="flex items-center gap-1.5 opacity-80">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <p class="text-[9px] font-mono tracking-widest text-emerald-400 uppercase font-bold" id="call-timer">00:00</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" id="call-type-label"
-                style="background:rgba(255,255,255,0.2); color:white;">VIDEO</span>
-        </div>
-        
-        <!-- Video area -->
-        <div class="relative" style="height:185px; background:#0f0e2a;" id="video-area">
-            <video id="remote-video" autoplay playsinline class="w-full h-full object-cover"></video>
-            <video id="local-video" autoplay playsinline muted 
-                class="absolute bottom-2 right-2 w-20 h-16 rounded-xl object-cover" 
-                style="border:2.5px solid #6366f1; box-shadow:0 0 10px rgba(99,102,241,0.4);"></video>
-            <div id="audio-call-placeholder" class="hidden w-full h-full flex items-center justify-center">
-                <div class="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black" 
-                    id="audio-peer-avatar-big"
-                    style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">?</div>
+            
+            <div class="flex-1 p-3 overflow-y-auto custom-scrollbar">
+                <div class="mb-4">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-2">Participants (2)</p>
+                    
+                    <!-- Self -->
+                    <div class="flex items-center justify-between p-2 rounded-xl mb-1 hover:bg-white/5 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30 shrink-0">ME</div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-white truncate">You</p>
+                                <p class="text-[9px] text-gray-400">Host</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-microphone text-[10px] text-emerald-400"></i>
+                    </div>
+
+                    <!-- Peer -->
+                    <div class="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center text-xs font-black border border-purple-500/30 shrink-0" id="call-peer-avatar-list">?</div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-white truncate" id="call-peer-name-side">Calling...</p>
+                                <p class="text-[9px] text-gray-400">Guest</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-microphone text-[10px] text-gray-500" id="peer-mic-icon"></i>
+                    </div>
+                </div>
+                
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-2">Settings</p>
+                    <button class="w-full text-left p-2 rounded-xl hover:bg-white/5 transition-colors text-xs text-gray-300 flex items-center gap-3">
+                        <i class="fas fa-cog text-gray-500 w-4 text-center"></i> Device Settings
+                    </button>
+                    <button class="w-full text-left p-2 rounded-xl hover:bg-white/5 transition-colors text-xs text-gray-300 flex items-center gap-3">
+                        <i class="fas fa-shield-alt text-gray-500 w-4 text-center"></i> Security
+                    </button>
+                </div>
             </div>
+            
+            <button class="absolute -right-3 top-1/2 transform -translate-y-1/2 w-6 h-12 bg-gray-800 border border-gray-700 rounded-r-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition z-30"
+                onclick="document.getElementById('call-left-sidebar').classList.toggle('-translate-x-full'); document.getElementById('call-left-sidebar').classList.toggle('w-0'); document.getElementById('call-left-sidebar').classList.toggle('w-64');">
+                <i class="fas fa-chevron-left text-[10px]" id="left-panel-chevron"></i>
+            </button>
+        </div>
+
+        <!-- Center Stage (Video Area) -->
+        <div class="flex-1 flex flex-col relative z-10 transition-all duration-300 bg-[#0a0a0f]" id="video-area">
+            
+            <!-- Main Remote Video (Full Size) -->
+            <div class="absolute inset-4 rounded-3xl overflow-hidden shadow-2xl bg-gray-900 border border-white/5">
+                <video id="remote-video" autoplay playsinline class="w-full h-full object-cover"></video>
+                
+                <!-- Audio Only Placeholder -->
+                <div id="audio-call-placeholder" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">
+                    <div class="relative w-32 h-32 flex items-center justify-center mb-6">
+                        <div class="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping" style="animation-duration: 3s;"></div>
+                        <div class="absolute inset-4 rounded-full bg-indigo-500/40 animate-pulse"></div>
+                        <div class="w-24 h-24 rounded-full flex items-center justify-center text-white text-4xl font-black relative z-10 shadow-2xl" 
+                            id="audio-peer-avatar-big"
+                            style="background:linear-gradient(135deg,#4f46e5,#7c3aed); border:2px solid rgba(255,255,255,0.2);">?</div>
+                    </div>
+                    <p class="text-xl font-bold text-white tracking-wide" id="audio-peer-name-big">Audio Call</p>
+                    <p class="text-sm text-indigo-400 mt-1" id="call-type-label">Voice only</p>
+                </div>
+                
+                <!-- Overlay Name Badge (Remote) -->
+                <div class="absolute bottom-6 left-6 px-4 py-2 rounded-xl backdrop-blur-md bg-black/40 border border-white/10 text-white shadow-lg flex items-center gap-2 z-20">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-sm font-bold tracking-wide drop-shadow-md" id="call-peer-name">Calling...</span>
+                </div>
+            </div>
+
+            <!-- Picture-in-Picture Local Video -->
+            <div id="local-video-container" class="absolute bottom-8 right-8 w-48 h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/50 z-30 transition-all hover:scale-105 cursor-move"
+                style="background:#111;">
+                <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                <div class="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/50 backdrop-blur text-white text-[9px] font-bold border border-white/10">You</div>
+            </div>
+
+            <!-- Bottom Floating Control Bar -->
+            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300">
+                <div class="px-6 py-3 rounded-2xl flex items-center gap-4 shadow-2xl border border-white/10"
+                    style="background:rgba(20,20,30,0.85); backdrop-filter:blur(20px);">
+                    
+                    <button onclick="toggleMute()" id="btn-mute" title="Mute/Unmute Mic"
+                        class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group"
+                        style="background:rgba(255,255,255,0.1); color:white;">
+                        <i class="fas fa-microphone text-lg group-hover:scale-110 transition-transform"></i>
+                    </button>
+                    
+                    <button onclick="toggleCamera()" id="btn-camera" title="Start/Stop Camera"
+                        class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group"
+                        style="background:rgba(255,255,255,0.1); color:white;">
+                        <i class="fas fa-video text-lg group-hover:scale-110 transition-transform"></i>
+                    </button>
+                    
+                    <div class="w-px h-8 bg-white/10 mx-2"></div>
+                    
+                    <button title="Share Screen (Premium)"
+                        class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group relative overflow-hidden"
+                        style="background:rgba(255,255,255,0.1); color:#9ca3af; cursor:not-allowed;">
+                        <i class="fas fa-desktop text-lg"></i>
+                        <span class="absolute -top-1 -right-1 flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span></span>
+                    </button>
+
+                    <button title="Toggle Chat Panel" onclick="document.getElementById('call-right-sidebar').classList.toggle('translate-x-full'); document.getElementById('call-right-sidebar').classList.toggle('w-0'); document.getElementById('call-right-sidebar').classList.toggle('w-80'); document.getElementById('call-right-sidebar').classList.toggle('opacity-0');"
+                        class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group relative"
+                        style="background:rgba(255,255,255,0.1); color:#a5b4fc;">
+                        <i class="fas fa-comment-alt text-lg group-hover:scale-110 transition-transform"></i>
+                    </button>
+
+                    <div class="w-px h-8 bg-white/10 mx-2"></div>
+                    
+                    <button onclick="endCall()" title="End Call"
+                        class="px-6 py-3 h-12 rounded-xl flex items-center gap-2 font-black tracking-widest uppercase text-xs text-white transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-red-500/30 group"
+                        style="background:linear-gradient(135deg,#dc2626,#ef4444);">
+                        <i class="fas fa-phone-slash text-sm group-hover:rotate-12 transition-transform"></i> End
+                    </button>
+                </div>
+            </div>
+            
         </div>
         
-        <!-- Controls -->
-        <div class="flex justify-center items-center gap-4 py-3" style="background:white; border-top:1px solid #f3f4f6;">
-            <button onclick="toggleMute()" id="btn-mute" title="Mute"
-                class="w-11 h-11 rounded-full text-sm flex items-center justify-center transition-all hover:scale-110"
-                style="background:#f3f4f6; color:#4f46e5; border:1px solid #e5e7eb;">
-                <i class="fas fa-microphone"></i>
-            </button>
-            <button onclick="toggleCamera()" id="btn-camera" title="Camera"
-                class="w-11 h-11 rounded-full text-sm flex items-center justify-center transition-all hover:scale-110"
-                style="background:#f3f4f6; color:#4f46e5; border:1px solid #e5e7eb;">
-                <i class="fas fa-video"></i>
-            </button>
-            <button onclick="endCall()" title="End Call"
-                class="w-12 h-12 rounded-full text-white text-sm flex items-center justify-center transition-all hover:scale-110"
-                style="background:linear-gradient(135deg,#dc2626,#ef4444); box-shadow:0 4px 12px rgba(239,68,68,0.35);">
-                <i class="fas fa-phone-slash"></i>
-            </button>
+        <!-- Right Sidebar (Integrated Chat) -->
+        <div class="w-80 flex flex-col flex-shrink-0 relative z-20 transition-all duration-300 transform bg-[#11111a] border-l border-white/5" 
+            id="call-right-sidebar">
+            <div class="p-4 border-b border-white/10 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                    <i class="fas fa-comment-dots text-indigo-400"></i> Meeting Chat
+                </h3>
+                <i class="fas fa-times text-gray-500 hover:text-white cursor-pointer transition text-xs" 
+                    onclick="document.getElementById('call-right-sidebar').classList.toggle('translate-x-full'); document.getElementById('call-right-sidebar').classList.toggle('w-0'); document.getElementById('call-right-sidebar').classList.toggle('w-80'); document.getElementById('call-right-sidebar').classList.toggle('opacity-0');"></i>
+            </div>
+            
+            <div class="flex-1 p-3 overflow-y-auto custom-scrollbar flex flex-col gap-3" id="call-chat-history">
+                <div class="text-center text-[10px] text-gray-500 italic my-2 p-2 bg-white/5 rounded-lg border border-white/5">
+                    Welcome to the meeting chat. Messages sent here are visible to call participants.
+                </div>
+                <!-- Call Specific Chat injected here -->
+            </div>
+            
+            <div class="p-3 border-t border-white/10 bg-black/20">
+                <div class="flex items-center gap-2 bg-white/10 rounded-xl p-1 border border-white/10 focus-within:border-indigo-500/50 focus-within:bg-white/15 transition-all">
+                    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-indigo-400 hover:bg-white/10 transition shrink-0" title="Attach file">
+                        <i class="fas fa-paperclip text-xs"></i>
+                    </button>
+                    <input type="text" id="call-chat-input" placeholder="Type a message..." class="flex-1 bg-transparent border-none text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-0 py-2">
+                    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 transition shrink-0" 
+                        onclick="sendCallChatMessage()">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+            </div>
         </div>
     `;
     document.body.appendChild(callWindow);
 
+    // Incoming call modal
+    const incModal = document.createElement('div');
+    incModal.id = 'incoming-call-modal';
+    incModal.className = 'hidden fixed inset-0 z-[9999] flex items-center justify-center p-4';
+    incModal.style.cssText = 'background:rgba(15,15,40,0.85); backdrop-filter:blur(10px);';
+    incModal.innerHTML = `
+        < div class="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-fade-in-up" style = "animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);" >
+            < !--Background pulse-- >
+            <div class="absolute inset-0 opacity-10" style="background:radial-gradient(circle at 50% 0%, #4f46e5 0%, transparent 70%);"></div>
+            
+            <div class="p-8 pb-10 flex flex-col items-center text-center relative z-10">
+                <style>
+                    @keyframes callRings {
+                        0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+                        70% { box-shadow: 0 0 0 30px rgba(99,102,241,0); }
+                        100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+                    }
+                    .avatar-ring-anim { animation: callRings 2s infinite; }
+                    @keyframes bounceIn {
+                        0% { transform: scale(0.8); opacity: 0; }
+                        100% { transform: scale(1); opacity: 1; }
+                    }
+                </style>
+                <div class="w-24 h-24 rounded-full flex items-center justify-center text-white text-4xl font-black mb-6 avatar-ring-anim" 
+                    id="call-avatar-ring"
+                    style="background:linear-gradient(135deg,#4f46e5,#7c3aed); border:4px solid white;">?</div>
+                <h3 class="text-2xl font-black text-gray-800 mb-1 tracking-tight" id="incoming-caller-name">Caller Name</h3>
+                <p class="text-sm font-semibold text-indigo-500 uppercase tracking-widest" id="incoming-call-type">Incoming Call...</p>
+            </div>
+            
+            <div class="flex" style="border-top:1px solid #f3f4f6;">
+                <button onclick="declineCall()" class="flex-1 py-5 flex items-center justify-center gap-2 group transition-colors"
+                    style="background:#fef2f2; border-right:1px solid #f3f4f6;">
+                    <span class="w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
+                        style="background:#ef4444; color:white; box-shadow:0 4px 12px rgba(239,68,68,0.3);">
+                        <i class="fas fa-phone-slash"></i>
+                    </span>
+                    <span class="font-bold text-red-600">Decline</span>
+                </button>
+                <button onclick="acceptCall()" class="flex-1 py-5 flex items-center justify-center gap-2 group transition-colors"
+                    style="background:#f0fdfa;">
+                    <span class="w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
+                        style="background:#10b981; color:white; box-shadow:0 4px 12px rgba(16,185,129,0.3);">
+                        <i id="accept-call-icon" class="fas fa-phone"></i>
+                    </span>
+                    <span class="font-bold text-emerald-600">Accept</span>
+                </button>
+            </div>
+        </div >
+        `;
+    document.body.appendChild(incModal);
+
     // Image Upload Logic (Paste & Drag)
     window.addEventListener('paste', handleGlobalPaste);
 
-    // Make call window draggable
-    makeDraggable(callWindow, document.getElementById('call-window-drag-handle'));
+    // Make PiP local video draggable instead of full screen window
+    makeDraggable(document.getElementById('local-video-container'));
 }
 
 function makeDraggable(el, handle) {
@@ -1364,7 +1550,7 @@ function switchTab(tab) {
 
 function switchMainTab(tab) {
     ['chats', 'calls', 'video'].forEach(t => {
-        const btn = document.getElementById(`main-tab-${t}`);
+        const btn = document.getElementById(`main - tab - ${t} `);
         if (!btn) return;
         if (t === tab) {
             btn.style.background = 'rgba(255,255,255,0.2)';
@@ -1444,16 +1630,16 @@ function renderContacts() {
 
         const li = document.createElement('li');
         li.style.cssText = `
-            background:${isSelected ? '#ede9fe' : 'white'};
-            border-radius:12px;
-            box-shadow:0 1px 6px rgba(99,102,241,0.08);
-            padding:7px 10px;
-            display:flex;
-            align-items:center;
-            gap:8px;
-            cursor:default;
-            transition:box-shadow 0.15s, transform 0.1s;
-        `;
+    background:${isSelected ? '#ede9fe' : 'white'};
+    border - radius: 12px;
+    box - shadow: 0 1px 6px rgba(99, 102, 241, 0.08);
+    padding: 7px 10px;
+    display: flex;
+    align - items: center;
+    gap: 8px;
+    cursor:default ;
+    transition: box - shadow 0.15s, transform 0.1s;
+    `;
         li.onmouseover = () => { li.style.boxShadow = '0 4px 14px rgba(99,102,241,0.15)'; li.style.transform = 'translateY(-1px)'; };
         li.onmouseout = () => { li.style.boxShadow = '0 1px 6px rgba(99,102,241,0.08)'; li.style.transform = 'translateY(0)'; };
 
@@ -1466,7 +1652,7 @@ function renderContacts() {
                     onchange="toggleZohoSelection(event, '${user.user_id}')">
             </div>
 
-            <!-- Avatar -->
+            <!--Avatar -->
             <div class="relative flex-shrink-0" onclick="openDockedChat({id:'${user.user_id}',name:'${user.name}',avatar_url:'${avatarUrl || ''}'},'private')" style="cursor:pointer;">
                 ${avatarUrl
                 ? `<img src="${avatarUrl}" class="w-9 h-9 rounded-full object-cover" style="border:2px solid #e0e7ff;" alt="${user.name}">`
@@ -1486,24 +1672,24 @@ function renderContacts() {
             </div>
 
             <!-- Quick Actions -->
-            <div class="flex items-center gap-1 flex-shrink-0">
-                <button onclick="event.stopPropagation(); openDockedChat({id:'${user.user_id}',name:'${user.name}',avatar_url:'${avatarUrl || ''}'},'private')"
-                    class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                    style="background:#ede9fe;" title="Chat">
-                    <i class="fas fa-comment text-[10px]" style="color:#6366f1;"></i>
-                </button>
-                <button onclick="event.stopPropagation(); startCall('${contextId}','audio')"
-                    class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                    style="background:#e0f2fe;" title="Audio Call">
-                    <i class="fas fa-phone text-[10px]" style="color:#0284c7;"></i>
-                </button>
-                <button onclick="event.stopPropagation(); startCall('${contextId}','video')"
-                    class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                    style="background:#ede9fe;" title="Video Call">
-                    <i class="fas fa-video text-[10px]" style="color:#7c3aed;"></i>
-                </button>
-            </div>
-        `;
+        <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="event.stopPropagation(); openDockedChat({id:'${user.user_id}',name:'${user.name}',avatar_url:'${avatarUrl || ''}'},'private')"
+                class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                style="background:#ede9fe;" title="Chat">
+                <i class="fas fa-comment text-[10px]" style="color:#6366f1;"></i>
+            </button>
+            <button onclick="event.stopPropagation(); startCall('${contextId}','audio')"
+                class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                style="background:#e0f2fe;" title="Audio Call">
+                <i class="fas fa-phone text-[10px]" style="color:#0284c7;"></i>
+            </button>
+            <button onclick="event.stopPropagation(); startCall('${contextId}','video')"
+                class="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                style="background:#ede9fe;" title="Video Call">
+                <i class="fas fa-video text-[10px]" style="color:#7c3aed;"></i>
+            </button>
+        </div>
+    `;
         list.appendChild(li);
     });
 
@@ -1532,7 +1718,7 @@ function createGroupFromSelection() {
     if (selectedUsersForGroup.size === 0) return;
     const members = [...selectedUsersForGroup, currentUser.id];
     const groupId = members.sort().join('_');
-    openDockedChat({ groupId, name: `Group (${members.length})`, members, isGroup: true }, 'group');
+    openDockedChat({ groupId, name: `Group(${members.length})`, members, isGroup: true }, 'group');
     selectedUsersForGroup.clear();
     renderContacts();
 }
@@ -1630,39 +1816,39 @@ async function openDockedChat(target, type) {
                     <i class="fas fa-paperclip text-xs"></i>
                 </button>
                 <input type="file" id="file-input-${contextId}" class="hidden" onchange="handleFileUpload(event, '${contextId}')">
-                <button class="p-1.5 rounded-lg transition-all hover:scale-110 flex-shrink-0 text-gray-400"
-                    onmouseover="this.style.background='#ede9fe'; this.style.color='#4f46e5';"
-                    onmouseout="this.style.background='transparent'; this.style.color='#9ca3af';"
-                    onclick="toggleEmojiPicker('${contextId}')" title="Emoji">
-                    <i class="fas fa-face-smile text-xs"></i>
-                </button>
-                <input id="input-${contextId}" type="text"
-                    class="flex-1 text-sm px-3 py-1.5 rounded-xl focus:outline-none transition-all text-gray-800"
-                    style="background:#f3f4f6; border:1px solid #e5e7eb; caret-color:#4f46e5;"
-                    onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 2px rgba(99,102,241,0.15)';"
-                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
-                    placeholder="Message..."
-                    onkeypress="handleDockKey(event, '${contextId}')"
-                    oninput="broadcastTyping('${contextId}')">
-                <button class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
-                    style="background:linear-gradient(135deg,#4f46e5,#7c3aed); box-shadow:0 2px 8px rgba(79,70,229,0.35);"
-                    onclick="sendDockMessage('${contextId}')">
-                    <i class="fas fa-paper-plane text-xs text-white"></i>
-                </button>
-            </div>
+                    <button class="p-1.5 rounded-lg transition-all hover:scale-110 flex-shrink-0 text-gray-400"
+                        onmouseover="this.style.background='#ede9fe'; this.style.color='#4f46e5';"
+                        onmouseout="this.style.background='transparent'; this.style.color='#9ca3af';"
+                        onclick="toggleEmojiPicker('${contextId}')" title="Emoji">
+                        <i class="fas fa-face-smile text-xs"></i>
+                    </button>
+                    <input id="input-${contextId}" type="text"
+                        class="flex-1 text-sm px-3 py-1.5 rounded-xl focus:outline-none transition-all text-gray-800"
+                        style="background:#f3f4f6; border:1px solid #e5e7eb; caret-color:#4f46e5;"
+                        onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 2px rgba(99,102,241,0.15)';"
+                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
+                        placeholder="Message..."
+                        onkeypress="handleDockKey(event, '${contextId}')"
+                        oninput="broadcastTyping('${contextId}')">
+                        <button class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
+                            style="background:linear-gradient(135deg,#4f46e5,#7c3aed); box-shadow:0 2px 8px rgba(79,70,229,0.35);"
+                            onclick="sendDockMessage('${contextId}')">
+                            <i class="fas fa-paper-plane text-xs text-white"></i>
+                        </button>
+                    </div>
 
-            <!-- Emoji picker -->
-            <div id="emoji-picker-${contextId}" class="hidden flex-wrap gap-1 p-2" style="background:white; border-top:1px solid #f3f4f6;">
-                ${['ðŸ˜€', 'ðŸ˜‚', 'â¤ï¸', 'ðŸ‘', 'ðŸ”¥', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸŽ‰', 'ðŸ‘', 'ðŸ™', 'ðŸ˜', 'ðŸ¤”', 'ðŸ˜Ž', 'ðŸ’¯', 'âœ…'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
+                    <!-- Emoji picker -->
+                    <div id="emoji-picker-${contextId}" class="hidden flex-wrap gap-1 p-2" style="background:white; border-top:1px solid #f3f4f6;">
+                        ${['ðŸ˜€', 'ðŸ˜‚', 'â¤ï¸', 'ðŸ‘', 'ðŸ”¥', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸŽ‰', 'ðŸ‘', 'ðŸ™', 'ðŸ˜', 'ðŸ¤”', 'ðŸ˜Ž', 'ðŸ’¯', 'âœ…'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
+                    </div>
             </div>
-        </div>
-    `;
+            `;
 
     dockArea.appendChild(win);
 
     // Drag & drop
     const body = win.querySelector(`#chat-body-${contextId}`);
-    const dropZone = win.querySelector(`#drop-zone-${contextId} `);
+    const dropZone = win.querySelector(`#drop-zone-${contextId}`);
     win.addEventListener('dragenter', e => { e.preventDefault(); dropZone.classList.remove('hidden'); });
     win.addEventListener('dragleave', e => { if (!win.contains(e.relatedTarget)) dropZone.classList.add('hidden'); });
     win.addEventListener('dragover', e => e.preventDefault());
@@ -1882,7 +2068,7 @@ function appendMessageToWindow(contextId, msg) {
             contentHtml = `< div class= "flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10" ><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div > `;
         }
     }
-    if (msg.text) contentHtml += `< div class= "break-words leading-snug" > ${msg.text}</div > `;
+    if (msg.text) contentHtml += `< div class="break-words leading-snug" > ${msg.text}</div > `;
 
     const bubbleBg = isMe
         ? 'background: linear-gradient(135deg,#6366f1,#8b5cf6); color:white;'
@@ -1891,22 +2077,22 @@ function appendMessageToWindow(contextId, msg) {
     const messageId = msg.messageId || ('msg_' + Date.now());
 
     div.innerHTML = `
-        < div class= "max-w-[80%] relative msg-bubble group" >
-            ${!isMe && msg.groupId ? `<p class="text-[9px] font-bold text-indigo-300 mb-0.5 ml-1">${msg.user}</p>` : ''}
-            <div id="${messageId}" style="${bubbleBg}" class="px-3 py-2 rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-md">
-                ${contentHtml}
-                <div class="flex items-center justify-end gap-1 mt-0.5">
-                    <span class="text-[9px] opacity-50 select-none">${msg.time}</span>
-                    ${isMe ? '<i class="fas fa-check-double text-[8px] opacity-50"></i>' : ''}
+            < div class="max-w-[80%] relative msg-bubble group" >
+                ${!isMe && msg.groupId ? `<p class="text-[9px] font-bold text-indigo-300 mb-0.5 ml-1">${msg.user}</p>` : ''}
+                <div id="${messageId}" style="${bubbleBg}" class="px-3 py-2 rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-md">
+                    ${contentHtml}
+                    <div class="flex items-center justify-end gap-1 mt-0.5">
+                        <span class="text-[9px] opacity-50 select-none">${msg.time}</span>
+                        ${isMe ? '<i class="fas fa-check-double text-[8px] opacity-50"></i>' : ''}
+                    </div>
                 </div>
-            </div>
-            <!--Emoji reaction bar-- >
-            <div class="emoji-bar flex gap-0.5 ${isMe ? 'justify-end' : 'justify-start'} mt-0.5 opacity-0 translate-y-1 pointer-events-auto">
-                ${['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ”¥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
-            </div>
-            <div id="reactions-${messageId}" class="flex gap-1 flex-wrap mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}"></div>
-        </div >
-        `;
+                <!--Emoji reaction bar-- >
+                <div class="emoji-bar flex gap-0.5 ${isMe ? 'justify-end' : 'justify-start'} mt-0.5 opacity-0 translate-y-1 pointer-events-auto">
+                    ${['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ”¥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
+                </div>
+                <div id="reactions-${messageId}" class="flex gap-1 flex-wrap mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}"></div>
+            </div >
+            `;
 
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
@@ -1967,20 +2153,51 @@ let pendingCallerName = null;
 let pendingContextId = null;
 
 async function startCall(contextId, callType) {
-    if (rtcPeerConnection) { showToast('Already in a call.', 'error'); return; }
-    const chatData = openChats.get(contextId);
-    if (!chatData || chatData.type !== 'private') return;
+    // Basic fallback toast if undefined globally
+    if (typeof window.showToast !== 'function') {
+        window.showToast = function (msg, type = 'info') {
+            const toast = document.createElement('div');
+            const bg = type === 'error' ? 'bg-red-600' : 'bg-indigo-600';
+            toast.className = `fixed top-12 left-1/2 transform -translate-x-1/2 ${bg} text-white px-4 py-2 rounded shadow-2xl z-[99999] text-sm font-bold animate-fade-in-up transition-opacity duration-300`;
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+        };
+    }
+
+    if (rtcPeerConnection) { window.showToast('Already in a call.', 'error'); return; }
+
+    const targetId = contextId.replace(currentUser.id, '').replace('_', '');
+    const target = allProfiles[targetId];
+    if (!target) { window.showToast('Target user not found.', 'error'); return; }
 
     activeCallContextId = contextId;
-    const { target } = chatData;
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
 
+    // Show Active Call Window immediately with "Requesting permissions..."
+    showActiveCallWindow(target.name, callType);
+    const audioNameBig = document.getElementById('audio-peer-name-big');
+    if (audioNameBig) audioNameBig.textContent = "Requesting Camera/Mic...";
+    const nameBadge = document.getElementById('call-peer-name');
+    if (nameBadge) nameBadge.textContent = "Requesting Camera/Mic...";
+
     try {
+        if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
         localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
+
+        // Update local video stream dynamically since we showed the window before getting the stream
+        if (callType === 'video') {
+            const localVideo = document.getElementById('local-video');
+            if (localVideo) localVideo.srcObject = localStream;
+        }
     } catch (e) {
-        showToast('Could not access camera/microphone.', 'error');
+        window.showToast('Could not access camera/microphone: ' + e.message, 'error');
+        endCall();
         return;
     }
+
+    if (nameBadge) nameBadge.textContent = "Ringing " + target.name + "...";
+    if (audioNameBig) audioNameBig.textContent = "Ringing...";
 
     rtcPeerConnection = new RTCPeerConnection(RTC_CONFIG);
     localStream.getTracks().forEach(track => rtcPeerConnection.addTrack(track, localStream));
@@ -1999,15 +2216,9 @@ async function startCall(contextId, callType) {
 
     signalToPeer(target.id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId });
 
-    // Show lightweight "Calling..." notification — do NOT open call window/start timer yet
-    // Timer + call window open only when peer ACCEPTS (call-answer signal received)
-    showToast(`${callType === 'video' ? 'Video' : 'Audio'} call ringing... waiting for ${target.name}`, 'info');
-    appendMessageToWindow(contextId, {
-        userId: currentUser.id,
-        text: `${callType === 'video' ? 'Video' : 'Audio'} call started...`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isSystem: true
-    });
+    // Start Outgoing Ringtone
+    startRing(true);
+
     // Store call meta for when answer comes back
     window._pendingOutCallTarget = target;
     window._pendingOutCallType = callType;
@@ -2023,25 +2234,38 @@ async function signalToPeer(peerId, payload) {
 // ===== RING TONE =====
 let _ringInterval = null;
 let _ringCtx = null;
-function startRing() {
+function startRing(isOutgoing = false) {
     stopRing();
     function beep() {
         try {
             _ringCtx = new (window.AudioContext || window.webkitAudioContext)();
-            [0, 0.2].forEach(delay => {
+            if (isOutgoing) {
+                // Outgoing: Long dial tone beep
                 const osc = _ringCtx.createOscillator();
                 const gain = _ringCtx.createGain();
                 osc.connect(gain); gain.connect(_ringCtx.destination);
-                osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0.35, _ringCtx.currentTime + delay);
-                gain.gain.exponentialRampToValueAtTime(0.001, _ringCtx.currentTime + delay + 0.16);
-                osc.start(_ringCtx.currentTime + delay);
-                osc.stop(_ringCtx.currentTime + delay + 0.16);
-            });
+                osc.frequency.value = 440; // Lower pitch like European dial tone
+                gain.gain.setValueAtTime(0.15, _ringCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, _ringCtx.currentTime + 1.2);
+                osc.start(_ringCtx.currentTime);
+                osc.stop(_ringCtx.currentTime + 1.2);
+            } else {
+                // Incoming: Double sharp beep
+                [0, 0.2].forEach(delay => {
+                    const osc = _ringCtx.createOscillator();
+                    const gain = _ringCtx.createGain();
+                    osc.connect(gain); gain.connect(_ringCtx.destination);
+                    osc.frequency.value = 880;
+                    gain.gain.setValueAtTime(0.35, _ringCtx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, _ringCtx.currentTime + delay + 0.16);
+                    osc.start(_ringCtx.currentTime + delay);
+                    osc.stop(_ringCtx.currentTime + delay + 0.16);
+                });
+            }
         } catch (e) { }
     }
     beep();
-    _ringInterval = setInterval(beep, 1800);
+    _ringInterval = setInterval(beep, isOutgoing ? 3000 : 1800);
 }
 function stopRing() {
     clearInterval(_ringInterval); _ringInterval = null;
@@ -2067,12 +2291,28 @@ async function acceptCall() {
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (!pendingCallOffer) return;
 
+    activeCallContextId = pendingContextId;
+    showActiveCallWindow(pendingCallerName, pendingCallType);
+
+    const nameBadge = document.getElementById('call-peer-name');
+    if (nameBadge) nameBadge.textContent = "Connecting Camera/Mic...";
+
     try {
+        if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
         localStream = await navigator.mediaDevices.getUserMedia({ video: pendingCallType === 'video', audio: true });
+
+        if (pendingCallType === 'video') {
+            const localVideo = document.getElementById('local-video');
+            if (localVideo) localVideo.srcObject = localStream;
+        }
     } catch (e) {
-        showToast('Could not access camera/microphone.', 'error');
+        if (typeof window.showToast === 'function') window.showToast('Could not access camera/microphone: ' + e.message, 'error');
+        else alert('Could not access camera/microphone: ' + e.message);
+        endCall();
         return;
     }
+
+    if (nameBadge) nameBadge.textContent = pendingCallerName;
 
     rtcPeerConnection = new RTCPeerConnection(RTC_CONFIG);
     localStream.getTracks().forEach(track => rtcPeerConnection.addTrack(track, localStream));
@@ -2091,9 +2331,7 @@ async function acceptCall() {
     await rtcPeerConnection.setLocalDescription(answer);
 
     signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId });
-
-    activeCallContextId = pendingContextId;
-    showActiveCallWindow(pendingCallerName, pendingCallType);
+    startCallTimer();
 }
 
 function declineCall() {
@@ -2105,12 +2343,31 @@ function declineCall() {
 }
 
 function endCall() {
+    stopRing();
     rtcPeerConnection?.close();
     rtcPeerConnection = null;
     localStream?.getTracks().forEach(t => t.stop());
     localStream = null;
     clearInterval(callTimer);
     callDuration = 0;
+    const timerEl = document.getElementById('call-timer');
+    if (timerEl) timerEl.textContent = '00:00';
+
+    // Reset Stream UI elements
+    const chatHistory = document.getElementById('call-chat-history');
+    if (chatHistory) {
+        chatHistory.innerHTML = `
+            <div class="text-center text-[10px] text-gray-500 italic my-2 p-2 bg-white/5 rounded-lg border border-white/5">
+                Welcome to the meeting chat. Messages sent here are visible to call participants.
+            </div>
+        `;
+    }
+    const rightSidebar = document.getElementById('call-right-sidebar');
+    if (rightSidebar) {
+        rightSidebar.classList.add('translate-x-full', 'w-0', 'opacity-0');
+        rightSidebar.classList.remove('w-80');
+    }
+
     document.getElementById('active-call-window').classList.add('hidden');
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (activeCallContextId) {
@@ -2123,27 +2380,48 @@ function showActiveCallWindow(peerName, callType) {
     const win = document.getElementById('active-call-window');
     win.classList.remove('hidden');
 
-    document.getElementById('call-peer-name').textContent = peerName;
-    document.getElementById('call-type-label').textContent = callType === 'video' ? 'Video Call' : 'Audio Call';
-    document.getElementById('call-peer-avatar').textContent = peerName.charAt(0).toUpperCase();
-    document.getElementById('audio-peer-avatar-big').textContent = peerName.charAt(0).toUpperCase();
+    // Name badge on center screen
+    const nameBadge = document.getElementById('call-peer-name');
+    if (nameBadge) nameBadge.textContent = peerName;
+
+    // Sidebar list name
+    const sideName = document.getElementById('call-peer-name-side');
+    if (sideName) sideName.textContent = peerName;
+
+    const typeLabel = document.getElementById('call-type-label');
+    if (typeLabel) typeLabel.textContent = callType === 'video' ? 'Video Call' : 'Audio Call';
+
+    // Avatars
+    const initial = peerName.charAt(0).toUpperCase();
+    const sideAvatar = document.getElementById('call-peer-avatar-list');
+    if (sideAvatar) sideAvatar.textContent = initial;
+
+    const bigAvatar = document.getElementById('audio-peer-avatar-big');
+    if (bigAvatar) bigAvatar.textContent = initial;
+
+    const audioNameBig = document.getElementById('audio-peer-name-big');
+    if (audioNameBig) audioNameBig.textContent = peerName;
 
     const videoArea = document.getElementById('video-area');
     const audioPlaceholder = document.getElementById('audio-call-placeholder');
+    const localContainer = document.getElementById('local-video-container');
+    const remoteVideo = document.getElementById('remote-video');
+    const localVideo = document.getElementById('local-video');
+
     if (callType === 'audio') {
-        document.getElementById('remote-video').classList.add('hidden');
-        document.getElementById('local-video').classList.add('hidden');
+        remoteVideo.classList.add('opacity-0');
+        if (localContainer) localContainer.classList.add('hidden');
         audioPlaceholder.classList.remove('hidden');
         audioPlaceholder.style.display = 'flex';
     } else {
-        document.getElementById('remote-video').classList.remove('hidden');
-        document.getElementById('local-video').classList.remove('hidden');
+        remoteVideo.classList.remove('opacity-0');
+        if (localContainer) localContainer.classList.remove('hidden');
         audioPlaceholder.classList.add('hidden');
-        const localVideo = document.getElementById('local-video');
         if (localStream) localVideo.srcObject = localStream;
     }
+}
 
-    // Start timer
+function startCallTimer() {
     callDuration = 0;
     clearInterval(callTimer);
     callTimer = setInterval(() => {
@@ -2161,7 +2439,17 @@ function toggleMute() {
     if (!audioTrack) return;
     audioTrack.enabled = !audioTrack.enabled;
     const btn = document.getElementById('btn-mute');
-    btn.innerHTML = audioTrack.enabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash text-red-400"></i>';
+    const sideMic = document.querySelector('#call-left-sidebar .fa-microphone');
+
+    if (audioTrack.enabled) {
+        btn.innerHTML = '<i class="fas fa-microphone text-lg group-hover:scale-110 transition-transform"></i>';
+        btn.style.color = 'white';
+        if (sideMic) { sideMic.className = 'fas fa-microphone text-[10px] text-emerald-400'; }
+    } else {
+        btn.innerHTML = '<i class="fas fa-microphone-slash text-lg group-hover:scale-110 transition-transform"></i>';
+        btn.style.color = '#ef4444'; // red-500
+        if (sideMic) { sideMic.className = 'fas fa-microphone-slash text-[10px] text-red-500'; }
+    }
 }
 
 function toggleCamera() {
@@ -2170,7 +2458,77 @@ function toggleCamera() {
     if (!videoTrack) return;
     videoTrack.enabled = !videoTrack.enabled;
     const btn = document.getElementById('btn-camera');
-    btn.innerHTML = videoTrack.enabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash text-red-400"></i>';
+
+    if (videoTrack.enabled) {
+        btn.innerHTML = '<i class="fas fa-video text-lg group-hover:scale-110 transition-transform"></i>';
+        btn.style.color = 'white';
+    } else {
+        btn.innerHTML = '<i class="fas fa-video-slash text-lg group-hover:scale-110 transition-transform"></i>';
+        btn.style.color = '#ef4444'; // red-500
+    }
+}
+
+async function sendCallChatMessage() {
+    const input = document.getElementById('call-chat-input');
+    const text = input ? input.value.trim() : '';
+    if (!text || !activeCallContextId) return;
+
+    if (input) input.value = '';
+
+    // Inject local message to panel immediately
+    appendCallChatMessage(text, true);
+
+    // Reuse existing send logic to broadcast to peer
+    const chatData = openChats.get(activeCallContextId);
+    if (!chatData) return;
+    const { target } = chatData;
+
+    const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    let payload = {
+        user: displayName,
+        userId: currentUser.id,
+        senderId: currentUser.id,
+        time,
+        isCallChat: true, // Special flag for stream UI
+        text // Not encrypting for temporary call chat for speed/simplicity
+    };
+
+    const ch = sbClient.channel(`room-private-${target.id}`);
+    await ch.subscribe();
+    await ch.send({ type: 'broadcast', event: 'dm', payload });
+    sbClient.removeChannel(ch);
+}
+
+function appendCallChatMessage(text, isMe, senderName = 'You') {
+    const container = document.getElementById('call-chat-history');
+    if (!container) return;
+
+    const div = document.createElement('div');
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (isMe) {
+        div.className = 'flex flex-col items-end animate-fade-in-up';
+        div.innerHTML = `
+            <div class="px-3 py-2 rounded-2xl rounded-tr-sm bg-indigo-600 text-white text-xs shadow-md max-w-[85%] break-words">
+                ${text}
+            </div>
+            <span class="text-[9px] text-gray-500 mt-1 mr-1">${time}</span>
+        `;
+    } else {
+        div.className = 'flex flex-col items-start animate-fade-in-up';
+        div.innerHTML = `
+            <span class="text-[9px] font-bold text-indigo-400 mb-0.5 ml-1">${senderName}</span>
+            <div class="px-3 py-2 rounded-2xl rounded-tl-sm bg-white/10 border border-white/5 text-gray-200 text-xs shadow-md max-w-[85%] break-words">
+                ${text}
+            </div>
+            <span class="text-[9px] text-gray-500 mt-1 ml-1">${time}</span>
+        `;
+    }
+
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
 }
 
 async function handleWebRTCSignal(payload) {
@@ -2186,10 +2544,12 @@ async function handleWebRTCSignal(payload) {
         playNotificationSound();
     }
     else if (type === 'call-answer' && rtcPeerConnection) {
+        stopRing();
         await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-        // Caller's side: peer accepted — NOW open the call window and start the timer
+        // Caller's side: peer accepted — open/update the call window and start the timer
         if (window._pendingOutCallTarget && window._pendingOutCallType) {
             showActiveCallWindow(window._pendingOutCallTarget.name, window._pendingOutCallType);
+            startCallTimer();
             window._pendingOutCallTarget = null;
             window._pendingOutCallType = null;
         }
@@ -2198,7 +2558,8 @@ async function handleWebRTCSignal(payload) {
         await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
     }
     else if (type === 'call-declined') {
-        showToast('Call declined.', 'error');
+        stopRing();
+        if (typeof window.showToast === 'function') window.showToast('Call declined.', 'error');
         endCall();
     }
 }

@@ -23,14 +23,42 @@
             if (typeof initFeatureFlags === 'function') {
                 const config = await initFeatureFlags('mlsipl_settings');
                 if (config) {
+                    let isAdmin = (window.currentUser && window.currentUser.role === 'admin');
                     let hasMasterUpdate = false;
+
                     if (config.material_master_csv) {
                         const el = document.getElementById('txtMaster');
-                        if (el) { el.value = config.material_master_csv; localStorage.setItem('mlsipl_master_v72', config.material_master_csv); hasMasterUpdate = true; }
+                        if (el) {
+                            el.value = config.material_master_csv;
+                            localStorage.setItem('mlsipl_master_v72', config.material_master_csv);
+                            hasMasterUpdate = true;
+
+                            if (!isAdmin) {
+                                el.readOnly = true;
+                                el.classList.add('bg-gray-200');
+                                const up = document.getElementById('fileMasterUpload');
+                                if (up && up.parentElement) {
+                                    up.parentElement.style.display = 'none';
+                                }
+                            }
+                        }
                     }
                     if (config.customer_master_csv) {
                         const el = document.getElementById('txtCust');
-                        if (el) { el.value = config.customer_master_csv; localStorage.setItem('mlsipl_cust_v72', config.customer_master_csv); hasMasterUpdate = true; }
+                        if (el) {
+                            el.value = config.customer_master_csv;
+                            localStorage.setItem('mlsipl_cust_v72', config.customer_master_csv);
+                            hasMasterUpdate = true;
+
+                            if (!isAdmin) {
+                                el.readOnly = true;
+                                el.classList.add('bg-gray-200');
+                                const up = document.getElementById('fileCustUpload');
+                                if (up && up.parentElement) {
+                                    up.parentElement.style.display = 'none';
+                                }
+                            }
+                        }
                     }
                     if (hasMasterUpdate && typeof loadConfig === 'function') {
                         loadConfig();
@@ -1010,7 +1038,9 @@
                         { id: 11, label: "Cust Name", defLabel: "Cust Name", width: "auto", align: "left", render: (r) => r.custName, cls: "text-[10px] truncate max-w-[100px]" },
                         { id: 12, label: "Mfg", defLabel: "Mfg", width: "auto", align: "left", render: (r) => r.p.mfg, cls: "text-[10px]" },
                         { id: 13, label: "Exp", defLabel: "Exp", width: "auto", align: "left", render: (r) => r.p.exp, cls: "text-[10px]" },
-                        { id: 14, label: "Remarks", defLabel: "Remarks", width: "auto", align: "left", render: (r) => r.rem, cls: "text-[10px] italic" }
+                        { id: 14, label: "Remarks", defLabel: "Remarks", width: "auto", align: "left", render: (r) => r.rem, cls: "text-[10px] italic" },
+                        { id: 15, label: "Bill Doc", defLabel: "Bill Doc", width: "auto", align: "left", render: (r) => r.sysBillDoc, cls: "font-mono text-[10px]" },
+                        { id: 16, label: "Bill Date", defLabel: "Bill Date", width: "auto", align: "left", render: (r) => r.sysBillDate, cls: "text-[10px]" }
                     ];
 
                     // 2. Default Presets
@@ -1027,7 +1057,7 @@
                         editingLayout: null, // Temporary state for modal
 
                         init() {
-                            const saved = localStorage.getItem('mlsipl_layouts_v2');
+                            const saved = localStorage.getItem('mlsipl_layouts_v3');
                             if (saved) {
                                 this.layouts = JSON.parse(saved);
                                 // ROBUST: If array is empty, force reload defaults
@@ -1554,18 +1584,37 @@
                             let iName = h.findIndex(x => x.includes('name 1') || x.includes('name'));
                             let iPlant = ovrPlant ? parseInt(ovrPlant) : h.findIndex(x => x.includes('plant') || x.includes('site') || x.includes('wrks'));
 
+                            let iBillDoc = h.findIndex(x => x.includes('billing document') || x.includes('inv no') || x.includes('invoice') || x.includes('bill doc'));
+                            let iBillDate = h.findIndex(x => x.includes('billing date') || x.includes('inv date') || x.includes('invoice date') || x.includes('bill date'));
+
                             if (iMat < 0 || iQty < 0) throw new Error("System file needs Material & Qty (Check Config Keywords)");
 
                             let inv = [];
                             for (let i = 1; i < rawSys.length; i++) {
                                 let r = rawSys[i];
                                 if (!r[iMat]) continue;
-                                let q = parseFloat(r[iQty]) || 0;
+                                // Fix parsing of quantities like "1,000"
+                                let qStr = String(r[iQty]).replace(/,/g, '').trim();
+                                let q = parseFloat(qStr) || 0;
                                 let cCode = iCust > -1 && r[iCust] ? String(r[iCust]).trim() : "-";
                                 let cName = iName > -1 && r[iName] ? String(r[iName]).trim() : "-";
                                 let pl = iPlant > -1 && r[iPlant] ? String(r[iPlant]).trim().toUpperCase() : "-";
+                                let bDoc = iBillDoc > -1 && r[iBillDoc] ? String(r[iBillDoc]).trim() : "-";
 
-                                for (let k = 0; k < q; k++) inv.push({ mat: String(r[iMat]).trim().toUpperCase(), batch: iBatch > -1 ? String(r[iBatch]).trim().toUpperCase() : "NA", cust: cCode, name: cName, plant: pl, used: false });
+                                // Parse excel dates sometimes coming as serial numbers or strings
+                                let bDateRaw = iBillDate > -1 && r[iBillDate] ? r[iBillDate] : "-";
+                                let bDate = "-";
+                                if (bDateRaw !== "-") {
+                                    if (typeof bDateRaw === 'number') {
+                                        // Excel Serial date conversion (rough)
+                                        let dateObj = new Date((bDateRaw - (25567 + 2)) * 86400 * 1000);
+                                        if (!isNaN(dateObj)) bDate = dateObj.toISOString().split('T')[0];
+                                    } else {
+                                        bDate = String(bDateRaw).trim();
+                                    }
+                                }
+
+                                for (let k = 0; k < q; k++) inv.push({ mat: String(r[iMat]).trim().toUpperCase(), batch: iBatch > -1 ? String(r[iBatch]).trim().toUpperCase() : "NA", cust: cCode, name: cName, plant: pl, billDoc: bDoc, billDate: bDate, used: false });
                             }
 
                             const rawScan = await readXlsx(fScan);
@@ -1604,7 +1653,7 @@
                                     stats.good++;
                                 }
 
-                                let status = "Variance", sysBatch = "-", sysPlant = "-", custCode = "-", custName = "-", rem = msgMap['Variance'], badge = "badge-err";
+                                let status = "Variance", sysBatch = "-", sysPlant = "-", custCode = "-", custName = "-", sysBillDoc = "-", sysBillDate = "-", rem = msgMap['Variance'], badge = "badge-err";
 
                                 if (p.sapCode !== "Not in Master") {
                                     let candidates = inv.filter(x => !x.used && x.mat === p.sapCode);
@@ -1625,6 +1674,8 @@
                                         match.used = true;
                                         sysBatch = match.batch;
                                         sysPlant = match.plant;
+                                        sysBillDoc = match.billDoc || "-";
+                                        sysBillDate = match.billDate || "-";
                                         if (custMap[match.cust.toUpperCase()]) custName = custMap[match.cust.toUpperCase()];
                                         else custName = match.name;
                                         custCode = match.cust;
@@ -1641,7 +1692,7 @@
                                     }
                                 } else { stats.var++; rem = msgMap['Master Missing']; }
 
-                                results.push({ status, badge, cond, raw: rawStr, p, sysBatch, sysPlant, custCode, custName, rem });
+                                results.push({ status, badge, cond, raw: rawStr, p, sysBatch, sysPlant, custCode, custName, sysBillDoc, sysBillDate, rem });
                             }
 
                             renderTable();
@@ -1726,6 +1777,8 @@
                             case 12: return r.p.mfg;
                             case 13: return r.p.exp;
                             case 14: return r.rem;
+                            case 15: return r.sysBillDoc;
+                            case 16: return r.sysBillDate;
                             default: return "";
                         }
                     }
@@ -1736,7 +1789,9 @@
                             SN: i + 1, Status: r.status, Condition: r.cond, Plant: r.sysPlant,
                             Raw: r.raw, ScanCode: r.p.scanCode, SAPCode: r.p.sapCode, Desc: r.p.desc,
                             PhyBatch: r.p.batch, SysBatch: r.sysBatch,
-                            CustCode: r.custCode, CustName: r.custName, Remarks: r.rem, Mfg: r.p.mfg, Exp: r.p.exp
+                            CustCode: r.custCode, CustName: r.custName,
+                            BillDoc: r.sysBillDoc, BillDate: r.sysBillDate,
+                            Remarks: r.rem, Mfg: r.p.mfg, Exp: r.p.exp
                         })));
                         XLSX.utils.book_append_sheet(wb, ws, "Recon_Result");
                         XLSX.writeFile(wb, "MLSIPL_Report_Final.xlsx");
