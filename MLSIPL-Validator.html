@@ -100,16 +100,26 @@
             const matData = document.getElementById('txtMaster').value;
             const custData = document.getElementById('txtCust').value;
 
+            if ((!matData || matData.trim().length < 10) && (!custData || custData.trim().length < 10)) {
+                alert("⚠️ Cannot save! Both Master Data text areas are empty or invalid.");
+                return;
+            }
+
             if (typeof updateFeatureFlag === 'function') {
+                const btn1 = document.getElementById('btnSaveToMaster');
+                if (btn1) btn1.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+
                 const result = await updateFeatureFlag('mlsipl_settings', {
                     material_master_csv: matData,
                     customer_master_csv: custData
                 });
 
+                if (btn1) btn1.innerHTML = '<i class="fas fa-database mr-1"></i> Save to System DB';
+
                 if (result.success) {
-                    alert("Master Data saved to Database successfully!");
+                    alert("✅ Master Data saved to Database successfully! All users will now see the new descriptions.");
                 } else {
-                    alert("Error saving data: " + result.error);
+                    alert("❌ Error saving data: " + result.error);
                 }
             } else {
                 alert("Feature Flag Update function not found. Please contact admin.");

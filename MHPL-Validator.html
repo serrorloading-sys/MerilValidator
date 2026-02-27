@@ -111,31 +111,33 @@
 
         // --- SAVE TO MASTER SYSTEM DB ---
         async function saveToMasterConfig() {
-            if (!confirm("Are you sure you want to overwrite the System Master Data with the currently loaded/uploaded files? This will affect all users.")) return;
-
-            // Use uploaded text if available, otherwise fallback to existing config text (if we can access it, but mainly we rely on upload here)
-            // Actually, if the user hasn't uploaded anything new, we shouldn't wipe it.
-            // But the requirement is "Promote". Usually implies taking what I have and pushing it.
-            // If I loaded from config, I don't have the raw text in temp variables unless I put it there during load.
-
-            // Let's ensure initFeatureFlags populates the temps if they exist
+            if (!confirm("Are you sure you want to overwrite the System Master Data with the currently loaded files? This will affect all users.")) return;
 
             const updates = {};
-            if (window.tempMaterialMasterCSV) updates.material_master_csv = window.tempMaterialMasterCSV;
-            if (window.tempCustomerMasterCSV) updates.customer_master_csv = window.tempCustomerMasterCSV;
+            if (window.tempMaterialMasterCSV && window.tempMaterialMasterCSV.trim().length > 10) {
+                updates.material_master_csv = window.tempMaterialMasterCSV;
+            }
+            if (window.tempCustomerMasterCSV && window.tempCustomerMasterCSV.trim().length > 10) {
+                updates.customer_master_csv = window.tempCustomerMasterCSV;
+            }
 
             if (Object.keys(updates).length === 0) {
-                alert("No new Master Data files have been uploaded to save.");
+                alert("⚠️ Cannot save! No new Master Data files were uploaded in this session. Please upload the Material or Customer Master Excel file first before clicking Save.");
                 return;
             }
 
             if (typeof updateFeatureFlag === 'function') {
+                const btn1 = document.getElementById('btnSaveToMaster');
+                if (btn1) btn1.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+
                 const result = await updateFeatureFlag('mhpl_settings', updates);
 
+                if (btn1) btn1.innerHTML = '<i class="fas fa-cloud-upload-alt mr-1"></i> Save to System DB';
+
                 if (result.success) {
-                    alert("Master Data saved to Database successfully!");
+                    alert("✅ Master Data saved to Database successfully! All users will now see the new descriptions.");
                 } else {
-                    alert("Error saving data: " + result.error);
+                    alert("❌ Error saving data: " + result.error);
                 }
             } else {
                 alert("Feature Flag Update function not found. Please contact admin.");
