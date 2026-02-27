@@ -912,6 +912,20 @@ async function initRealtimeFeatures() {
         .on('broadcast', { event: 'webrtc-signal' }, async (payload) => {
             await handleWebRTCSignal(payload.payload);
         })
+        .on('broadcast', { event: 'messages-read' }, (payload) => {
+            const { contextId, readerId } = payload.payload;
+            if (readerId !== currentUser.id) {
+                // Find all checkmarks in this context and turn them blue (double check)
+                const container = document.getElementById(`msg-container-${contextId}`);
+                if (container) {
+                    const checks = container.querySelectorAll('.fa-check, .fa-check-double');
+                    checks.forEach(icon => {
+                        icon.className = 'fas fa-check-double text-[8px] text-blue-300 transition-colors duration-300';
+                        icon.style.opacity = '1';
+                    });
+                }
+            }
+        })
         .subscribe();
 
 
@@ -1065,11 +1079,6 @@ const unreadCounts = {};
 let typingTimers = {};
 
 // ===== WEBRTC CALLING STATE =====
-let rtcPeerConnection = null;
-let localStream = null;
-let callTimer = null;
-let callDuration = 0;
-let activeCallContextId = null;
 
 const RTC_CONFIG = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -1087,7 +1096,7 @@ function injectZohoUI() {
         
         <!-- CONTACTS PANEL -->
         <div id="zoho-contacts-widget" class="pointer-events-auto flex flex-col transition-all duration-300 mr-4 overflow-hidden"
-            style="width:300px; background:white; box-shadow:0 -8px 40px rgba(99,102,241,0.18), 0 0 0 1px rgba(209,213,219,0.8); border-radius:16px 16px 0 0;">
+            style="width:250px; background:white; box-shadow:0 -8px 40px rgba(99,102,241,0.18), 0 0 0 1px rgba(209,213,219,0.8); border-radius:16px 16px 0 0;">
             
             <!-- ===== HEADER ===== -->
             <div style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 60%,#a78bfa 100%); border-radius:16px 16px 0 0; padding:10px 14px 0 14px;">
@@ -1108,22 +1117,22 @@ function injectZohoUI() {
                     </div>
                 </div>
 
-                <!-- 3-Tab bar: Chats / Calls / Video Calls -->
+                <!-- 3-Tab bar: Chats / Calls / Video Calls (Dots Only) -->
                 <div class="flex" style="gap:1px;">
-                    <button id="main-tab-chats" class="flex-1 py-2 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
-                        style="background:rgba(255,255,255,0.2); color:white; border-radius:8px 8px 0 0;"
-                        onclick="switchMainTab('chats')">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#ef4444;"></span> Chats
+                    <button id="main-tab-chats" class="flex-1 py-1.5 flex items-center justify-center transition-all"
+                        style="background:rgba(255,255,255,0.2); border-radius:8px 8px 0 0;"
+                        onclick="switchMainTab('chats')" title="Chats">
+                        <span class="w-2 h-2 rounded-full" style="background:#ef4444; box-shadow: 0 0 4px rgba(239,68,68,0.5);"></span>
                     </button>
-                    <button id="main-tab-calls" class="flex-1 py-2 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all"
-                        style="background:transparent; color:rgba(255,255,255,0.7); border-radius:8px 8px 0 0;"
-                        onclick="switchMainTab('calls')">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#22c55e;"></span> Calls
+                    <button id="main-tab-calls" class="flex-1 py-1.5 flex items-center justify-center transition-all"
+                        style="background:transparent; border-radius:8px 8px 0 0;"
+                        onclick="switchMainTab('calls')" title="Audio Calls">
+                        <span class="w-2 h-2 rounded-full" style="background:#22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.5);"></span>
                     </button>
-                    <button id="main-tab-video" class="flex-1 py-2 text-[11px] font-semibold flex items-center justify-center gap-1 transition-all"
-                        style="background:transparent; color:rgba(255,255,255,0.7); border-radius:8px 8px 0 0;"
-                        onclick="switchMainTab('video')">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#f59e0b;"></span> Video Calls
+                    <button id="main-tab-video" class="flex-1 py-1.5 flex items-center justify-center transition-all"
+                        style="background:transparent; border-radius:8px 8px 0 0;"
+                        onclick="switchMainTab('video')" title="Video Calls">
+                        <span class="w-2 h-2 rounded-full" style="background:#f59e0b; box-shadow: 0 0 4px rgba(245,158,11,0.5);"></span>
                     </button>
                 </div>
             </div>
@@ -1381,11 +1390,10 @@ function injectZohoUI() {
                     
                     <div class="w-px h-8 bg-white/10 mx-2"></div>
                     
-                    <button title="Share Screen (Premium)"
+                    <button onclick="toggleScreenShare()" id="btn-screen" title="Share Screen"
                         class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group relative overflow-hidden"
-                        style="background:rgba(255,255,255,0.1); color:#9ca3af; cursor:not-allowed;">
-                        <i class="fas fa-desktop text-lg"></i>
-                        <span class="absolute -top-1 -right-1 flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span></span>
+                        style="background:rgba(255,255,255,0.1); color:white;">
+                        <i class="fas fa-desktop text-lg group-hover:scale-110 transition-transform"></i>
                     </button>
 
                     <button title="Toggle Chat Panel" onclick="document.getElementById('call-right-sidebar').classList.toggle('translate-x-full'); document.getElementById('call-right-sidebar').classList.toggle('w-0'); document.getElementById('call-right-sidebar').classList.toggle('w-80'); document.getElementById('call-right-sidebar').classList.toggle('opacity-0');"
@@ -1550,16 +1558,12 @@ function switchTab(tab) {
 
 function switchMainTab(tab) {
     ['chats', 'calls', 'video'].forEach(t => {
-        const btn = document.getElementById(`main - tab - ${t} `);
+        const btn = document.getElementById(`main-tab-${t}`);
         if (!btn) return;
         if (t === tab) {
             btn.style.background = 'rgba(255,255,255,0.2)';
-            btn.style.color = 'white';
-            btn.style.fontWeight = '700';
         } else {
             btn.style.background = 'transparent';
-            btn.style.color = 'rgba(255,255,255,0.65)';
-            btn.style.fontWeight = '500';
         }
     });
     // For now all tabs show the same contacts list (calls/video can be extended later)
@@ -1859,6 +1863,9 @@ async function openDockedChat(target, type) {
     // Load message history
     await loadMessageHistory(contextId);
 
+    // Mark unread as read immediately upon opening
+    await markMessagesAsRead(contextId);
+
     // Subscribe to typing events for this chat
     if (type === 'private' && target.id) {
         subscribeToTyping(contextId, target.id);
@@ -1883,10 +1890,11 @@ window.closeDockedChat = closeDockedChat;
 
 window.handleDockKey = function (e, contextId) {
     if (e.key === 'Enter') sendDockMessage(contextId);
+    markMessagesAsRead(contextId); // Updates read status when they start typing
 };
 
 function toggleEmojiPicker(contextId) {
-    const picker = document.getElementById(`emoji-picker-${contextId} `);
+    const picker = document.getElementById(`emoji-picker-${contextId}`);
     picker.classList.toggle('hidden');
 }
 
@@ -1898,7 +1906,7 @@ function insertEmoji(contextId, emoji) {
 // --- MESSAGE PERSISTENCE ---
 
 async function loadMessageHistory(contextId) {
-    const container = document.getElementById(`msg-container-${contextId} `);
+    const container = document.getElementById(`msg-container-${contextId}`);
     if (!container) return;
 
     try {
@@ -1909,7 +1917,7 @@ async function loadMessageHistory(contextId) {
             .order('created_at', { ascending: true })
             .limit(30);
 
-        container.innerHTML = `< div class="text-center text-indigo-400/60 text-[10px] my-2 italic flex items-center gap-2 justify-center" ><div class="flex-1 h-px bg-indigo-900/40"></div><span>Start of conversation</span><div class="flex-1 h-px bg-indigo-900/40"></div></div > `;
+        container.innerHTML = `<div class="text-center text-indigo-400/60 text-[10px] my-2 italic flex items-center gap-2 justify-center"><div class="flex-1 h-px bg-indigo-900/40"></div><span>Start of conversation</span><div class="flex-1 h-px bg-indigo-900/40"></div></div>`;
 
         if (data && data.length > 0) {
             for (const msg of data) {
@@ -1924,14 +1932,15 @@ async function loadMessageHistory(contextId) {
                     text,
                     time,
                     attachment: msg.file_url ? { type: msg.message_type, url: msg.file_url, name: msg.file_name } : null,
-                    messageId: msg.id
+                    messageId: msg.id,
+                    status: msg.status
                 });
             }
         }
     } catch (e) {
         console.warn('Could not load message history:', e);
-        const container = document.getElementById(`msg-container-${contextId} `);
-        if (container) container.innerHTML = `< div class="text-center text-indigo-400/60 text-[10px] my-2 italic" > Could not load history</div > `;
+        const container = document.getElementById(`msg-container-${contextId}`);
+        if (container) container.innerHTML = `<div class="text-center text-indigo-400/60 text-[10px] my-2 italic">Could not load history</div>`;
     }
 }
 
@@ -1940,19 +1949,46 @@ async function saveMessageToDB(contextId, payload, text) {
         const { data: { user } } = await sbClient.auth.getUser();
         if (!user) return;
 
-        const cipher = text ? await CryptoUtils.encrypt(text, contextId) : null;
+        const cipher = payload.cipher || (text ? await CryptoUtils.encrypt(text, contextId) : null);
 
         await sbClient.from('messages').insert({
             context_id: contextId,
             sender_id: user.id,
-            sender_name: payload.user,
+            sender_name: payload.user || payload.sender_name,
             cipher,
-            message_type: payload.attachment?.type || 'text',
+            message_type: payload.attachment ? (payload.attachment.type.startsWith('image/') ? 'image' : 'file') : 'text',
             file_url: payload.attachment?.url || null,
-            file_name: payload.attachment?.name || null,
+            status: 'sent'
         });
     } catch (e) {
-        console.warn('Could not save message to DB:', e);
+        console.warn("Error saving message", e);
+    }
+}
+
+async function markMessagesAsRead(contextId) {
+    if (!contextId) return;
+    try {
+        const { data: { user } } = await sbClient.auth.getUser();
+        if (!user) return;
+
+        // Update all unread messages sent by others in this context to 'read'
+        await sbClient.from('messages')
+            .update({ status: 'read' })
+            .eq('context_id', contextId)
+            .neq('sender_id', user.id)
+            .neq('status', 'read');
+
+        // Optional: Notify peers via realtime room if you aren't listening to DB changes directly
+        const chatData = openChats.get(contextId);
+        if (chatData && chatData.target?.id) {
+            const ch = sbClient.channel(`room-private-${chatData.target.id}`);
+            ch.subscribe().then(() => {
+                ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
+                setTimeout(() => sbClient.removeChannel(ch), 500);
+            });
+        }
+    } catch (e) {
+        console.warn("Could not mark as read", e);
     }
 }
 
@@ -1964,7 +2000,7 @@ function broadcastTyping(contextId) {
     const { target } = chatData;
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'Someone';
 
-    const ch = sbClient.channel(`room - private - ${target.id} `);
+    const ch = sbClient.channel(`room-private-${target.id}`);
     ch.subscribe().then(() => {
         ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
         setTimeout(() => sbClient.removeChannel(ch), 500);
@@ -1977,8 +2013,8 @@ function subscribeToTyping(contextId) {
 }
 
 function showTypingIndicator(contextId, name) {
-    const el = document.getElementById(`typing-${contextId} `);
-    const nameEl = document.getElementById(`typing-name-${contextId} `);
+    const el = document.getElementById(`typing-${contextId}`);
+    const nameEl = document.getElementById(`typing-name-${contextId}`);
     if (!el) return;
     if (nameEl) nameEl.textContent = `${name} is typing...`;
     el.classList.remove('hidden');
@@ -2031,7 +2067,19 @@ async function sendDockMessage(contextId, attachment = null) {
     }
 
     // Save to DB
-    await saveMessageToDB(contextId, payload, text);
+    try {
+        await sbClient.from('messages').insert([{
+            context_id: contextId,
+            sender_id: currentUser.id,
+            sender_name: displayName,
+            cipher: payload.cipher || null, // null if plaintext
+            message_type: attachment ? (attachment.type.startsWith('image/') ? 'image' : 'file') : 'text',
+            file_url: attachment?.url || null,
+            status: 'sent'
+        }]);
+    } catch (dbErr) {
+        console.warn('DB Save Error (table might not exist yet):', dbErr);
+    }
 
     appendMessageToWindow(contextId, { ...payload, text, isDetails: true });
     if (input) input.value = '';
@@ -2063,7 +2111,7 @@ function appendMessageToWindow(contextId, msg) {
     let contentHtml = '';
     if (msg.attachment) {
         if (msg.attachment.type === 'image') {
-            contentHtml = `< img src = "${msg.attachment.url}" class= "max-w-[180px] max-h-[130px] rounded-xl border border-white/10 cursor-pointer shadow-md hover:scale-105 transition-transform mb-1" onclick = "window.open('${msg.attachment.url}','_blank')" > `;
+            contentHtml = `<img src="${msg.attachment.url}" class="max-w-[180px] max-h-[130px] rounded-xl border border-white/10 cursor-pointer shadow-md hover:scale-105 transition-transform mb-1" onclick="openLightbox('${msg.attachment.url}', 'image')">`;
         } else {
             contentHtml = `< div class= "flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10" ><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div > `;
         }
@@ -2076,6 +2124,13 @@ function appendMessageToWindow(contextId, msg) {
 
     const messageId = msg.messageId || ('msg_' + Date.now());
 
+    let statusHtml = '';
+    if (isMe) {
+        if (msg.status === 'read') statusHtml = '<i class="fas fa-check-double text-[8px] text-blue-300"></i>';
+        else if (msg.status === 'delivered') statusHtml = '<i class="fas fa-check-double text-[8px] opacity-75 text-white"></i>';
+        else statusHtml = '<i class="fas fa-check text-[8px] opacity-50 text-white"></i>'; // Default sent
+    }
+
     div.innerHTML = `
             < div class="max-w-[80%] relative msg-bubble group" >
                 ${!isMe && msg.groupId ? `<p class="text-[9px] font-bold text-indigo-300 mb-0.5 ml-1">${msg.user}</p>` : ''}
@@ -2083,7 +2138,7 @@ function appendMessageToWindow(contextId, msg) {
                     ${contentHtml}
                     <div class="flex items-center justify-end gap-1 mt-0.5">
                         <span class="text-[9px] opacity-50 select-none">${msg.time}</span>
-                        ${isMe ? '<i class="fas fa-check-double text-[8px] opacity-50"></i>' : ''}
+                        ${statusHtml}
                     </div>
                 </div>
                 <!--Emoji reaction bar-- >
@@ -2106,6 +2161,35 @@ async function sendReaction(messageId, emoji) {
         const el = document.getElementById(`reactions - ${messageId} `);
         if (el) el.innerHTML += `< span class="text-sm bg-indigo-900/60 rounded-full px-1.5 py-0.5 text-xs" > ${emoji}</span > `;
     } catch (e) { console.warn('Reaction failed:', e); }
+}
+
+// --- IN-CHAT FILE/IMAGE PREVIEWS (LIGHTBOX) ---
+
+function openLightbox(url, type) {
+    let overlay = document.getElementById('lightbox-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'lightbox-overlay';
+        overlay.className = 'fixed inset-0 z-[99999] bg-black/90 backdrop-blur-sm flex items-center justify-center animate-fade-in-up';
+        overlay.onclick = (e) => { if (e.target === overlay) document.body.removeChild(overlay); };
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <button class="absolute top-6 right-6 text-white hover:text-red-400 transition-colors z-50 p-2" onclick="document.body.removeChild(document.getElementById('lightbox-overlay'))">
+            <i class="fas fa-times text-2xl"></i>
+        </button>
+        <div class="relative max-w-5xl max-h-[85vh] w-full mx-4 flex flex-col items-center justify-center">
+            ${type === 'image'
+            ? `<img src="${url}" class="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl transition-transform duration-300 hover:scale-[1.02]">`
+            : `<div class="bg-gray-800 p-8 rounded-2xl flex flex-col items-center gap-4 text-white">
+                     <i class="fas fa-file-alt text-6xl text-indigo-400"></i>
+                     <p class="font-bold tracking-wide text-lg text-center">Cannot preview this file type</p>
+                     <a href="${url}" target="_blank" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-bold text-sm shadow-lg transition-colors">Download File</a>
+                   </div>`
+        }
+        </div>
+    `;
 }
 
 // --- FILE UPLOAD ---
@@ -2152,6 +2236,13 @@ let pendingCallerId = null;
 let pendingCallerName = null;
 let pendingContextId = null;
 
+let rtcPeerConnection = null; // Legacy 1:1 format fallback
+window.peerConnections = {};  // New Mesh Network state
+let localStream = null;
+let activeCallContextId = null;
+let callTimer = null;
+let callDuration = 0;
+
 async function startCall(contextId, callType) {
     // Basic fallback toast if undefined globally
     if (typeof window.showToast !== 'function') {
@@ -2165,17 +2256,32 @@ async function startCall(contextId, callType) {
         };
     }
 
-    if (rtcPeerConnection) { window.showToast('Already in a call.', 'error'); return; }
+    if (Object.keys(window.peerConnections).length > 0) { window.showToast('Already in a call.', 'error'); return; }
 
-    const targetId = contextId.replace(currentUser.id, '').replace('_', '');
-    const target = allProfiles[targetId];
-    if (!target) { window.showToast('Target user not found.', 'error'); return; }
+    // Determine targets (1-to-1 or Group)
+    let targets = [];
+    const isGroup = contextId.includes('_') && contextId.split('_').length > 2;
+    let callTitle = 'Call';
+
+    if (isGroup) {
+        const uids = contextId.split('_').filter(id => id !== currentUser.id);
+        uids.forEach(uid => { if (allProfiles[uid]) targets.push(allProfiles[uid]); });
+        callTitle = `Group Call (${targets.length + 1})`;
+    } else {
+        const targetId = contextId.replace(currentUser.id, '').replace('_', '');
+        if (allProfiles[targetId]) {
+            targets.push(allProfiles[targetId]);
+            callTitle = targets[0].name;
+        }
+    }
+
+    if (targets.length === 0) { window.showToast('Target user(s) not found.', 'error'); return; }
 
     activeCallContextId = contextId;
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
 
-    // Show Active Call Window immediately with "Requesting permissions..."
-    showActiveCallWindow(target.name, callType);
+    // Show Active Call Window immediately
+    showActiveCallWindow(callTitle, callType);
     const audioNameBig = document.getElementById('audio-peer-name-big');
     if (audioNameBig) audioNameBig.textContent = "Requesting Camera/Mic...";
     const nameBadge = document.getElementById('call-peer-name');
@@ -2185,7 +2291,6 @@ async function startCall(contextId, callType) {
         if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
         localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
 
-        // Update local video stream dynamically since we showed the window before getting the stream
         if (callType === 'video') {
             const localVideo = document.getElementById('local-video');
             if (localVideo) localVideo.srcObject = localStream;
@@ -2196,32 +2301,83 @@ async function startCall(contextId, callType) {
         return;
     }
 
-    if (nameBadge) nameBadge.textContent = "Ringing " + target.name + "...";
+    if (nameBadge) nameBadge.textContent = "Ringing " + callTitle + "...";
     if (audioNameBig) audioNameBig.textContent = "Ringing...";
 
-    rtcPeerConnection = new RTCPeerConnection(RTC_CONFIG);
-    localStream.getTracks().forEach(track => rtcPeerConnection.addTrack(track, localStream));
+    // Initiate Mesh connections
+    for (const target of targets) {
+        const pc = new RTCPeerConnection(RTC_CONFIG);
+        window.peerConnections[target.id] = pc;
 
-    rtcPeerConnection.onicecandidate = (e) => {
-        if (e.candidate) signalToPeer(target.id, { type: 'ice-candidate', candidate: e.candidate, contextId });
-    };
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-    rtcPeerConnection.ontrack = (e) => {
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) remoteVideo.srcObject = e.streams[0];
-    };
+        pc.onicecandidate = (e) => {
+            if (e.candidate) signalToPeer(target.id, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id });
+        };
 
-    const offer = await rtcPeerConnection.createOffer();
-    await rtcPeerConnection.setLocalDescription(offer);
+        pc.ontrack = (e) => {
+            handleRemoteStream(e.streams[0], target.id, target.name);
+        };
 
-    signalToPeer(target.id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId });
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
 
-    // Start Outgoing Ringtone
+        signalToPeer(target.id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId, isGroup });
+    }
+
     startRing(true);
 
-    // Store call meta for when answer comes back
-    window._pendingOutCallTarget = target;
+    window._pendingOutCallTarget = { name: callTitle };
     window._pendingOutCallType = callType;
+}
+
+function handleRemoteStream(stream, peerId, peerName) {
+    const videoArea = document.getElementById('video-area');
+    if (!videoArea) return;
+
+    const isAudioOnly = stream.getVideoTracks().length === 0;
+
+    // Hide standard 1-to-1 video placeholder logic only for video calls
+    const oldRemote = document.getElementById('remote-video');
+    const placeholder = document.getElementById('audio-call-placeholder');
+
+    if (!isAudioOnly) {
+        if (oldRemote) oldRemote.classList.add('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+    }
+
+    let mediaEl = document.getElementById(`remote-video-${peerId}`);
+    if (!mediaEl) {
+        if (isAudioOnly) {
+            mediaEl = document.createElement('audio');
+            mediaEl.id = `remote-video-${peerId}`;
+            mediaEl.autoplay = true;
+            mediaEl.className = 'hidden';
+            videoArea.appendChild(mediaEl);
+        } else {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative flex-1 min-w-[300px] h-full rounded-2xl overflow-hidden shadow-2xl animate-fade-in-up group';
+            wrapper.id = `remote-wrap-${peerId}`;
+
+            mediaEl = document.createElement('video');
+            mediaEl.id = `remote-video-${peerId}`;
+            mediaEl.autoplay = true;
+            mediaEl.playsInline = true;
+            mediaEl.className = 'w-full h-full object-cover';
+
+            const nameTag = document.createElement('div');
+            nameTag.className = 'absolute bottom-4 left-4 px-3 py-1.5 rounded-lg backdrop-blur-md bg-black/40 border border-white/10 text-white text-xs font-bold shadow-lg flex items-center gap-2';
+            nameTag.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${peerName}`;
+
+            wrapper.appendChild(mediaEl);
+            wrapper.appendChild(nameTag);
+
+            // Transform the flex container into a grid for groups
+            videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
+            videoArea.appendChild(wrapper);
+        }
+    }
+    mediaEl.srcObject = stream;
 }
 
 async function signalToPeer(peerId, payload) {
@@ -2314,23 +2470,23 @@ async function acceptCall() {
 
     if (nameBadge) nameBadge.textContent = pendingCallerName;
 
-    rtcPeerConnection = new RTCPeerConnection(RTC_CONFIG);
-    localStream.getTracks().forEach(track => rtcPeerConnection.addTrack(track, localStream));
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    window.peerConnections[pendingCallerId] = pc;
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-    rtcPeerConnection.onicecandidate = (e) => {
-        if (e.candidate) signalToPeer(pendingCallerId, { type: 'ice-candidate', candidate: e.candidate, contextId: pendingContextId });
+    pc.onicecandidate = (e) => {
+        if (e.candidate) signalToPeer(pendingCallerId, { type: 'ice-candidate', candidate: e.candidate, contextId: pendingContextId, senderId: currentUser.id });
     };
 
-    rtcPeerConnection.ontrack = (e) => {
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) remoteVideo.srcObject = e.streams[0];
+    pc.ontrack = (e) => {
+        handleRemoteStream(e.streams[0], pendingCallerId, pendingCallerName);
     };
 
-    await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(pendingCallOffer));
-    const answer = await rtcPeerConnection.createAnswer();
-    await rtcPeerConnection.setLocalDescription(answer);
+    await pc.setRemoteDescription(new RTCSessionDescription(pendingCallOffer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
-    signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId });
+    signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId, senderId: currentUser.id });
     startCallTimer();
 }
 
@@ -2338,20 +2494,34 @@ function declineCall() {
     stopRing();
     dismissCallNotification(); // close the browser call notification
     document.getElementById('incoming-call-modal').classList.add('hidden');
-    if (pendingCallerId) signalToPeer(pendingCallerId, { type: 'call-declined', contextId: pendingContextId });
+    if (pendingCallerId) signalToPeer(pendingCallerId, { type: 'call-declined', contextId: pendingContextId, senderId: currentUser.id });
     pendingCallOffer = null;
 }
 
 function endCall() {
     stopRing();
-    rtcPeerConnection?.close();
-    rtcPeerConnection = null;
+
+    // Cleanup mesh connections
+    Object.values(window.peerConnections).forEach(pc => pc.close());
+    window.peerConnections = {};
+
     localStream?.getTracks().forEach(t => t.stop());
     localStream = null;
     clearInterval(callTimer);
     callDuration = 0;
     const timerEl = document.getElementById('call-timer');
     if (timerEl) timerEl.textContent = '00:00';
+
+    // Cleanup remote video/audio DOM elements
+    const videoArea = document.getElementById('video-area');
+    if (videoArea) {
+        Array.from(videoArea.children).forEach(child => {
+            if (child.id && child.id.startsWith('remote-wrap-')) child.remove();
+            if (child.id && child.id.startsWith('remote-video-')) child.remove();
+        });
+        const oldRemote = document.getElementById('remote-video');
+        if (oldRemote) oldRemote.classList.remove('hidden');
+    }
 
     // Reset Stream UI elements
     const chatHistory = document.getElementById('call-chat-history');
@@ -2435,13 +2605,17 @@ function startCallTimer() {
 
 function toggleMute() {
     if (!localStream) return;
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (!audioTrack) return;
-    audioTrack.enabled = !audioTrack.enabled;
+    const audioTracks = localStream.getAudioTracks();
+    if (!audioTracks.length) return;
+
+    // Toggle the first track, then sync the others to match
+    const newState = !audioTracks[0].enabled;
+    audioTracks.forEach(t => t.enabled = newState);
+
     const btn = document.getElementById('btn-mute');
     const sideMic = document.querySelector('#call-left-sidebar .fa-microphone, #call-left-sidebar .fa-microphone-slash');
 
-    if (audioTrack.enabled) {
+    if (newState) {
         btn.innerHTML = '<i class="fas fa-microphone text-lg group-hover:scale-110 transition-transform"></i>';
         btn.style.color = 'white';
         if (sideMic) { sideMic.className = 'fas fa-microphone text-[10px] text-emerald-400'; }
@@ -2454,17 +2628,76 @@ function toggleMute() {
 
 function toggleCamera() {
     if (!localStream) return;
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (!videoTrack) return;
-    videoTrack.enabled = !videoTrack.enabled;
+    const videoTracks = localStream.getVideoTracks();
+    if (!videoTracks.length) return;
+
+    // Toggle the first track, then sync the others to match
+    const newState = !videoTracks[0].enabled;
+    videoTracks.forEach(t => t.enabled = newState);
+
     const btn = document.getElementById('btn-camera');
 
-    if (videoTrack.enabled) {
+    if (newState) {
         btn.innerHTML = '<i class="fas fa-video text-lg group-hover:scale-110 transition-transform"></i>';
         btn.style.color = 'white';
     } else {
         btn.innerHTML = '<i class="fas fa-video-slash text-lg group-hover:scale-110 transition-transform"></i>';
         btn.style.color = '#ef4444'; // red-500
+    }
+}
+
+let screenStream = null;
+async function toggleScreenShare() {
+    const btn = document.getElementById('btn-screen');
+
+    if (screenStream) {
+        // Stop sharing
+        screenStream.getTracks().forEach(t => t.stop());
+        screenStream = null;
+
+        // Revert to camera
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            Object.values(window.peerConnections).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                if (sender) sender.replaceTrack(videoTrack);
+            });
+            const localVideo = document.getElementById('local-video');
+            if (localVideo) localVideo.srcObject = localStream;
+        }
+
+        btn.innerHTML = '<i class="fas fa-desktop text-lg group-hover:scale-110 transition-transform"></i>';
+        btn.style.color = 'white';
+        btn.classList.remove('bg-indigo-600');
+
+    } else {
+        // Start sharing
+        try {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            const screenTrack = screenStream.getVideoTracks()[0];
+
+            // Listen for native "Stop sharing" button click in browser
+            screenTrack.onended = () => {
+                toggleScreenShare(); // Revert
+            };
+
+            // Replace track in all peer connections
+            Object.values(window.peerConnections).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                if (sender) sender.replaceTrack(screenTrack);
+            });
+
+            // Show locally
+            const localVideo = document.getElementById('local-video');
+            if (localVideo) localVideo.srcObject = screenStream;
+
+            btn.innerHTML = '<i class="fas fa-desktop text-lg animate-pulse"></i>';
+            btn.style.color = 'white';
+            btn.classList.add('bg-indigo-600');
+
+        } catch (e) {
+            console.warn("Screen share denied/failed", e);
+        }
     }
 }
 
@@ -2532,10 +2765,24 @@ function appendCallChatMessage(text, isMe, senderName = 'You') {
 }
 
 async function handleWebRTCSignal(payload) {
-    const { type, contextId } = payload;
+    const { type, contextId, senderId } = payload;
 
     if (type === 'call-offer') {
         pendingCallOffer = payload.offer;
+        // Auto-answer if already in same group call
+        if (activeCallContextId === contextId && localStream) {
+            const pc = new RTCPeerConnection(RTC_CONFIG);
+            window.peerConnections[payload.callerId] = pc;
+            localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+            pc.onicecandidate = e => { if (e.candidate) signalToPeer(payload.callerId, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id }); };
+            pc.ontrack = e => handleRemoteStream(e.streams[0], payload.callerId, payload.callerName);
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            signalToPeer(payload.callerId, { type: 'call-answer', answer, contextId, senderId: currentUser.id });
+            return;
+        }
+
         pendingCallType = payload.callType;
         pendingCallerId = payload.callerId;
         pendingCallerName = payload.callerName;
@@ -2543,24 +2790,31 @@ async function handleWebRTCSignal(payload) {
         showIncomingCallModal(payload.callerName, payload.callType);
         playNotificationSound();
     }
-    else if (type === 'call-answer' && rtcPeerConnection) {
+    else if (type === 'call-answer') {
         stopRing();
-        await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-        // Caller's side: peer accepted — open/update the call window and start the timer
-        if (window._pendingOutCallTarget && window._pendingOutCallType) {
-            showActiveCallWindow(window._pendingOutCallTarget.name, window._pendingOutCallType);
-            startCallTimer();
-            window._pendingOutCallTarget = null;
-            window._pendingOutCallType = null;
+        const pc = window.peerConnections[senderId];
+        if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            if (window._pendingOutCallTarget && window._pendingOutCallType) {
+                showActiveCallWindow(window._pendingOutCallTarget.name, window._pendingOutCallType);
+                startCallTimer();
+                window._pendingOutCallTarget = null;
+                window._pendingOutCallType = null;
+            }
         }
     }
-    else if (type === 'ice-candidate' && rtcPeerConnection) {
-        await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+    else if (type === 'ice-candidate') {
+        const pc = window.peerConnections[senderId];
+        if (pc) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
     }
     else if (type === 'call-declined') {
         stopRing();
-        if (typeof window.showToast === 'function') window.showToast('Call declined.', 'error');
-        endCall();
+        if (window.peerConnections[senderId]) {
+            window.peerConnections[senderId].close();
+            delete window.peerConnections[senderId];
+            if (typeof window.showToast === 'function') window.showToast('A user declined the call.', 'error');
+            if (Object.keys(window.peerConnections).length === 0) endCall();
+        }
     }
 }
 
@@ -2574,6 +2828,7 @@ window.toggleCamera = toggleCamera;
 window.sendReaction = sendReaction;
 window.toggleEmojiPicker = toggleEmojiPicker;
 window.insertEmoji = insertEmoji;
+window.openLightbox = openLightbox;
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
