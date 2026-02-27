@@ -2439,7 +2439,7 @@ function toggleMute() {
     if (!audioTrack) return;
     audioTrack.enabled = !audioTrack.enabled;
     const btn = document.getElementById('btn-mute');
-    const sideMic = document.querySelector('#call-left-sidebar .fa-microphone');
+    const sideMic = document.querySelector('#call-left-sidebar .fa-microphone, #call-left-sidebar .fa-microphone-slash');
 
     if (audioTrack.enabled) {
         btn.innerHTML = '<i class="fas fa-microphone text-lg group-hover:scale-110 transition-transform"></i>';
