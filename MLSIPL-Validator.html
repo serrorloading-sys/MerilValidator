@@ -23,13 +23,17 @@
             if (typeof initFeatureFlags === 'function') {
                 const config = await initFeatureFlags('mlsipl_settings');
                 if (config) {
+                    let hasMasterUpdate = false;
                     if (config.material_master_csv) {
                         const el = document.getElementById('txtMaster');
-                        if (el) el.value = config.material_master_csv;
+                        if (el) { el.value = config.material_master_csv; localStorage.setItem('mlsipl_master_v72', config.material_master_csv); hasMasterUpdate = true; }
                     }
                     if (config.customer_master_csv) {
                         const el = document.getElementById('txtCust');
-                        if (el) el.value = config.customer_master_csv;
+                        if (el) { el.value = config.customer_master_csv; localStorage.setItem('mlsipl_cust_v72', config.customer_master_csv); hasMasterUpdate = true; }
+                    }
+                    if (hasMasterUpdate && typeof loadConfig === 'function') {
+                        loadConfig();
                     }
                 }
             }
