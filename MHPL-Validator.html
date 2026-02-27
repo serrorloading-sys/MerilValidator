@@ -28,18 +28,28 @@
                 window.tempMaterialMasterCSV = text; // Store for saving
 
                 // Process for current session
-                const lines = text.split(/\r?\n/);
+                const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
                 if (lines.length > 0) {
                     const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
-                    const iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
-                    const iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
+                    let iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
+                    let iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
+
+                    let startRow = 1;
+
+                    // Fallback heuristics if specific headers aren't found
+                    if (iMat === -1 || iDesc === -1) {
+                        iMat = 0;
+                        iDesc = 1;
+                        startRow = 0; // Assume first row is data if headers not clearly identified
+                        console.log("Headers not found, assuming Col 0 = Material, Col 1 = Description. Starting at row 0.");
+                    }
 
                     if (iMat > -1 && iDesc > -1) {
-                        window.MATERIAL_MASTER = window.MATERIAL_MASTER || {};
+                        window.MATERIAL_MASTER = {}; // Clear existing map entirely
                         let count = 0;
-                        for (let i = 1; i < lines.length; i++) {
+                        for (let i = startRow; i < lines.length; i++) {
                             const row = lines[i].split(',');
-                            if (row.length > iMat && row.length > iDesc) {
+                            if (row.length > Math.max(iMat, iDesc)) {
                                 const m = row[iMat].trim().toUpperCase();
                                 const d = row[iDesc].trim();
                                 if (m) {
@@ -57,7 +67,7 @@
                             document.getElementById('masterCount').innerText = count;
                         }
                     } else {
-                        alert("Could not find 'Material' and 'Description' columns in CSV.");
+                        alert("Could not infer 'Material' and 'Description' columns in CSV.");
                     }
                 }
             };
@@ -73,18 +83,27 @@
                 const text = e.target.result;
                 window.tempCustomerMasterCSV = text; // Store for saving
 
-                const lines = text.split(/\r?\n/);
+                const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
                 if (lines.length > 0) {
                     const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
-                    const iCode = headers.findIndex(h => h.includes('code') || h.includes('id'));
-                    const iName = headers.findIndex(h => h.includes('name') || h.includes('customer'));
+                    let iCode = headers.findIndex(h => h.includes('code') || h.includes('id') || h.includes('customer'));
+                    let iName = headers.findIndex(h => h.includes('name') || h.includes('desc'));
+
+                    let startRow = 1;
+
+                    if (iCode === -1 || iName === -1) {
+                        iCode = 0;
+                        iName = 1;
+                        startRow = 0;
+                        console.log("Customer headers not found, assuming Col 0 = Code, Col 1 = Name. Starting at row 0.");
+                    }
 
                     if (iCode > -1 && iName > -1) {
-                        window.CUSTOMER_MASTER = window.CUSTOMER_MASTER || {};
+                        window.CUSTOMER_MASTER = {}; // Clear existing map
                         let count = 0;
-                        for (let i = 1; i < lines.length; i++) {
+                        for (let i = startRow; i < lines.length; i++) {
                             const row = lines[i].split(',');
-                            if (row.length > iCode && row.length > iName) {
+                            if (row.length > Math.max(iCode, iName)) {
                                 const c = row[iCode].trim().toUpperCase();
                                 const n = row[iName].trim();
                                 if (c) {
@@ -102,7 +121,7 @@
                             document.getElementById('custMasterCount').innerText = count;
                         }
                     } else {
-                        alert("Could not find 'Customer Code' and 'Customer Name' columns in CSV.");
+                        alert("Could not infer 'Customer Code' and 'Customer Name' columns in CSV.");
                     }
                 }
             };
@@ -200,25 +219,28 @@
                     if (config.material_master_csv && config.material_master_csv.length > 10) {
                         try {
                             // Parse CSV manually to avoid file object dependency issues
-                            const lines = config.material_master_csv.split(/\r?\n/);
+                            const lines = config.material_master_csv.split(/\r?\n/).filter(l => l.trim() !== "");
                             if (lines.length > 0) {
                                 const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
                                 // Simple index find
                                 let iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
                                 let iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
 
-                                // Fallback for 2-column files if headers not found
-                                if ((iMat === -1 || iDesc === -1) && lines[1].split(',').length === 2) {
+                                let startRow = 1;
+
+                                // Fallback for files if headers not found clearly
+                                if (iMat === -1 || iDesc === -1) {
                                     iMat = 0;
                                     iDesc = 1;
+                                    startRow = 0; // Assume first row is actual data
                                     console.log("Headers not found, assuming Col 0 = Material, Col 1 = Description");
                                 }
 
                                 if (iMat > -1 && iDesc > -1) {
                                     window.MATERIAL_MASTER = window.MATERIAL_MASTER || {};
                                     let count = 0;
-                                    // Start from 1
-                                    for (let i = 1; i < lines.length; i++) {
+                                    // Start from interpreted startRow
+                                    for (let i = startRow; i < lines.length; i++) {
                                         const row = lines[i].split(','); // Basic split, might fail on quoted commas but sufficient for simple lists
                                         if (row.length > Math.max(iMat, iDesc)) {
                                             const m = row[iMat].trim().toUpperCase();
@@ -246,23 +268,26 @@
                     // Customer Master
                     if (config.customer_master_csv && config.customer_master_csv.length > 10) {
                         try {
-                            const lines = config.customer_master_csv.split(/\r?\n/);
+                            const lines = config.customer_master_csv.split(/\r?\n/).filter(l => l.trim() !== "");
                             if (lines.length > 0) {
                                 const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
-                                let iCode = headers.findIndex(h => h.includes('code') || h.includes('id'));
-                                let iName = headers.findIndex(h => h.includes('name') || h.includes('customer'));
+                                let iCode = headers.findIndex(h => h.includes('code') || h.includes('id') || h.includes('customer'));
+                                let iName = headers.findIndex(h => h.includes('name') || h.includes('desc'));
+
+                                let startRow = 1;
 
                                 // Fallback for 2-column files
-                                if ((iCode === -1 || iName === -1) && lines[1].split(',').length === 2) {
+                                if (iCode === -1 || iName === -1) {
                                     iCode = 0;
                                     iName = 1;
-                                    console.log("Headers not found, assuming Col 0 = Customer Code, Col 1 = Name");
+                                    startRow = 0;
+                                    console.log("Customer headers not found, assuming Col 0 = Customer Code, Col 1 = Name");
                                 }
 
                                 if (iCode > -1 && iName > -1) {
                                     window.CUSTOMER_MASTER = window.CUSTOMER_MASTER || {};
                                     let count = 0;
-                                    for (let i = 1; i < lines.length; i++) {
+                                    for (let i = startRow; i < lines.length; i++) {
                                         const row = lines[i].split(',');
                                         if (row.length > Math.max(iCode, iName)) {
                                             const c = row[iCode].trim().toUpperCase();
