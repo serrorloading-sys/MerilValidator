@@ -1363,7 +1363,12 @@
                             if (m) {
                                 setVal('txtMaster', m);
                                 masterMap = {};
-                                m.split('\n').forEach(l => {
+                                const lines = m.split(/\r?\n/).filter(l => l.trim() !== "");
+                                lines.forEach((l, idx) => {
+                                    // Skip header row if it looks like headers
+                                    if (idx === 0 && (l.toLowerCase().includes('material') || l.toLowerCase().includes('desc') || l.toLowerCase().includes('code'))) {
+                                        return;
+                                    }
                                     let p = l.split(',');
                                     if (p.length >= 3) {
                                         // 3-Column: ScanCode, SAPCode, Desc
@@ -1378,7 +1383,14 @@
                             if (c) {
                                 setVal('txtCust', c);
                                 custMap = {};
-                                c.split('\n').forEach(l => { let p = l.split(','); if (p.length >= 2) custMap[p[0].trim().toUpperCase()] = p[1].trim(); });
+                                const lines = c.split(/\r?\n/).filter(l => l.trim() !== "");
+                                lines.forEach((l, idx) => {
+                                    if (idx === 0 && (l.toLowerCase().includes('name') || l.toLowerCase().includes('code') || l.toLowerCase().includes('customer'))) {
+                                        return;
+                                    }
+                                    let p = l.split(',');
+                                    if (p.length >= 2) custMap[p[0].trim().toUpperCase()] = p[1].trim();
+                                });
                             }
                             if (r) setVal('txtRules', r);
                             if (msg) setVal('txtMsg', msg);
