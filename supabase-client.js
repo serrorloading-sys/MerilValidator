@@ -2132,7 +2132,7 @@ function appendMessageToWindow(contextId, msg) {
 
     const bubbleBg = isMe
         ? 'background: linear-gradient(135deg,#6366f1,#8b5cf6); color:white;'
-        : 'background:rgba(255,255,255,0.12); color:white; border: 1px solid rgba(255,255,255,0.1);';
+        : 'background:white; color:#1f2937; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
 
     const messageId = msg.messageId || ('msg_' + Date.now());
 
