@@ -2307,22 +2307,22 @@ async function startCall(contextId, callType) {
     // Initiate Mesh connections
     for (const target of targets) {
         const pc = new RTCPeerConnection(RTC_CONFIG);
-        window.peerConnections[target.id] = pc;
+        window.peerConnections[target.user_id] = pc;
 
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
         pc.onicecandidate = (e) => {
-            if (e.candidate) signalToPeer(target.id, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id });
+            if (e.candidate) signalToPeer(target.user_id, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id });
         };
 
         pc.ontrack = (e) => {
-            handleRemoteStream(e.streams[0], target.id, target.name);
+            handleRemoteStream(e.streams[0], target.user_id, target.name);
         };
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        signalToPeer(target.id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId, isGroup });
+        signalToPeer(target.user_id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId, isGroup });
     }
 
     startRing(true);
