@@ -1987,9 +1987,11 @@ async function markMessagesAsRead(contextId) {
         const chatData = openChats.get(contextId);
         if (chatData && chatData.target?.id) {
             const ch = sbClient.channel(`room-private-${chatData.target.id}`);
-            ch.subscribe().then(() => {
-                ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
-                setTimeout(() => sbClient.removeChannel(ch), 500);
+            ch.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
+                    setTimeout(() => sbClient.removeChannel(ch), 500);
+                }
             });
         }
     } catch (e) {
@@ -2006,9 +2008,11 @@ function broadcastTyping(contextId) {
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'Someone';
 
     const ch = sbClient.channel(`room-private-${target.id}`);
-    ch.subscribe().then(() => {
-        ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
-        setTimeout(() => sbClient.removeChannel(ch), 500);
+    ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
+            setTimeout(() => sbClient.removeChannel(ch), 500);
+        }
     });
 }
 
@@ -2062,12 +2066,15 @@ async function sendDockMessage(contextId, attachment = null) {
         globalChannel.send({ type: 'broadcast', event: 'chat', payload });
     } else {
         const recipients = type === 'group' ? target.members : [target.id];
-        recipients.forEach(async (rid) => {
+        recipients.forEach((rid) => {
             if (rid === currentUser.id) return;
             const ch = sbClient.channel(`room-private-${rid}`);
-            await ch.subscribe();
-            await ch.send({ type: 'broadcast', event: 'dm', payload });
-            setTimeout(() => sbClient.removeChannel(ch), 500);
+            ch.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    ch.send({ type: 'broadcast', event: 'dm', payload });
+                    setTimeout(() => sbClient.removeChannel(ch), 500);
+                }
+            });
         });
     }
 
@@ -2163,9 +2170,31 @@ async function sendReaction(messageId, emoji) {
         const { data: { user } } = await sbClient.auth.getUser();
         if (!user) return;
         await sbClient.from('message_reactions').upsert({ message_id: messageId, user_id: user.id, emoji }, { onConflict: 'message_id,user_id,emoji' });
-        const el = document.getElementById(`reactions - ${messageId} `);
-        if (el) el.innerHTML += `< span class="text-sm bg-indigo-900/60 rounded-full px-1.5 py-0.5 text-xs" > ${emoji}</span > `;
-    } catch (e) { console.warn('Reaction failed:', e); }
+
+        const el = document.getElementById(`reactions-${messageId}`);
+        if (el) el.innerHTML += `<span class="text-sm bg-indigo-900/60 rounded-full px-1.5 py-0.5 text-xs">${emoji}</span>`;
+
+        // Broadcast to peers
+        const chatData = [...openChats.values()].find(c => c.target && (c.type === 'global' || c.target.id || c.target.groupId));
+        if (chatData) {
+            const contextId = [...openChats.entries()].find(([k, v]) => v === chatData)?.[0];
+            const channelName = chatData.type === 'global' ? 'room-global' : `room-private-${chatData.target.id}`;
+            const ch = chatData.type === 'global' ? globalChannel : sbClient.channel(channelName);
+
+            if (chatData.type !== 'global') {
+                ch.subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        ch.send({ type: 'broadcast', event: 'reaction-added', payload: { messageId, emoji, contextId } });
+                        setTimeout(() => sbClient.removeChannel(ch), 500);
+                    }
+                });
+            } else {
+                ch.send({ type: 'broadcast', event: 'reaction-added', payload: { messageId, emoji, contextId } });
+            }
+        }
+    } catch (e) {
+        console.warn('Reaction failed:', e);
+    }
 }
 
 // --- IN-CHAT FILE/IMAGE PREVIEWS (LIGHTBOX) ---
@@ -2388,9 +2417,12 @@ function handleRemoteStream(stream, peerId, peerName) {
 async function signalToPeer(peerId, payload) {
     console.log(`[WebRTC] Sending signal to peer ${peerId}:`, payload.type);
     const ch = sbClient.channel(`room-private-${peerId}`);
-    await ch.subscribe();
-    await ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
-    setTimeout(() => sbClient.removeChannel(ch), 500);
+    ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
+            setTimeout(() => sbClient.removeChannel(ch), 500);
+        }
+    });
 }
 
 // ===== RING TONE =====

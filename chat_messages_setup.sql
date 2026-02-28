@@ -10,6 +10,7 @@ create table if not exists messages (
   sender_id uuid references profiles(id) on delete cascade,
   sender_name text,
   cipher text,
+  status text default 'sent',
   message_type text default 'text', -- 'text' | 'image' | 'file'
   file_url text,
   file_name text,
