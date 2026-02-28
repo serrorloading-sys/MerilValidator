@@ -764,7 +764,7 @@ const CryptoUtils = {
         const encrypted = await window.crypto.subtle.encrypt(
             { name: "AES-GCM", iv: iv },
             key,
-            enc.encode(text)
+            enc.encode(encodeURIComponent(text)) // Safe unicode encoding
         );
 
         const ivArr = Array.from(iv);
@@ -786,7 +786,13 @@ const CryptoUtils = {
             );
 
             const dec = new TextDecoder();
-            return dec.decode(decrypted);
+            const decodedStr = dec.decode(decrypted);
+            try {
+                return decodeURIComponent(decodedStr);
+            } catch (uriErr) {
+                // Fallback for legacy messages that didn't use URI encoding
+                return decodedStr;
+            }
         } catch (e) {
             console.error("Decryption failed", e);
             return "[Encrypted Message]";
@@ -1068,7 +1074,6 @@ function handleIncomingMessage(msg, contextId, type) {
         }
 
         openDockedChat(target, type);
-        appendMessageToWindow(contextId, msg);
     }
 }
 
@@ -1843,7 +1848,7 @@ async function openDockedChat(target, type) {
 
                     <!-- Emoji picker -->
                     <div id="emoji-picker-${contextId}" class="hidden flex-wrap gap-1 p-2" style="background:white; border-top:1px solid #f3f4f6;">
-                        ${['ðŸ˜€', 'ðŸ˜‚', 'â¤ï¸', 'ðŸ‘', 'ðŸ”¥', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸŽ‰', 'ðŸ‘', 'ðŸ™', 'ðŸ˜', 'ðŸ¤”', 'ðŸ˜Ž', 'ðŸ’¯', 'âœ…'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
+                        ${['😀', '😂', '❤️', '👍', '🔥', '😮', '😢', '🎉', '👏', '🙏', '😍', '🤔', '😎', '💯', '✅'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
                     </div>
             </div>
             `;
@@ -2132,7 +2137,7 @@ function appendMessageToWindow(contextId, msg) {
     }
 
     div.innerHTML = `
-            < div class="max-w-[80%] relative msg-bubble group" >
+            <div class="max-w-[80%] relative msg-bubble group">
                 ${!isMe && msg.groupId ? `<p class="text-[9px] font-bold text-indigo-300 mb-0.5 ml-1">${msg.user}</p>` : ''}
                 <div id="${messageId}" style="${bubbleBg}" class="px-3 py-2 rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-md">
                     ${contentHtml}
@@ -2141,12 +2146,12 @@ function appendMessageToWindow(contextId, msg) {
                         ${statusHtml}
                     </div>
                 </div>
-                <!--Emoji reaction bar-- >
+                <!--Emoji reaction bar-->
                 <div class="emoji-bar flex gap-0.5 ${isMe ? 'justify-end' : 'justify-start'} mt-0.5 opacity-0 translate-y-1 pointer-events-auto">
-                    ${['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ”¥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
+                    ${['👍', '❤️', '😂', '😮', '🔥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
                 </div>
                 <div id="reactions-${messageId}" class="flex gap-1 flex-wrap mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}"></div>
-            </div >
+            </div>
             `;
 
     container.appendChild(div);
