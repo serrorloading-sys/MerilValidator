@@ -2059,7 +2059,7 @@ async function sendDockMessage(contextId, attachment = null) {
         const recipients = type === 'group' ? target.members : [target.id];
         recipients.forEach(async (rid) => {
             if (rid === currentUser.id) return;
-            const ch = sbClient.channel(`room - private - ${rid} `);
+            const ch = sbClient.channel(`room-private-${rid}`);
             await ch.subscribe();
             await ch.send({ type: 'broadcast', event: 'dm', payload });
             sbClient.removeChannel(ch);
@@ -2085,13 +2085,13 @@ async function sendDockMessage(contextId, attachment = null) {
     if (input) input.value = '';
 
     // Close emoji picker if open
-    document.getElementById(`emoji-picker-${contextId} `)?.classList.add('hidden');
+    document.getElementById(`emoji-picker-${contextId}`)?.classList.add('hidden');
 }
 
 // --- RENDER MESSAGE BUBBLE ---
 
 function appendMessageToWindow(contextId, msg) {
-    const container = document.getElementById(`msg-container-${contextId} `);
+    const container = document.getElementById(`msg-container-${contextId}`);
     if (!container) return;
 
     if (msg.isSystem) {
@@ -2106,17 +2106,17 @@ function appendMessageToWindow(contextId, msg) {
 
     const isMe = msg.userId === currentUser?.id || msg.senderId === currentUser?.id;
     const div = document.createElement('div');
-    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate - fade -in -up`;
+    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in-up`;
 
     let contentHtml = '';
     if (msg.attachment) {
         if (msg.attachment.type === 'image') {
             contentHtml = `<img src="${msg.attachment.url}" class="max-w-[180px] max-h-[130px] rounded-xl border border-white/10 cursor-pointer shadow-md hover:scale-105 transition-transform mb-1" onclick="openLightbox('${msg.attachment.url}', 'image')">`;
         } else {
-            contentHtml = `< div class= "flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10" ><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div > `;
+            contentHtml = `<div class="flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10"><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div>`;
         }
     }
-    if (msg.text) contentHtml += `< div class="break-words leading-snug" > ${msg.text}</div > `;
+    if (msg.text) contentHtml += `<div class="break-words leading-snug">${msg.text}</div>`;
 
     const bubbleBg = isMe
         ? 'background: linear-gradient(135deg,#6366f1,#8b5cf6); color:white;'
@@ -2513,8 +2513,15 @@ function declineCall() {
     pendingCallOffer = null;
 }
 
-function endCall() {
+function endCall(isRemote = false) {
     stopRing();
+
+    // Broadcast hangup if we initiated it
+    if (!isRemote) {
+        Object.keys(window.peerConnections).forEach(peerId => {
+            signalToPeer(peerId, { type: 'call-ended', contextId: activeCallContextId, senderId: currentUser.id });
+        });
+    }
 
     // Cleanup mesh connections
     Object.values(window.peerConnections).forEach(pc => pc.close());
@@ -2838,8 +2845,12 @@ async function handleWebRTCSignal(payload) {
             window.peerConnections[senderId].close();
             delete window.peerConnections[senderId];
             if (typeof window.showToast === 'function') window.showToast('A user declined the call.', 'error');
-            if (Object.keys(window.peerConnections).length === 0) endCall();
+            if (Object.keys(window.peerConnections).length === 0) endCall(true);
         }
+    }
+    else if (type === 'call-ended') {
+        if (typeof window.showToast === 'function') window.showToast('Call ended by participant.', 'info');
+        endCall(true);
     }
 }
 
