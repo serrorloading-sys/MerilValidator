@@ -2067,7 +2067,7 @@ async function sendDockMessage(contextId, attachment = null) {
             const ch = sbClient.channel(`room-private-${rid}`);
             await ch.subscribe();
             await ch.send({ type: 'broadcast', event: 'dm', payload });
-            sbClient.removeChannel(ch);
+            setTimeout(() => sbClient.removeChannel(ch), 500);
         });
     }
 
