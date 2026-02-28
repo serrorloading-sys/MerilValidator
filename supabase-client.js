@@ -1986,13 +1986,8 @@ async function markMessagesAsRead(contextId) {
         // Optional: Notify peers via realtime room if you aren't listening to DB changes directly
         const chatData = openChats.get(contextId);
         if (chatData && chatData.target?.id) {
-            const ch = sbClient.channel(`room-private-${chatData.target.id}`);
-            ch.subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
-                    setTimeout(() => sbClient.removeChannel(ch), 500);
-                }
-            });
+            const ch = await getPeerChannel(chatData.target.id);
+            ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
         }
     } catch (e) {
         console.warn("Could not mark as read", e);
@@ -2001,19 +1996,14 @@ async function markMessagesAsRead(contextId) {
 
 // --- TYPING INDICATOR ---
 
-function broadcastTyping(contextId) {
+async function broadcastTyping(contextId) {
     const chatData = openChats.get(contextId);
     if (!chatData || chatData.type !== 'private') return;
     const { target } = chatData;
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'Someone';
 
-    const ch = sbClient.channel(`room-private-${target.id}`);
-    ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-            ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
-            setTimeout(() => sbClient.removeChannel(ch), 500);
-        }
-    });
+    const ch = await getPeerChannel(target.id);
+    ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
 }
 
 function subscribeToTyping(contextId) {
@@ -2032,6 +2022,23 @@ function showTypingIndicator(contextId, name) {
 }
 
 // --- SEND MESSAGE ---
+
+const peerChannels = new Map();
+function getPeerChannel(rid) {
+    return new Promise((resolve) => {
+        if (peerChannels.has(rid)) {
+            resolve(peerChannels.get(rid));
+            return;
+        }
+        const ch = sbClient.channel(`room-private-${rid}`);
+        ch.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                peerChannels.set(rid, ch);
+                resolve(ch);
+            }
+        });
+    });
+}
 
 async function sendDockMessage(contextId, attachment = null) {
     const input = document.getElementById(`input-${contextId}`);
@@ -2066,15 +2073,10 @@ async function sendDockMessage(contextId, attachment = null) {
         globalChannel.send({ type: 'broadcast', event: 'chat', payload });
     } else {
         const recipients = type === 'group' ? target.members : [target.id];
-        recipients.forEach((rid) => {
+        recipients.forEach(async (rid) => {
             if (rid === currentUser.id) return;
-            const ch = sbClient.channel(`room-private-${rid}`);
-            ch.subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    ch.send({ type: 'broadcast', event: 'dm', payload });
-                    setTimeout(() => sbClient.removeChannel(ch), 500);
-                }
-            });
+            const ch = await getPeerChannel(rid);
+            ch.send({ type: 'broadcast', event: 'dm', payload });
         });
     }
 
@@ -2098,6 +2100,20 @@ async function sendDockMessage(contextId, attachment = null) {
 
     // Close emoji picker if open
     document.getElementById(`emoji-picker-${contextId}`)?.classList.add('hidden');
+}
+
+// --- HELPER: XSS SANITIZATION ---
+function escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g,
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
 }
 
 // --- RENDER MESSAGE BUBBLE ---
@@ -2128,7 +2144,7 @@ function appendMessageToWindow(contextId, msg) {
             contentHtml = `<div class="flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10"><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div>`;
         }
     }
-    if (msg.text) contentHtml += `<div class="break-words leading-snug">${msg.text}</div>`;
+    if (msg.text) contentHtml += `<div class="break-words leading-snug">${escapeHTML(msg.text)}</div>`;
 
     const bubbleBg = isMe
         ? 'background: linear-gradient(135deg,#6366f1,#8b5cf6); color:white;'
@@ -2178,18 +2194,12 @@ async function sendReaction(messageId, emoji) {
         const chatData = [...openChats.values()].find(c => c.target && (c.type === 'global' || c.target.id || c.target.groupId));
         if (chatData) {
             const contextId = [...openChats.entries()].find(([k, v]) => v === chatData)?.[0];
-            const channelName = chatData.type === 'global' ? 'room-global' : `room-private-${chatData.target.id}`;
-            const ch = chatData.type === 'global' ? globalChannel : sbClient.channel(channelName);
 
             if (chatData.type !== 'global') {
-                ch.subscribe((status) => {
-                    if (status === 'SUBSCRIBED') {
-                        ch.send({ type: 'broadcast', event: 'reaction-added', payload: { messageId, emoji, contextId } });
-                        setTimeout(() => sbClient.removeChannel(ch), 500);
-                    }
-                });
-            } else {
+                const ch = await getPeerChannel(chatData.target.id);
                 ch.send({ type: 'broadcast', event: 'reaction-added', payload: { messageId, emoji, contextId } });
+            } else {
+                globalChannel.send({ type: 'broadcast', event: 'reaction-added', payload: { messageId, emoji, contextId } });
             }
         }
     } catch (e) {
@@ -2416,13 +2426,8 @@ function handleRemoteStream(stream, peerId, peerName) {
 
 async function signalToPeer(peerId, payload) {
     console.log(`[WebRTC] Sending signal to peer ${peerId}:`, payload.type);
-    const ch = sbClient.channel(`room-private-${peerId}`);
-    ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-            ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
-            setTimeout(() => sbClient.removeChannel(ch), 500);
-        }
-    });
+    const ch = await getPeerChannel(peerId);
+    ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
 }
 
 // ===== RING TONE =====
@@ -2566,6 +2571,9 @@ function endCall(isRemote = false) {
 
     localStream?.getTracks().forEach(t => t.stop());
     localStream = null;
+    const localVideo = document.getElementById('local-video');
+    if (localVideo) localVideo.srcObject = null;
+
     clearInterval(callTimer);
     callDuration = 0;
     const timerEl = document.getElementById('call-timer');
@@ -2575,11 +2583,21 @@ function endCall(isRemote = false) {
     const videoArea = document.getElementById('video-area');
     if (videoArea) {
         Array.from(videoArea.children).forEach(child => {
-            if (child.id && child.id.startsWith('remote-wrap-')) child.remove();
-            if (child.id && child.id.startsWith('remote-video-')) child.remove();
+            if (child.id && child.id.startsWith('remote-wrap-')) {
+                const vid = child.querySelector('video');
+                if (vid) vid.srcObject = null;
+                child.remove();
+            }
+            if (child.id && child.id.startsWith('remote-video-')) {
+                child.srcObject = null;
+                child.remove();
+            }
         });
         const oldRemote = document.getElementById('remote-video');
-        if (oldRemote) oldRemote.classList.remove('hidden');
+        if (oldRemote) {
+            oldRemote.srcObject = null;
+            oldRemote.classList.remove('hidden');
+        }
     }
 
     // Reset Stream UI elements
