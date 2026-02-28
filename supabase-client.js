@@ -2381,6 +2381,7 @@ function handleRemoteStream(stream, peerId, peerName) {
 }
 
 async function signalToPeer(peerId, payload) {
+    console.log(`[WebRTC] Sending signal to peer ${peerId}:`, payload.type);
     const ch = sbClient.channel(`room-private-${peerId}`);
     await ch.subscribe();
     await ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
@@ -2429,16 +2430,30 @@ function stopRing() {
 }
 
 function showIncomingCallModal(callerName, callType) {
-    const modal = document.getElementById('incoming-call-modal');
-    document.getElementById('incoming-caller-name').textContent = callerName;
-    document.getElementById('incoming-call-type').textContent = callType === 'video' ? 'Video Incoming Call...' : 'Audio Incoming Call...';
-    document.getElementById('accept-call-icon').className = callType === 'video' ? 'fas fa-video' : 'fas fa-phone';
-    const avatarEl = document.getElementById('call-avatar-ring');
-    avatarEl.textContent = callerName.charAt(0).toUpperCase();
-    modal.classList.remove('hidden');
-    startRing();
-    // Show browser notification for the call
-    showCallNotification(callerName, callType, '');
+    try {
+        const modal = document.getElementById('incoming-call-modal');
+        if (!modal) return;
+
+        const nameEl = document.getElementById('incoming-caller-name');
+        if (nameEl) nameEl.textContent = callerName;
+
+        const typeEl = document.getElementById('incoming-call-type');
+        if (typeEl) typeEl.textContent = callType === 'video' ? 'Video Incoming Call...' : 'Audio Incoming Call...';
+
+        const iconEl = document.getElementById('accept-call-icon');
+        if (iconEl) iconEl.className = callType === 'video' ? 'fas fa-video' : 'fas fa-phone';
+
+        const avatarEl = document.getElementById('call-avatar-ring');
+        if (avatarEl) avatarEl.textContent = callerName ? callerName.charAt(0).toUpperCase() : '?';
+
+        modal.classList.remove('hidden');
+        startRing();
+
+        // Show browser notification for the call
+        showCallNotification(callerName, callType, '');
+    } catch (e) {
+        console.warn("Failed to show incoming call modal UI:", e);
+    }
 }
 
 async function acceptCall() {
@@ -2766,9 +2781,14 @@ function appendCallChatMessage(text, isMe, senderName = 'You') {
 
 async function handleWebRTCSignal(payload) {
     const { type, contextId, senderId } = payload;
+    console.log(`[WebRTC] Received signal from ${senderId}:`, type);
 
     if (type === 'call-offer') {
         pendingCallOffer = payload.offer;
+
+        // Block receiving own calls
+        if (senderId === currentUser.id) return;
+
         // Auto-answer if already in same group call
         if (activeCallContextId === contextId && localStream) {
             const pc = new RTCPeerConnection(RTC_CONFIG);
@@ -2785,10 +2805,15 @@ async function handleWebRTCSignal(payload) {
 
         pendingCallType = payload.callType;
         pendingCallerId = payload.callerId;
-        pendingCallerName = payload.callerName;
+        pendingCallerName = payload.callerName || 'Unknown Caller';
         pendingContextId = contextId;
-        showIncomingCallModal(payload.callerName, payload.callType);
-        playNotificationSound();
+
+        try {
+            showIncomingCallModal(pendingCallerName, pendingCallType);
+            playNotificationSound();
+        } catch (e) {
+            console.error("Error displaying incoming call modal", e);
+        }
     }
     else if (type === 'call-answer') {
         stopRing();
