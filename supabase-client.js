@@ -764,7 +764,7 @@ const CryptoUtils = {
         const encrypted = await window.crypto.subtle.encrypt(
             { name: "AES-GCM", iv: iv },
             key,
-            enc.encode(text)
+            enc.encode(encodeURIComponent(text)) // UTF-16 / Emoji fix
         );
 
         const ivArr = Array.from(iv);
@@ -786,7 +786,12 @@ const CryptoUtils = {
             );
 
             const dec = new TextDecoder();
-            return dec.decode(decrypted);
+            const decodedStr = dec.decode(decrypted);
+            try {
+                return decodeURIComponent(decodedStr);
+            } catch (err) {
+                return decodedStr; // Fallback for older messages
+            }
         } catch (e) {
             console.error("Decryption failed", e);
             return "[Encrypted Message]";
@@ -800,6 +805,7 @@ const CryptoUtils = {
 let globalChannel = null;
 let privateChannel = null;
 let currentUser = null;
+const activeChannels = {}; // Cache outgoing connection multiplexing
 
 let openChats = new Map();
 let selectedUsersForGroup = new Set();
@@ -1055,20 +1061,18 @@ function handleIncomingMessage(msg, contextId, type) {
     if (openChats.has(contextId)) {
         appendMessageToWindow(contextId, msg);
     } else {
-        let targetName = msg.user;
-        let targetId = msg.senderId;
-
         let target;
         if (type === 'global') {
             target = { id: 'global', name: 'Global Chat' };
         } else if (type === 'group') {
             target = { groupId: contextId, name: 'Group Chat', isGroup: true };
         } else {
-            target = { id: targetId, name: targetName };
+            target = { id: msg.senderId || msg.userId, name: senderName, avatar_url: avatarUrl };
         }
 
         openDockedChat(target, type);
-        appendMessageToWindow(contextId, msg);
+        // Wait for DOM to finish appending the window before injecting the text
+        setTimeout(() => appendMessageToWindow(contextId, msg), 50);
     }
 }
 
@@ -1247,7 +1251,7 @@ function injectZohoUI() {
             
             <div class="text-center">
                 <p class="font-black text-xl text-gray-900" id="incoming-caller-name">Someone</p>
-                <p class="text-sm mt-1.5 text-indigo-500" id="incoming-call-type">ðŸ“¹ Incoming Video Call...</p>
+                <p class="text-sm mt-1.5 text-indigo-500" id="incoming-call-type">📹 Incoming Video Call...</p>
             </div>
             
             <div class="flex gap-8 mt-1">
@@ -1454,8 +1458,8 @@ function injectZohoUI() {
     incModal.className = 'hidden fixed inset-0 z-[9999] flex items-center justify-center p-4';
     incModal.style.cssText = 'background:rgba(15,15,40,0.85); backdrop-filter:blur(10px);';
     incModal.innerHTML = `
-        < div class="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-fade-in-up" style = "animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);" >
-            < !--Background pulse-- >
+        <div class="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-fade-in-up" style="animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+            <!--Background pulse-->
             <div class="absolute inset-0 opacity-10" style="background:radial-gradient(circle at 50% 0%, #4f46e5 0%, transparent 70%);"></div>
             
             <div class="p-8 pb-10 flex flex-col items-center text-center relative z-10">
@@ -1496,7 +1500,7 @@ function injectZohoUI() {
                     <span class="font-bold text-emerald-600">Accept</span>
                 </button>
             </div>
-        </div >
+        </div>
         `;
     document.body.appendChild(incModal);
 
@@ -1832,7 +1836,7 @@ async function openDockedChat(target, type) {
                         onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 2px rgba(99,102,241,0.15)';"
                         onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
                         placeholder="Message..."
-                        onkeypress="handleDockKey(event, '${contextId}')"
+                        onkeydown="handleDockKey(event, '${contextId}')"
                         oninput="broadcastTyping('${contextId}')">
                         <button class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
                             style="background:linear-gradient(135deg,#4f46e5,#7c3aed); box-shadow:0 2px 8px rgba(79,70,229,0.35);"
@@ -1843,7 +1847,7 @@ async function openDockedChat(target, type) {
 
                     <!-- Emoji picker -->
                     <div id="emoji-picker-${contextId}" class="hidden flex-wrap gap-1 p-2" style="background:white; border-top:1px solid #f3f4f6;">
-                        ${['ðŸ˜€', 'ðŸ˜‚', 'â¤ï¸', 'ðŸ‘', 'ðŸ”¥', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸŽ‰', 'ðŸ‘', 'ðŸ™', 'ðŸ˜', 'ðŸ¤”', 'ðŸ˜Ž', 'ðŸ’¯', 'âœ…'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
+                        ${['😀', '😂', '❤️', '👍', '🔥', '😲', '😢', '🎉', '👏', '🙏', '😍', '🤔', '😎', '💯', '✅'].map(e => `<button class="text-lg hover:scale-125 transition-transform rounded-lg p-0.5" onclick="insertEmoji('${contextId}','${e}')">${e}</button>`).join('')}
                     </div>
             </div>
             `;
@@ -1889,8 +1893,10 @@ function closeDockedChat(contextId, e) {
 window.closeDockedChat = closeDockedChat;
 
 window.handleDockKey = function (e, contextId) {
-    if (e.key === 'Enter') sendDockMessage(contextId);
-    markMessagesAsRead(contextId); // Updates read status when they start typing
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        sendDockMessage(contextId);
+    }
 };
 
 function toggleEmojiPicker(contextId) {
@@ -1927,13 +1933,14 @@ async function loadMessageHistory(contextId) {
                 }
                 const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 appendMessageToWindow(contextId, {
-                    userId: msg.sender_id,
+                    senderId: msg.sender_id,
                     user: msg.sender_name,
-                    text,
-                    time,
+                    text: text,
+                    time: time,
                     attachment: msg.file_url ? { type: msg.message_type, url: msg.file_url, name: msg.file_name } : null,
                     messageId: msg.id,
-                    status: msg.status
+                    status: msg.status,
+                    groupId: contextId.includes('_') ? null : contextId // To support group name tags
                 });
             }
         }
@@ -1982,9 +1989,11 @@ async function markMessagesAsRead(contextId) {
         const chatData = openChats.get(contextId);
         if (chatData && chatData.target?.id) {
             const ch = sbClient.channel(`room-private-${chatData.target.id}`);
-            ch.subscribe().then(() => {
-                ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
-                setTimeout(() => sbClient.removeChannel(ch), 500);
+            ch.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    ch.send({ type: 'broadcast', event: 'messages-read', payload: { contextId, readerId: user.id } });
+                    setTimeout(() => sbClient.removeChannel(ch), 500);
+                }
             });
         }
     } catch (e) {
@@ -2001,9 +2010,11 @@ function broadcastTyping(contextId) {
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'Someone';
 
     const ch = sbClient.channel(`room-private-${target.id}`);
-    ch.subscribe().then(() => {
-        ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
-        setTimeout(() => sbClient.removeChannel(ch), 500);
+    ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            ch.send({ type: 'broadcast', event: 'typing', payload: { senderId: currentUser.id, name: displayName, contextId } });
+            setTimeout(() => sbClient.removeChannel(ch), 500);
+        }
     });
 }
 
@@ -2057,13 +2068,18 @@ async function sendDockMessage(contextId, attachment = null) {
         globalChannel.send({ type: 'broadcast', event: 'chat', payload });
     } else {
         const recipients = type === 'group' ? target.members : [target.id];
-        recipients.forEach(async (rid) => {
-            if (rid === currentUser.id) return;
-            const ch = sbClient.channel(`room - private - ${rid} `);
-            await ch.subscribe();
-            await ch.send({ type: 'broadcast', event: 'dm', payload });
-            sbClient.removeChannel(ch);
-        });
+        for (const rid of recipients) {
+            if (rid === currentUser.id) continue;
+
+            // Reuse cached channel or create a new one to prevent rapid typing drops
+            if (!activeChannels[rid]) {
+                activeChannels[rid] = sbClient.channel(`room-private-${rid}`);
+                activeChannels[rid].subscribe();
+            }
+
+            // Direct send on the cached channel (Supabase handles queuing internally)
+            activeChannels[rid].send({ type: 'broadcast', event: 'dm', payload }).catch(err => console.log('Relay error', err));
+        }
     }
 
     // Save to DB
@@ -2085,13 +2101,13 @@ async function sendDockMessage(contextId, attachment = null) {
     if (input) input.value = '';
 
     // Close emoji picker if open
-    document.getElementById(`emoji-picker-${contextId} `)?.classList.add('hidden');
+    document.getElementById(`emoji-picker-${contextId}`)?.classList.add('hidden');
 }
 
 // --- RENDER MESSAGE BUBBLE ---
 
 function appendMessageToWindow(contextId, msg) {
-    const container = document.getElementById(`msg-container-${contextId} `);
+    const container = document.getElementById(`msg-container-${contextId}`);
     if (!container) return;
 
     if (msg.isSystem) {
@@ -2106,21 +2122,21 @@ function appendMessageToWindow(contextId, msg) {
 
     const isMe = msg.userId === currentUser?.id || msg.senderId === currentUser?.id;
     const div = document.createElement('div');
-    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate - fade -in -up`;
+    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in-up`;
 
     let contentHtml = '';
     if (msg.attachment) {
         if (msg.attachment.type === 'image') {
             contentHtml = `<img src="${msg.attachment.url}" class="max-w-[180px] max-h-[130px] rounded-xl border border-white/10 cursor-pointer shadow-md hover:scale-105 transition-transform mb-1" onclick="openLightbox('${msg.attachment.url}', 'image')">`;
         } else {
-            contentHtml = `< div class= "flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10" ><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div > `;
+            contentHtml = `<div class="flex items-center gap-2 bg-white/5 rounded-lg p-2 mb-1 max-w-[180px] border border-white/10"><i class="fas fa-file-alt text-indigo-300"></i><a href="${msg.attachment.url}" target="_blank" class="text-xs text-blue-300 hover:underline truncate flex-1">${msg.attachment.name}</a></div>`;
         }
     }
-    if (msg.text) contentHtml += `< div class="break-words leading-snug" > ${msg.text}</div > `;
+    if (msg.text) contentHtml += `<div class="break-words leading-snug">${msg.text}</div>`;
 
     const bubbleBg = isMe
         ? 'background: linear-gradient(135deg,#6366f1,#8b5cf6); color:white;'
-        : 'background:rgba(255,255,255,0.12); color:white; border: 1px solid rgba(255,255,255,0.1);';
+        : 'background:#f3f4f6; color:#1f2937; border: 1px solid #e5e7eb;';
 
     const messageId = msg.messageId || ('msg_' + Date.now());
 
@@ -2132,8 +2148,8 @@ function appendMessageToWindow(contextId, msg) {
     }
 
     div.innerHTML = `
-            < div class="max-w-[80%] relative msg-bubble group" >
-                ${!isMe && msg.groupId ? `<p class="text-[9px] font-bold text-indigo-300 mb-0.5 ml-1">${msg.user}</p>` : ''}
+            <div class="max-w-[80%] relative msg-bubble group">
+                ${!isMe ? `<p class="text-[9px] font-bold text-indigo-400 mb-0.5 ml-1">${msg.user || 'Unknown'}</p>` : ''}
                 <div id="${messageId}" style="${bubbleBg}" class="px-3 py-2 rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-md">
                     ${contentHtml}
                     <div class="flex items-center justify-end gap-1 mt-0.5">
@@ -2141,12 +2157,12 @@ function appendMessageToWindow(contextId, msg) {
                         ${statusHtml}
                     </div>
                 </div>
-                <!--Emoji reaction bar-- >
+                <!--Emoji reaction bar-->
                 <div class="emoji-bar flex gap-0.5 ${isMe ? 'justify-end' : 'justify-start'} mt-0.5 opacity-0 translate-y-1 pointer-events-auto">
-                    ${['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ”¥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
+                    ${['👍', '❤️', '😂', '😲', '🔥'].map(e => `<button class="text-sm hover:scale-125 transition-transform bg-indigo-900/60 rounded-full w-6 h-6 flex items-center justify-center text-xs" onclick="sendReaction('${messageId}','${e}')">${e}</button>`).join('')}
                 </div>
                 <div id="reactions-${messageId}" class="flex gap-1 flex-wrap mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}"></div>
-            </div >
+            </div>
             `;
 
     container.appendChild(div);
@@ -2381,51 +2397,40 @@ function handleRemoteStream(stream, peerId, peerName) {
 }
 
 async function signalToPeer(peerId, payload) {
-    const ch = sbClient.channel(`room-private-${peerId}`);
-    await ch.subscribe();
-    await ch.send({ type: 'broadcast', event: 'webrtc-signal', payload });
-    setTimeout(() => sbClient.removeChannel(ch), 500);
+    if (!activeChannels[peerId]) {
+        activeChannels[peerId] = sbClient.channel(`room-private-${peerId}`);
+        activeChannels[peerId].subscribe();
+    }
+    activeChannels[peerId].send({ type: 'broadcast', event: 'webrtc-signal', payload });
 }
 
 // ===== RING TONE =====
-let _ringInterval = null;
-let _ringCtx = null;
+window.incomingRingAudio = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
+window.incomingRingAudio.loop = true;
+
+window.outgoingRingAudio = new Audio('https://actions.google.com/sounds/v1/communication/calling_out.ogg');
+window.outgoingRingAudio.loop = true;
+
 function startRing(isOutgoing = false) {
     stopRing();
-    function beep() {
-        try {
-            _ringCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (isOutgoing) {
-                // Outgoing: Long dial tone beep
-                const osc = _ringCtx.createOscillator();
-                const gain = _ringCtx.createGain();
-                osc.connect(gain); gain.connect(_ringCtx.destination);
-                osc.frequency.value = 440; // Lower pitch like European dial tone
-                gain.gain.setValueAtTime(0.15, _ringCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, _ringCtx.currentTime + 1.2);
-                osc.start(_ringCtx.currentTime);
-                osc.stop(_ringCtx.currentTime + 1.2);
-            } else {
-                // Incoming: Double sharp beep
-                [0, 0.2].forEach(delay => {
-                    const osc = _ringCtx.createOscillator();
-                    const gain = _ringCtx.createGain();
-                    osc.connect(gain); gain.connect(_ringCtx.destination);
-                    osc.frequency.value = 880;
-                    gain.gain.setValueAtTime(0.35, _ringCtx.currentTime + delay);
-                    gain.gain.exponentialRampToValueAtTime(0.001, _ringCtx.currentTime + delay + 0.16);
-                    osc.start(_ringCtx.currentTime + delay);
-                    osc.stop(_ringCtx.currentTime + delay + 0.16);
-                });
-            }
-        } catch (e) { }
+    try {
+        if (isOutgoing) {
+            window.outgoingRingAudio.play().catch(e => console.warn("Auto-play blocked for outgoing ring"));
+        } else {
+            window.incomingRingAudio.play().catch(e => console.warn("Auto-play blocked for incoming ring"));
+        }
+    } catch (e) {
+        console.warn("Audio play failed", e);
     }
-    beep();
-    _ringInterval = setInterval(beep, isOutgoing ? 3000 : 1800);
 }
+
 function stopRing() {
-    clearInterval(_ringInterval); _ringInterval = null;
-    if (_ringCtx) { try { _ringCtx.close(); } catch (e) { } _ringCtx = null; }
+    try {
+        window.incomingRingAudio.pause();
+        window.incomingRingAudio.currentTime = 0;
+        window.outgoingRingAudio.pause();
+        window.outgoingRingAudio.currentTime = 0;
+    } catch (e) { }
 }
 
 function showIncomingCallModal(callerName, callType) {
@@ -2498,8 +2503,19 @@ function declineCall() {
     pendingCallOffer = null;
 }
 
-function endCall() {
+function endCall(isRemote = false) {
     stopRing();
+
+    if (!isRemote) {
+        Object.keys(window.peerConnections).forEach(peerId => {
+            signalToPeer(peerId, { type: 'call-ended', contextId: activeCallContextId, senderId: currentUser.id });
+        });
+        if (window._pendingOutCallTarget) {
+            signalToPeer(window._pendingOutCallTarget.id, { type: 'call-declined', contextId: activeCallContextId, senderId: currentUser.id });
+            window._pendingOutCallTarget = null;
+            window._pendingOutCallType = null;
+        }
+    }
 
     // Cleanup mesh connections
     Object.values(window.peerConnections).forEach(pc => pc.close());
@@ -2541,7 +2557,7 @@ function endCall() {
     document.getElementById('active-call-window').classList.add('hidden');
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (activeCallContextId) {
-        appendMessageToWindow(activeCallContextId, { userId: currentUser.id, text: `ðŸ“µ Call ended`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
+        appendMessageToWindow(activeCallContextId, { userId: currentUser.id, text: `📵 Call ended`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
     }
     activeCallContextId = null;
 }
@@ -2781,14 +2797,14 @@ async function handleWebRTCSignal(payload) {
             await pc.setLocalDescription(answer);
             signalToPeer(payload.callerId, { type: 'call-answer', answer, contextId, senderId: currentUser.id });
             return;
+        } else {
+            pendingCallType = payload.callType;
+            pendingCallerId = payload.callerId;
+            pendingCallerName = payload.callerName;
+            pendingContextId = contextId;
+            showIncomingCallModal(payload.callerName, payload.callType);
+            playNotificationSound();
         }
-
-        pendingCallType = payload.callType;
-        pendingCallerId = payload.callerId;
-        pendingCallerName = payload.callerName;
-        pendingContextId = contextId;
-        showIncomingCallModal(payload.callerName, payload.callType);
-        playNotificationSound();
     }
     else if (type === 'call-answer') {
         stopRing();
