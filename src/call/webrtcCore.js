@@ -114,7 +114,10 @@ function handleRemoteStream(stream, peerId, peerName) {
     const placeholder = document.getElementById('audio-call-placeholder');
 
     if (!isAudioOnly) {
-        if (oldRemote) oldRemote.classList.add('hidden');
+        if (oldRemote) {
+            oldRemote.classList.add('hidden');
+            if (oldRemote.parentElement) oldRemote.parentElement.classList.add('hidden');
+        }
         if (placeholder) placeholder.classList.add('hidden');
     }
 
@@ -298,6 +301,7 @@ function endCall(isRemote = false) {
         if (oldRemote) {
             oldRemote.srcObject = null;
             oldRemote.classList.remove('hidden');
+            if (oldRemote.parentElement) oldRemote.parentElement.classList.remove('hidden');
         }
     }
 
