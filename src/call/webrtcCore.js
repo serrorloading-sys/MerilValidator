@@ -114,46 +114,59 @@ function handleRemoteStream(stream, peerId, peerName) {
     const placeholder = document.getElementById('audio-call-placeholder');
 
     if (!isAudioOnly) {
-        if (oldRemote) {
-            oldRemote.classList.add('hidden');
-            if (oldRemote.parentElement) oldRemote.parentElement.classList.add('hidden');
-        }
         if (placeholder) placeholder.classList.add('hidden');
     }
 
-    let mediaEl = document.getElementById(`remote-video-${peerId}`);
-    if (!mediaEl) {
-        if (isAudioOnly) {
-            mediaEl = document.createElement('audio');
-            mediaEl.id = `remote-video-${peerId}`;
-            mediaEl.autoplay = true;
-            mediaEl.className = 'hidden';
-            videoArea.appendChild(mediaEl);
-        } else {
-            const wrapper = document.createElement('div');
-            // Make the wrapper absolute inset to match standard 1-to-1 call views and z-20 to ensure it's not hidden
-            wrapper.className = 'absolute inset-4 rounded-3xl overflow-hidden shadow-2xl bg-gray-900 border border-white/5 animate-fade-in-up group z-20';
-            wrapper.id = `remote-wrap-${peerId}`;
+    // Check if it's a group call based on video area grid status or active connections
+    const isGroupCall = Object.keys(window.peerConnections).length > 1;
 
-            mediaEl = document.createElement('video');
-            mediaEl.id = `remote-video-${peerId}`;
-            mediaEl.autoplay = true;
-            mediaEl.playsInline = true;
-            mediaEl.className = 'w-full h-full object-cover';
+    let mediaEl;
+    if (!isGroupCall && !isAudioOnly) {
+        // For 1-to-1 video calls, reuse the existing hardcoded main video area
+        mediaEl = document.getElementById('remote-video');
+        if (mediaEl) {
+            mediaEl.classList.remove('hidden');
+            if (mediaEl.parentElement) mediaEl.parentElement.classList.remove('hidden');
+        }
+    } else {
+        // Group calls or pure audio calls
+        mediaEl = document.getElementById(`remote-video-${peerId}`);
+        if (!mediaEl) {
+            if (isAudioOnly) {
+                mediaEl = document.createElement('audio');
+                mediaEl.id = `remote-video-${peerId}`;
+                mediaEl.autoplay = true;
+                mediaEl.className = 'hidden';
+                videoArea.appendChild(mediaEl);
+            } else {
+                if (oldRemote) {
+                    oldRemote.classList.add('hidden');
+                    if (oldRemote.parentElement) oldRemote.parentElement.classList.add('hidden');
+                }
+                const wrapper = document.createElement('div');
+                wrapper.className = 'relative flex-1 min-w-[300px] h-full rounded-2xl overflow-hidden shadow-2xl animate-fade-in-up group z-10';
+                wrapper.id = `remote-wrap-${peerId}`;
 
-            const nameTag = document.createElement('div');
-            nameTag.className = 'absolute bottom-4 left-4 px-3 py-1.5 rounded-lg backdrop-blur-md bg-black/40 border border-white/10 text-white text-xs font-bold shadow-lg flex items-center gap-2';
-            nameTag.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${peerName}`;
+                mediaEl = document.createElement('video');
+                mediaEl.id = `remote-video-${peerId}`;
+                mediaEl.autoplay = true;
+                mediaEl.playsInline = true;
+                mediaEl.className = 'w-full h-full object-cover';
 
-            wrapper.appendChild(mediaEl);
-            wrapper.appendChild(nameTag);
+                const nameTag = document.createElement('div');
+                nameTag.className = 'absolute bottom-4 left-4 px-3 py-1.5 rounded-lg backdrop-blur-md bg-black/40 border border-white/10 text-white text-xs font-bold shadow-lg flex items-center gap-2';
+                nameTag.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${peerName}`;
 
-            // Remove grid override that breaks the layout
-            // videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
-            videoArea.appendChild(wrapper);
+                wrapper.appendChild(mediaEl);
+                wrapper.appendChild(nameTag);
+
+                videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
+                videoArea.appendChild(wrapper);
+            }
         }
     }
-    mediaEl.srcObject = stream;
+
+    if (mediaEl) mediaEl.srcObject = stream;
 }
 
 async function signalToPeer(peerId, payload) {
