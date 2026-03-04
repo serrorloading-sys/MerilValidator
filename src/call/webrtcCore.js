@@ -131,7 +131,8 @@ function handleRemoteStream(stream, peerId, peerName) {
             videoArea.appendChild(mediaEl);
         } else {
             const wrapper = document.createElement('div');
-            wrapper.className = 'relative flex-1 min-w-[300px] h-full rounded-2xl overflow-hidden shadow-2xl animate-fade-in-up group';
+            // Make the wrapper absolute inset to match standard 1-to-1 call views and z-20 to ensure it's not hidden
+            wrapper.className = 'absolute inset-4 rounded-3xl overflow-hidden shadow-2xl bg-gray-900 border border-white/5 animate-fade-in-up group z-20';
             wrapper.id = `remote-wrap-${peerId}`;
 
             mediaEl = document.createElement('video');
@@ -147,8 +148,8 @@ function handleRemoteStream(stream, peerId, peerName) {
             wrapper.appendChild(mediaEl);
             wrapper.appendChild(nameTag);
 
-            // Transform the flex container into a grid for groups
-            videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
+            // Remove grid override that breaks the layout
+            // videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
             videoArea.appendChild(wrapper);
         }
     }
