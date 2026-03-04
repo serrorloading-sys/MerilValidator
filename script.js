@@ -337,13 +337,158 @@ const updateMasterList = (data, listId, countId) => {
     document.getElementById(countId).innerText = c + " (cached)";
 };
 
-function saveSettings() {
+// =============================================
+// KPI CARD MANAGEMENT
+// =============================================
+const KPI_CARDS = [
+    { id: 'sys-total', defaultTitle: 'Total SAP Stock' },
+    { id: 'total', defaultTitle: 'Total Scanned' },
+    { id: 'serial', defaultTitle: 'Serial Match' },
+    { id: 'batch', defaultTitle: 'Batch Match' },
+    { id: 'mat', defaultTitle: 'Material Only' },
+    { id: 'var', defaultTitle: 'Variance' },
+    { id: 'remain', defaultTitle: 'Remaining SAP' },
+    { id: 'damage', defaultTitle: '🔴 Damage' },
+    { id: 'expired', defaultTitle: '⚫ Expired' },
+    { id: 'near-expiry', defaultTitle: '🟠 Near Expiry' },
+    { id: 'short-expiry', defaultTitle: '🟡 Short Expiry' },
+    { id: 'good-stock', defaultTitle: '🟢 Good Stock' }
+];
+
+function buildKpiSettings() {
+    const grid = document.getElementById('kpiSettingsGrid');
+    if (!grid) return;
+    const saved = JSON.parse(localStorage.getItem('kpiCardSettings') || '{}');
+    grid.innerHTML = '';
+
+    // Sort cards based on saved order (if it exists)
+    const sortedCards = [...KPI_CARDS].sort((a, b) => {
+        const orderA = saved[a.id]?.order ?? 999;
+        const orderB = saved[b.id]?.order ?? 999;
+        return orderA - orderB;
+    });
+
+    let draggedItem = null;
+
+    sortedCards.forEach(card => {
+        const visible = saved[card.id]?.visible !== false; // default true
+        const title = saved[card.id]?.title || card.defaultTitle;
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-3 py-2 cursor-move hover:border-indigo-300 transition';
+        row.dataset.cardId = card.id;
+        row.draggable = true;
+
+        // --- Drag and Drop Logic ---
+        row.addEventListener('dragstart', function (e) {
+            draggedItem = this;
+            setTimeout(() => this.style.opacity = '0.5', 0);
+        });
+
+        row.addEventListener('dragend', function () {
+            setTimeout(() => {
+                this.style.opacity = '1';
+                draggedItem = null;
+            }, 0);
+        });
+
+        row.addEventListener('dragover', function (e) {
+            e.preventDefault(); // Necessary to allow dropping
+            this.classList.add('bg-indigo-50'); // highlight drop target
+        });
+
+        row.addEventListener('dragleave', function (e) {
+            this.classList.remove('bg-indigo-50');
+        });
+
+        row.addEventListener('drop', function (e) {
+            e.preventDefault();
+            this.classList.remove('bg-indigo-50');
+            if (draggedItem && draggedItem !== this) {
+                const allItems = [...grid.children];
+                const draggedIndex = allItems.indexOf(draggedItem);
+                const targetIndex = allItems.indexOf(this);
+                if (draggedIndex < targetIndex) {
+                    this.parentNode.insertBefore(draggedItem, this.nextSibling);
+                } else {
+                    this.parentNode.insertBefore(draggedItem, this);
+                }
+            }
+        });
+
+        row.innerHTML = `
+            <i class="fas fa-grip-vertical text-gray-400 hover:text-indigo-500 transition shrink-0"></i>
+            <input type="checkbox" id="kpichk-${card.id}" ${visible ? 'checked' : ''}
+                class="w-4 h-4 text-indigo-600 rounded shrink-0 cursor-pointer" title="Show/Hide card">
+            <input type="text" id="kpitxt-${card.id}" value="${title}"
+                class="flex-1 text-xs border-0 bg-transparent outline-none focus:bg-white focus:border focus:border-indigo-300 focus:rounded px-1 py-0.5 cursor-text"
+                placeholder="${card.defaultTitle}">
+            <button onclick="document.getElementById('kpitxt-${card.id}').value='${card.defaultTitle}'"
+                title="Reset to default" class="text-gray-400 hover:text-indigo-500 transition text-xs shrink-0 cursor-pointer">
+                <i class="fas fa-undo"></i>
+            </button>`;
+        grid.appendChild(row);
+    });
+}
+
+async function saveKpiSettings() {
+    const obj = {};
+    const grid = document.getElementById('kpiSettingsGrid');
+    if (!grid) return;
+
+    // Save state + new logical order based on DOM position
+    [...grid.children].forEach((row, index) => {
+        const cardId = row.dataset.cardId;
+        const chk = document.getElementById(`kpichk-${cardId}`);
+        const txt = document.getElementById(`kpitxt-${cardId}`);
+        const defaultTitle = KPI_CARDS.find(c => c.id === cardId).defaultTitle;
+        if (chk && txt) {
+            obj[cardId] = {
+                visible: chk.checked,
+                title: txt.value.trim() || defaultTitle,
+                order: index
+            };
+        }
+    });
+    localStorage.setItem('kpiCardSettings', JSON.stringify(obj));
+
+    // SYNC TO DB (Admin only)
+    if (typeof updateFeatureFlag === 'function' && window.currentUser && window.currentUser.role === 'admin') {
+        const res = await updateFeatureFlag('mhpl_settings', { kpiCardSettings: obj });
+        if (res.success) console.log("Global kpiCardSettings synced to DB.");
+        else console.error("Failed to sync KPI settings globally:", res.error);
+    }
+}
+
+function applyKpiSettings() {
+    const saved = JSON.parse(localStorage.getItem('kpiCardSettings') || '{}');
+    KPI_CARDS.forEach(card => {
+        const cardEl = document.getElementById(`kpi-card-${card.id}`);
+        const titleEl = document.getElementById(`kpi-title-${card.id}`);
+        if (!cardEl) return;
+        const visible = saved[card.id]?.visible !== false;
+        const title = saved[card.id]?.title || card.defaultTitle;
+        const order = saved[card.id]?.order ?? 999;
+
+        // Apply CSS flex/grid order
+        cardEl.style.order = order;
+
+        // qty-recon has its own visibility logic (Logic 6 toggle) — skip hiding it here
+        if (card.id !== 'qty-recon') {
+            cardEl.classList.toggle('hidden', !visible);
+        }
+        if (titleEl) titleEl.textContent = title;
+    });
+}
+
+async function saveSettings() {
     const settings = {
         custName: document.getElementById('custName').value,
         custProject: document.getElementById('custProject').value,
         aiMaterial: document.getElementById('aiMaterial').value,
+        aiGTIN: document.getElementById('aiGTIN').value,
         aiBatch: document.getElementById('aiBatch').value,
         aiSerial: document.getElementById('aiSerial').value,
+        aiExpiry: document.getElementById('aiExpiry').value,
         enableConcat: document.getElementById('enableConcat').checked,
         concatDelimiter: document.getElementById('concatDelimiter').value,
         nearExpiryMonths: document.getElementById('nearExpiryMonths').value,
@@ -359,14 +504,34 @@ function saveSettings() {
         // --- [UPDATED LOGIC] ---
         smartZero: document.getElementById('smartZero').checked,
         useScanQty: document.getElementById('useScanQty').checked,
-        autoSloc: document.getElementById('autoSloc').checked
+        autoSloc: document.getElementById('autoSloc').checked,
+        // --- [ADVANCED LOGIC TOGGLES] ---
+        chkDupeScan: document.getElementById('chkDupeScan').checked,
+        chkOverScan: document.getElementById('chkOverScan').checked,
+        chkPlantMismatch: document.getElementById('chkPlantMismatch').checked,
+        chkIncompleteScan: document.getElementById('chkIncompleteScan').checked,
+        chkExpiryMismatch: document.getElementById('chkExpiryMismatch').checked,
+        chkQtyRecon: document.getElementById('chkQtyRecon').checked,
+        // --- [MATCHING LOGIC TOGGLES] ---
+        chkPassConcat: document.getElementById('chkPassConcat').checked,
+        chkPassBatch: document.getElementById('chkPassBatch').checked,
+        chkPassMaterial: document.getElementById('chkPassMaterial').checked,
+        chkTripleSort: document.getElementById('chkTripleSort').checked,
+        chkMultiRowConsume: document.getElementById('chkMultiRowConsume').checked
     };
     try {
         localStorage.setItem('sapVal_settings_v12', JSON.stringify(settings));
-        // Optional: visual feedback?
+
+        // SYNC TO DB (Admin only)
+        if (typeof updateFeatureFlag === 'function' && window.currentUser && window.currentUser.role === 'admin') {
+            const res = await updateFeatureFlag('mhpl_settings', { validatorSettings: settings });
+            if (res.success) console.log("Global validatorSettings synced to DB.");
+            else console.error("Failed to sync settings globally:", res.error);
+        }
     } catch (e) {
         console.warn("Storage quota exceeded or error", e);
     }
+    await saveKpiSettings();
 }
 
 function loadSettings() {
@@ -378,8 +543,10 @@ function loadSettings() {
         if (s.custName) document.getElementById('custName').value = s.custName;
         if (s.custProject) document.getElementById('custProject').value = s.custProject;
         if (s.aiMaterial) document.getElementById('aiMaterial').value = s.aiMaterial;
+        if (s.aiGTIN) document.getElementById('aiGTIN').value = s.aiGTIN;
         if (s.aiBatch) document.getElementById('aiBatch').value = s.aiBatch;
         if (s.aiSerial) document.getElementById('aiSerial').value = s.aiSerial;
+        if (s.aiExpiry) document.getElementById('aiExpiry').value = s.aiExpiry;
 
         if (s.enableConcat !== undefined) document.getElementById('enableConcat').checked = s.enableConcat;
         if (s.concatDelimiter) document.getElementById('concatDelimiter').value = s.concatDelimiter;
@@ -387,10 +554,7 @@ function loadSettings() {
         if (s.nearExpiryMonths) document.getElementById('nearExpiryMonths').value = s.nearExpiryMonths;
         if (s.shortExpiryMonths) document.getElementById('shortExpiryMonths').value = s.shortExpiryMonths;
 
-        if (s.txtMatch) document.getElementById('txtMatch').value = s.txtMatch;
-        if (s.txtBatch) document.getElementById('txtBatch').value = s.txtBatch;
-        if (s.txtMat) document.getElementById('txtMat').value = s.txtMat;
-        if (s.txtVar) document.getElementById('txtVar').value = s.txtVar;
+        // Status comment texts always use HTML defaults — not persisted
 
         // V13 Enhancements
         if (s.plantPriority) document.getElementById('plantPriority').value = s.plantPriority;
@@ -403,13 +567,33 @@ function loadSettings() {
         if (s.smartZero !== undefined) document.getElementById('smartZero').checked = s.smartZero;
         if (s.useScanQty !== undefined) document.getElementById('useScanQty').checked = s.useScanQty;
         if (s.autoSloc !== undefined) document.getElementById('autoSloc').checked = s.autoSloc;
+        // --- [ADVANCED LOGIC TOGGLES] (default ON if not saved yet) ---
+        document.getElementById('chkDupeScan').checked = s.chkDupeScan ?? true;
+        document.getElementById('chkOverScan').checked = s.chkOverScan ?? true;
+        document.getElementById('chkPlantMismatch').checked = s.chkPlantMismatch ?? true;
+        document.getElementById('chkIncompleteScan').checked = s.chkIncompleteScan ?? true;
+        document.getElementById('chkExpiryMismatch').checked = s.chkExpiryMismatch ?? true;
+        document.getElementById('chkQtyRecon').checked = s.chkQtyRecon ?? true;
+
+        // Ensure Qty Recon is visible if enabled
+        if (document.getElementById('chkQtyRecon').checked) {
+            const reconEl = document.getElementById('kpi-card-qty-recon');
+            if (reconEl) reconEl.classList.remove('hidden');
+        }
+
+        // --- [MATCHING LOGIC TOGGLES] ---
+        document.getElementById('chkPassConcat').checked = s.chkPassConcat ?? true;
+        document.getElementById('chkPassBatch').checked = s.chkPassBatch ?? true;
+        document.getElementById('chkPassMaterial').checked = s.chkPassMaterial ?? true;
+        document.getElementById('chkTripleSort').checked = s.chkTripleSort ?? true;
+        document.getElementById('chkMultiRowConsume').checked = s.chkMultiRowConsume ?? true;
         // ---
 
         if (s.exportLayout) {
             document.getElementById('exportLayout').value = s.exportLayout;
         } else {
             // Default Layout
-            document.getElementById('exportLayout').value = "Status, Logic, Material, Description, Customer, P_ID, S.Loc, Plant, Phy Batch, Phy Serial, Sys Batch, Sys Serial, Condition, Expiry Date, Sys Expiry, Days Left, Stock Status, Comment";
+            document.getElementById('exportLayout').value = "Status, Logic, Material, GTIN, Description, Customer, P_ID, S.Loc, Plant, Phy Batch, Phy Serial, Sys Batch, Sys Serial, Condition, Expiry Date, Sys Expiry, Days Left, Stock Status, Comment";
         }
 
         if (s.materialMaster && Object.keys(s.materialMaster).length > 0) {
@@ -443,10 +627,13 @@ function loadSettings() {
     } catch (e) {
         console.error("Error loading settings", e);
     }
+    buildKpiSettings();
+    applyKpiSettings();
 }
 
 // Init
 document.addEventListener('DOMContentLoaded', loadSettings);
+
 
 const log = (msg) => {
     const el = document.getElementById('statusLog');
@@ -942,8 +1129,17 @@ window.addEventListener('DOMContentLoaded', loadExpirySettings);
 const parseGS1Expiry = (barcode) => {
     if (!barcode) return null;
 
-    // Extract (17)YYMMDD from barcode
-    const expiryMatch = barcode.match(/\(17\)(\d{6})/);
+    // Get Expiry AI codes from settings and split by comma for fallbacks
+    const aiExpiryList = (document.getElementById('aiExpiry')?.value || '17').split(',').map(s => s.trim()).filter(Boolean);
+
+    let expiryMatch = null;
+    for (const ai of aiExpiryList) {
+        // Extract (AI)YYMMDD from barcode
+        const regex = new RegExp(`\\(${ai}\\)(\\d{6})`);
+        expiryMatch = barcode.match(regex);
+        if (expiryMatch) break;
+    }
+
     if (!expiryMatch) return null;
 
     const yymmdd = expiryMatch[1];
@@ -1061,10 +1257,12 @@ const parseGS1 = (raw, rowNum = 0) => {
     let s = clean(raw).replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
     let res = { mat: "", batch: "", ser: "", isDefaultSer: false, isValid: true, error: "" };
 
-    // Get AI codes from settings
-    const aiMat = document.getElementById('aiMaterial')?.value || '240';
-    const aiBatch = document.getElementById('aiBatch')?.value || '10';
-    const aiSer = document.getElementById('aiSerial')?.value || '21';
+    // Get AI codes from settings and split by comma for fallbacks
+    const aiMatList = (document.getElementById('aiMaterial')?.value || '240, 01').split(',').map(s => s.trim()).filter(Boolean);
+    const aiGTINList = (document.getElementById('aiGTIN')?.value || '01').split(',').map(s => s.trim()).filter(Boolean);
+    const aiBatchList = (document.getElementById('aiBatch')?.value || '10').split(',').map(s => s.trim()).filter(Boolean);
+    const aiSerList = (document.getElementById('aiSerial')?.value || '21').split(',').map(s => s.trim()).filter(Boolean);
+    const aiExpiryList = (document.getElementById('aiExpiry')?.value || '17').split(',').map(s => s.trim()).filter(Boolean);
 
     // Validate GS1 format
     if (!s.includes('(')) {
@@ -1074,34 +1272,53 @@ const parseGS1 = (raw, rowNum = 0) => {
         return res;
     }
 
+    // Helper: Find first matching AI in the barcode string
+    const extractAI = (aiList) => {
+        for (const ai of aiList) {
+            const regex = new RegExp(`\\(${ai}\\)([^()]+)`);
+            const m = s.match(regex);
+            if (m) return clean(m[1]);
+        }
+        return null;
+    };
+
     // Extract Material
-    const matRegex = new RegExp(`\\(${aiMat}\\)([^()]+)`);
-    let m = s.match(matRegex);
-    if (m) {
-        res.mat = clean(m[1]);
+    const matVal = extractAI(aiMatList);
+    if (matVal) {
+        res.mat = matVal;
     } else {
         res.isValid = false;
-        res.error = `Missing Material AI (${aiMat})`;
-        addError(rowNum, `Missing Material code (${aiMat}) in barcode`, 'warning');
+        res.error = `Missing Material AI (${aiMatList.join(' or ')})`;
+        addError(rowNum, `Missing Material code (${aiMatList.join(' or ')}) in barcode`, 'warning');
+    }
+
+    // Extract GTIN
+    const gtinVal = extractAI(aiGTINList);
+    if (gtinVal) {
+        res.gtin = gtinVal;
     }
 
     // Extract Batch
-    const batchRegex = new RegExp(`\\(${aiBatch}\\)([^()]+)`);
-    let b = s.match(batchRegex);
-    if (b) {
-        res.batch = clean(b[1]);
+    const batchVal = extractAI(aiBatchList);
+    if (batchVal) {
+        res.batch = batchVal;
     } else {
-        addError(rowNum, `Missing Batch code (${aiBatch}) in barcode`, 'warning');
+        addError(rowNum, `Missing Batch code (${aiBatchList.join(' or ')}) in barcode`, 'warning');
     }
 
     // Extract Serial
-    const serRegex = new RegExp(`\\(${aiSer}\\)([^()]+)`);
-    let sr = s.match(serRegex);
-    if (sr) {
-        res.ser = clean(sr[1]);
+    const serVal = extractAI(aiSerList);
+    if (serVal) {
+        res.ser = serVal;
     } else {
         res.ser = "001";
         res.isDefaultSer = true;
+    }
+
+    // Extract Expiry
+    const expVal = extractAI(aiExpiryList);
+    if (expVal) {
+        res.expiry = expVal;
     }
 
     return res;
@@ -1409,6 +1626,14 @@ async function actualValidation() {
     // --- [UPDATED LOGIC]: Get new settings ---
     const smartZero = document.getElementById('smartZero').checked;
     const useScanQty = document.getElementById('useScanQty').checked;
+    // --- [MATCHING LOGIC TOGGLES] ---
+    const matchCfg = {
+        concat: document.getElementById('chkPassConcat')?.checked ?? true,
+        batch: document.getElementById('chkPassBatch')?.checked ?? true,
+        material: document.getElementById('chkPassMaterial')?.checked ?? true,
+        tripleSort: document.getElementById('chkTripleSort')?.checked ?? true,
+        multiRowConsume: document.getElementById('chkMultiRowConsume')?.checked ?? true
+    };
     // ----------------------------------------
 
     // Reset error tracking
@@ -1638,15 +1863,53 @@ async function actualValidation() {
             });
         }
 
-        // MATCHING HELPERS
-        const priorityList = (document.getElementById('plantPriority')?.value || "").split(',').map(p => p.trim().toUpperCase()).filter(Boolean);
+        // =============================================
+        // MATCHING HELPERS — v2 (All 5 fixes applied)
+        // =============================================
+
+        const priorityList = (document.getElementById('plantPriority')?.value || "")
+            .split(',').map(p => p.trim().toUpperCase()).filter(Boolean);
+
+        /**
+         * FIX 2 + 3 + 4: getBestMatch
+         * - Deduplicates aliased SAP objects (SmartZero fix)
+         * - Sorts by: plant priority → nearest expiry → highest available qty
+         */
         const getBestMatch = (candidates) => {
             if (!candidates || candidates.length === 0) return null;
-            // Only consider available inventory
-            let available = candidates.filter(inv => inv.qty - inv.used > 0);
+
+            // FIX 3: Deduplicate by object identity (SmartZero alias keys share same object)
+            const seenItems = new WeakSet();
+            const unique = candidates.filter(inv => {
+                if (seenItems.has(inv)) return false;
+                seenItems.add(inv);
+                return true;
+            });
+
+            // Only items with remaining qty
+            let available = unique.filter(inv => inv.qty - inv.used > 0);
             if (available.length === 0) return null;
 
-            if (priorityList.length > 0) {
+            // FIX 2 + 4: Triple-sort if enabled — plant priority → nearest expiry → highest qty available
+            if (matchCfg.tripleSort) {
+                available.sort((a, b) => {
+                    let pA = priorityList.length > 0 ? priorityList.indexOf(String(a.plant).toUpperCase()) : -1;
+                    let pB = priorityList.length > 0 ? priorityList.indexOf(String(b.plant).toUpperCase()) : -1;
+                    if (pA === -1) pA = 999;
+                    if (pB === -1) pB = 999;
+                    if (pA !== pB) return pA - pB;
+                    const expA = a.expiry && a.expiry !== '-' ? new Date(a.expiry) : null;
+                    const expB = b.expiry && b.expiry !== '-' ? new Date(b.expiry) : null;
+                    if (expA && expB) {
+                        const diff = expA - expB;
+                        if (Math.abs(diff) > 86400000) return diff;
+                    }
+                    if (expA && !expB) return -1;
+                    if (!expA && expB) return 1;
+                    return (b.qty - b.used) - (a.qty - a.used);
+                });
+            } else if (priorityList.length > 0) {
+                // Fallback: sort only by plant priority
                 available.sort((a, b) => {
                     let pA = priorityList.indexOf(String(a.plant).toUpperCase());
                     let pB = priorityList.indexOf(String(b.plant).toUpperCase());
@@ -1655,65 +1918,124 @@ async function actualValidation() {
                     return pA - pB;
                 });
             }
+
             return available[0];
         };
 
-        const consume = (scan, match, type) => {
-            let consumeAmount = Math.min(scan.qty, match.qty - match.used);
-            match.used += consumeAmount;
-            scan.matched = true;
-            scan.matchRef = match;
-            scan.matchType = type;
-            scan.consumed = consumeAmount;
+        /**
+         * FIX 1: consumeMulti
+         * - Drains qty across multiple SAP rows if single row doesn't have enough
+         * - Returns { totalConsumed, matchRef (best), allMatches[] }
+         */
+        const consumeMulti = (scan, candidates, type) => {
+            // Deduplicate (SmartZero fix)
+            const seenItems = new WeakSet();
+            const unique = candidates.filter(inv => {
+                if (seenItems.has(inv)) return false;
+                seenItems.add(inv);
+                return true;
+            });
 
-            if (type === 'Exact' || type === 'Concat') stats.s += consumeAmount;
-            else if (type === 'Batch Match') stats.b += consumeAmount;
-            else if (type === 'Material Only') stats.m += consumeAmount;
+            let available = unique.filter(inv => inv.qty - inv.used > 0);
+            if (available.length === 0) return false;
+
+            // Sort same way as getBestMatch (triple sort if enabled)
+            if (matchCfg.tripleSort) {
+                available.sort((a, b) => {
+                    let pA = priorityList.length > 0 ? priorityList.indexOf(String(a.plant).toUpperCase()) : -1;
+                    let pB = priorityList.length > 0 ? priorityList.indexOf(String(b.plant).toUpperCase()) : -1;
+                    if (pA === -1) pA = 999;
+                    if (pB === -1) pB = 999;
+                    if (pA !== pB) return pA - pB;
+                    const expA = a.expiry && a.expiry !== '-' ? new Date(a.expiry) : null;
+                    const expB = b.expiry && b.expiry !== '-' ? new Date(b.expiry) : null;
+                    if (expA && expB && Math.abs(expA - expB) > 86400000) return expA - expB;
+                    return (b.qty - b.used) - (a.qty - a.used);
+                });
+            } else if (priorityList.length > 0) {
+                available.sort((a, b) => {
+                    let pA = priorityList.indexOf(String(a.plant).toUpperCase());
+                    let pB = priorityList.indexOf(String(b.plant).toUpperCase());
+                    if (pA === -1) pA = 999;
+                    if (pB === -1) pB = 999;
+                    return pA - pB;
+                });
+            }
+
+            let remaining = scan.qty;
+            let totalConsumed = 0;
+            let primaryMatch = null;
+
+            // If Multi-Row disabled: consume only from the first (best) row
+            const rowsToTry = matchCfg.multiRowConsume ? available : available.slice(0, 1);
+
+            for (const item of rowsToTry) {
+                if (remaining <= 0) break;
+                const canTake = item.qty - item.used;
+                const take = Math.min(remaining, canTake);
+                item.used += take;
+                totalConsumed += take;
+                remaining -= take;
+                if (!primaryMatch) primaryMatch = item;
+            }
+
+            if (totalConsumed > 0) {
+                scan.matched = true;
+                scan.matchRef = primaryMatch;
+                scan.matchType = type;
+                scan.consumed = totalConsumed;
+
+                if (type === 'Exact' || type === 'Concat') stats.s += totalConsumed;
+                else if (type === 'Batch Match') stats.b += totalConsumed;
+                else if (type === 'Material Only') stats.m += totalConsumed;
+
+                return true;
+            }
+            return false;
+        };
+
+        // FIX 5: Simple consume for single-row (used only when no split needed)
+        const consume = (scan, match, type) => {
+            consumeMulti(scan, [match], type);
         };
 
         // PASS 1: EXACT MATCH (MBS)
         parsedScans.forEach(scan => {
             if (!scan.p.isValid || !scan.p.mat) return;
 
-            // Try Exact
             const exactKey = `${scan.p.mat}|${scan.p.batch}|${scan.p.ser}`;
-            let candidates = inventoryMap.get(exactKey);
-            let match = getBestMatch(candidates);
-
-            // Try Concat
-            if (!match && enableConcat) {
-                const longSerial = (scan.p.batch + concatDelimiter + scan.p.ser);
-                if (longSerial) {
-                    const concatKey = `${scan.p.mat}|${scan.p.batch}|${longSerial}`;
-                    candidates = inventoryMap.get(concatKey);
-                    if (candidates) match = getBestMatch(candidates);
-                    if (match) { consume(scan, match, "Concat"); return; }
-                }
+            const candidates = inventoryMap.get(exactKey);
+            if (candidates) {
+                if (consumeMulti(scan, candidates, 'Exact')) return;
             }
 
-            if (match) { consume(scan, match, "Exact"); }
+            // Try Concat (Batch+Serial concatenated) — gated by toggle
+            if (!scan.matched && enableConcat && matchCfg.concat) {
+                const longSerial = scan.p.batch + concatDelimiter + scan.p.ser;
+                if (longSerial) {
+                    const concatKey = `${scan.p.mat}|${scan.p.batch}|${longSerial}`;
+                    const cc = inventoryMap.get(concatKey);
+                    if (cc) consumeMulti(scan, cc, 'Concat');
+                }
+            }
         });
 
-        // PASS 2: BATCH MATCH (MB)
+        // PASS 2: BATCH MATCH (MB) — gated by toggle
         parsedScans.forEach(scan => {
             if (scan.matched || !scan.p.isValid || !scan.p.mat) return;
-
+            if (!matchCfg.batch) return;
             const batchKey = `${scan.p.mat}|${scan.p.batch}|`;
-            let candidates = inventoryMap.get(batchKey);
-            let match = getBestMatch(candidates);
-
-            if (match) { consume(scan, match, "Batch Match"); }
+            const candidates = inventoryMap.get(batchKey);
+            if (candidates) consumeMulti(scan, candidates, 'Batch Match');
         });
 
-        // PASS 3: MATERIAL MATCH (M)
+        // PASS 3: MATERIAL MATCH (M) — gated by toggle
         parsedScans.forEach(scan => {
             if (scan.matched || !scan.p.isValid || !scan.p.mat) return;
-
+            if (!matchCfg.material) return;
             const matKey = `${scan.p.mat}||`;
-            let candidates = inventoryMap.get(matKey);
-            let match = getBestMatch(candidates);
-
-            if (match) { consume(scan, match, "Material Only"); }
+            const candidates = inventoryMap.get(matKey);
+            if (candidates) consumeMulti(scan, candidates, 'Material Only');
         });
 
         // FINAL PASS: BUILD GLOBAL DATA
@@ -1726,6 +2048,7 @@ async function actualValidation() {
                     logic: 'Parse Error',
                     detail: scan.p.error || 'Invalid barcode',
                     mat: scan.p.mat || '???',
+                    gtin: scan.p.gtin || '',
                     phyBatch: scan.p.batch, phySer: scan.p.ser,
                     sysBatch: '-', sysSer: '-',
                     isDefaultSer: scan.p.isDefaultSer,
@@ -1788,6 +2111,7 @@ async function actualValidation() {
             globalData.push({
                 status, css, statusPriority, logic, detail,
                 mat: scan.p.mat,
+                gtin: scan.p.gtin || '',
                 desc: finalDesc,
                 cust: finalCust,
                 custCode: finalCustCode,
@@ -1808,6 +2132,159 @@ async function actualValidation() {
                 raw: scan.raw
             });
         });
+
+        // =========================================================
+        // ===  ADVANCED VALIDATION LOGIC MODULES (POST-PROCESS)  ===
+        // =========================================================
+
+        // Read all toggles from Settings
+        const advLogic = {
+            dupeScan: document.getElementById('chkDupeScan')?.checked ?? true,
+            overScan: document.getElementById('chkOverScan')?.checked ?? true,
+            plantMismatch: document.getElementById('chkPlantMismatch')?.checked ?? true,
+            incompleteScan: document.getElementById('chkIncompleteScan')?.checked ?? true,
+            expiryMismatch: document.getElementById('chkExpiryMismatch')?.checked ?? true,
+            qtyRecon: document.getElementById('chkQtyRecon')?.checked ?? true
+        };
+
+        // --- LOGIC 1: Duplicate Scan Detection ---
+        // Flags rows where the EXACT same barcode (mat+batch+serial) is scanned 2+ times.
+        // Note: Same batch with different serials is normal — NOT a duplicate.
+        if (advLogic.dupeScan) {
+            const scanFreqMap = new Map();
+            parsedScans.forEach(scan => {
+                if (!scan.p.mat) return;
+                const fullKey = `${scan.p.mat}|${scan.p.batch}|${scan.p.ser}`;
+                scanFreqMap.set(fullKey, (scanFreqMap.get(fullKey) || 0) + 1);
+            });
+
+            globalData.forEach(row => {
+                const fullKey = `${row.mat}|${row.phyBatch}|${row.phySer}`;
+                const count = scanFreqMap.get(fullKey) || 0;
+                if (count > 1) {
+                    row.detail = `[⚠️ DUPE SCAN x${count}] ` + row.detail;
+                    if (row.status === 'Matched' || row.status === 'Partial' || row.status === 'Warning') {
+                        row.status = 'Dupe Scan';
+                        row.css = 'bg-purple-100 text-purple-900 border-l-4 border-purple-600';
+                        row.statusPriority = 5;
+                    }
+                }
+            });
+            log('✓ Logic 1: Duplicate Scan Detection applied');
+        }
+
+
+        // --- LOGIC 2: Over-Scan Qty Alert ---
+        // Flags where scanned qty exceeds SAP available qty for a material+batch key
+        if (advLogic.overScan) {
+            const sapQtyMap = new Map();
+            inventoryMap.forEach((items, key) => {
+                if (!key.endsWith('|')) return; // only batch-level keys
+                const totalQty = [...new Set(items)].reduce((s, i) => s + i.qty, 0);
+                sapQtyMap.set(key, totalQty);
+            });
+            const scanQtyAccum = new Map();
+            parsedScans.forEach(scan => {
+                const key = `${scan.p.mat}|${scan.p.batch}|`;
+                scanQtyAccum.set(key, (scanQtyAccum.get(key) || 0) + scan.qty);
+            });
+            globalData.forEach(row => {
+                const key = `${row.mat}|${row.phyBatch}|`;
+                const sapQty = sapQtyMap.get(key);
+                const scanned = scanQtyAccum.get(key);
+                if (sapQty !== undefined && scanned !== undefined && scanned > sapQty) {
+                    row.detail = `[🔴 OVER SCAN: scanned ${scanned} > SAP ${sapQty}] ` + row.detail;
+                    if (row.status === 'Matched') {
+                        row.status = 'Over Scan';
+                        row.css = 'bg-red-200 text-red-900 border-l-4 border-red-700';
+                        row.statusPriority = 6;
+                    }
+                }
+            });
+            log('✓ Logic 2: Over-Scan Qty Alert applied');
+        }
+
+        // --- LOGIC 3: Plant Mismatch Warning ---
+        // Warns if matched item is in a different plant than configured priority
+        if (advLogic.plantMismatch) {
+            const priorityPlants = (document.getElementById('plantPriority')?.value || '')
+                .split(',').map(p => p.trim().toUpperCase()).filter(Boolean);
+            if (priorityPlants.length > 0) {
+                globalData.forEach(row => {
+                    if (!row.sysPlant || row.sysPlant === '-') return;
+                    if (!priorityPlants.includes(row.sysPlant.toUpperCase())) {
+                        row.detail = `[🏭 PLANT MISMATCH: ${row.sysPlant} not in priority list] ` + row.detail;
+                        if (row.status === 'Matched' || row.status === 'Partial') {
+                            row.status = 'Plant Mismatch';
+                            row.css = 'bg-blue-100 text-blue-900 border-l-4 border-blue-600';
+                        }
+                    }
+                });
+                log('✓ Logic 3: Plant Mismatch Warning applied');
+            }
+        }
+
+        // --- LOGIC 4: Incomplete Barcode Flag ---
+        // Flags row if batch is missing (-) or serial defaulted to 001
+        if (advLogic.incompleteScan) {
+            globalData.forEach(row => {
+                const missingBatch = !row.phyBatch || row.phyBatch === '-';
+                const missingSerial = row.isDefaultSer === true;
+                if (missingBatch || missingSerial) {
+                    const what = [missingBatch && 'Batch', missingSerial && 'Serial'].filter(Boolean).join(' & ');
+                    row.detail = `[⚠️ INCOMPLETE: Missing ${what}] ` + row.detail;
+                    if (row.status === 'Variance' || row.status === 'Warning') {
+                        row.status = 'Incomplete';
+                        row.css = 'bg-amber-100 text-amber-900 border-l-4 border-amber-500';
+                    }
+                }
+            });
+            log('✓ Logic 4: Incomplete Barcode Flag applied');
+        }
+
+        // --- LOGIC 5: Expiry Date Mismatch ---
+        // Compares scan barcode expiry (17) with SAP SLED date — flags if > 7 days apart
+        if (advLogic.expiryMismatch) {
+            const MISMATCH_THRESHOLD_DAYS = 7;
+            globalData.forEach(row => {
+                if (!row.expiryDate || !row.sysExpiry || row.sysExpiry === '-') return;
+                try {
+                    const sapExp = new Date(row.sysExpiry);
+                    if (isNaN(sapExp.getTime())) return;
+                    const diffDays = Math.abs((row.expiryDate - sapExp) / (1000 * 60 * 60 * 24));
+                    if (diffDays > MISMATCH_THRESHOLD_DAYS) {
+                        if (row.status === 'Matched' || row.status === 'Partial') {
+                            row.status = 'Expiry Mismatch';
+                            row.css = 'bg-orange-200 text-orange-900 border-l-4 border-orange-600';
+                        }
+                    }
+                } catch (e) { }
+            });
+            log('✓ Logic 5: Expiry Date Mismatch applied');
+        }
+
+        // --- LOGIC 6: Qty Reconciliation KPI ---
+        // Adds a KPI card showing SAP qty vs Scan qty match percentage
+        if (advLogic.qtyRecon) {
+            const sapTotalQty = totalSysItemsInitial;
+            const scanTotalQty = stats.tot;
+            const reconPct = sapTotalQty > 0 ? ((Math.min(scanTotalQty, sapTotalQty) / sapTotalQty) * 100).toFixed(1) : '0';
+            const diff = sapTotalQty - scanTotalQty;
+            const reconEl = document.getElementById('kpi-card-qty-recon');
+            const reconPctEl = document.getElementById('kpi-qty-recon-pct');
+            const reconDiffEl = document.getElementById('kpi-qty-recon-diff');
+            if (reconEl) reconEl.classList.remove('hidden');
+            if (reconPctEl) reconPctEl.innerText = `${reconPct}%`;
+            if (reconDiffEl) reconDiffEl.innerText = diff === 0 ? '✅ Exact Match' : (diff > 0 ? `📦 ${diff} unscanned` : `⚠️ ${Math.abs(diff)} over-scanned`);
+            log(`✓ Logic 6: Qty Recon = ${reconPct}% (SAP: ${sapTotalQty}, Scan: ${scanTotalQty})`);
+        } else {
+            const reconEl = document.getElementById('kpi-card-qty-recon');
+            if (reconEl) reconEl.classList.add('hidden');
+        }
+
+        // =========================================================
+        // ===           END ADVANCED VALIDATION LOGIC            ===
+        // =========================================================
 
         // CALC REMAINING with progress tracking
         updateProgress(85, 'Calculating remaining inventory...');
@@ -2379,7 +2856,7 @@ function exportResult() {
 
     // --- SHEET 1: Validation Results (Custom Layout & Style) ---
     let layoutStr = document.getElementById('exportLayout')?.value || "";
-    if (!layoutStr.trim()) layoutStr = "Status, Logic, Material, Description, Customer Name, Customer Code, Plant, S.Loc, Phy Batch, Phy Serial, Sys Batch, Sys Serial, Condition, Expiry Date, Sys Expiry, Days Left, Stock Status, Comment";
+    if (!layoutStr.trim()) layoutStr = "Status, Logic, Material, GTIN, Description, Customer Name, Customer Code, Plant, S.Loc, Phy Batch, Phy Serial, Sys Batch, Sys Serial, Condition, Expiry Date, Sys Expiry, Days Left, Stock Status, Comment";
     const keys = layoutStr.split(',').map(k => k.trim());
 
     const proData = [];
@@ -2397,6 +2874,7 @@ function exportResult() {
                 case 'status': val = item.status; break;
                 case 'logic': val = item.logic; break;
                 case 'material': val = item.mat; break;
+                case 'gtin': val = item.gtin || ""; break;
                 case 'description': val = item.desc; break;
                 case 'customer':
                 case 'customer name': val = item.cust; break;

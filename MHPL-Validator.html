@@ -213,8 +213,18 @@
             if (typeof initFeatureFlags === 'function') {
                 const config = await initFeatureFlags('mhpl_settings');
 
-                // Auto-load Master Data (Reference Data)
+                // Auto-load Master Data (Reference Data) & Sync Global Settings
                 if (config) {
+                    // --- SYNC GLOBAL SETTINGS TO LOCAL UI ---
+                    if (config.validatorSettings) {
+                        localStorage.setItem('sapVal_settings_v12', JSON.stringify(config.validatorSettings));
+                    }
+                    if (config.kpiCardSettings) {
+                        localStorage.setItem('kpiCardSettings', JSON.stringify(config.kpiCardSettings));
+                    }
+                    // Re-apply to UI so non-admins see the admin's globally saved settings
+                    if (typeof loadSettings === 'function') loadSettings();
+
                     // Material Master
                     if (config.material_master_csv && config.material_master_csv.length > 10) {
                         try {
@@ -460,30 +470,37 @@
                 </div>
 
                 <div class="bg-white p-5 rounded border border-gray-300">
-                    <h4 class="text-sm font-bold text-gray-800 mb-3"><i class="fas fa-barcode mr-1"></i> GS1 AI Code
-                        Configuration</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center">
+                        <i class="fas fa-barcode mr-2 text-gray-600"></i> Advanced GS1 AI Configuration
+                        <span
+                            class="ml-2 text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-normal">Comma-separated
+                            fallbacks</span>
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Material Code</label>
-                            <select id="aiMaterial"
-                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
-                                <option value="240">(240) Additional Product ID</option>
-                                <option value="01">(01) GTIN</option>
-                            </select>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Material Code AI</label>
+                            <input type="text" id="aiMaterial" placeholder="E.g. 240, 01" value="240, 01"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500 font-mono">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Batch Code</label>
-                            <select id="aiBatch"
-                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
-                                <option value="10">(10) Batch/Lot Number</option>
-                            </select>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">GTIN Code AI</label>
+                            <input type="text" id="aiGTIN" placeholder="E.g. 01" value="01"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500 font-mono">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Serial Code</label>
-                            <select id="aiSerial"
-                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500">
-                                <option value="21">(21) Serial Number</option>
-                            </select>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Batch Code AI</label>
+                            <input type="text" id="aiBatch" placeholder="E.g. 10" value="10"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Serial Code AI</label>
+                            <input type="text" id="aiSerial" placeholder="E.g. 21" value="21"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-gray-700 mb-1">Expiry Date AI</label>
+                            <input type="text" id="aiExpiry" placeholder="E.g. 17" value="17"
+                                class="w-full border p-2 text-sm rounded focus:ring-2 focus:ring-blue-500 font-mono">
                         </div>
                     </div>
                 </div>
@@ -497,7 +514,8 @@
                         <textarea id="exportLayout" rows="4"
                             class="w-full border p-2 text-xs rounded font-mono focus:ring-2 focus:ring-indigo-500"
                             onchange="saveSettings()" placeholder="Enter column keys separated by comma..."></textarea>
-                        <p class="text-[10px] text-gray-500 mt-1">Keys: Status, Logic, Material, Description, Customer,
+                        <p class="text-[10px] text-gray-500 mt-1">Keys: Status, Logic, Material, GTIN, Description,
+                            Customer,
                             P_ID, S.Loc, Plant, Phy Batch, Phy Serial, Sys Batch, Sys Serial, Condition, Expiry Date,
                             Sys Expiry, Days Left, Stock Status, Comment</p>
                     </div>
@@ -620,7 +638,490 @@
                     </div>
                 </div>
 
+                <!-- ===== MATCHING LOGIC CONTROL ===== -->
+                <div data-role="admin" class="bg-slate-50 p-5 rounded border border-slate-300 md:col-span-2">
+                    <h4 class="text-sm font-bold text-slate-800 mb-3 flex items-center">
+                        <i class="fas fa-sitemap mr-2 text-slate-600"></i> Matching Logic Control
+                        <span
+                            class="ml-2 text-[10px] text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full font-normal">Waterfall
+                            Passes</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+
+                        <!-- Core Passes -->
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-slate-200 cursor-pointer hover:border-blue-400 transition">
+                            <input type="checkbox" id="chkPassExact" checked disabled
+                                class="mt-0.5 w-4 h-4 text-green-600 rounded opacity-60">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">✅ Exact Match <span
+                                        class="text-[9px] text-gray-400">(Always ON)</span></div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Material + Batch + Serial — full match
+                                </div>
+                            </div>
+                        </label>
+
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-slate-200 cursor-pointer hover:border-blue-400 transition">
+                            <input type="checkbox" id="chkPassConcat" checked
+                                class="mt-0.5 w-4 h-4 text-blue-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Concat Match</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Batch+Serial concatenated string match
+                                </div>
+                            </div>
+                        </label>
+
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-slate-200 cursor-pointer hover:border-yellow-400 transition">
+                            <input type="checkbox" id="chkPassBatch" checked
+                                class="mt-0.5 w-4 h-4 text-yellow-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Batch Match</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Material + Batch — serial ignored</div>
+                            </div>
+                        </label>
+
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-slate-200 cursor-pointer hover:border-orange-400 transition">
+                            <input type="checkbox" id="chkPassMaterial" checked
+                                class="mt-0.5 w-4 h-4 text-orange-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Material-Only Match</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Material only — batch & serial ignored
+                                </div>
+                            </div>
+                        </label>
+
+                        <!-- Consumption Improvements -->
+                        <label
+                            class="flex items-start gap-2 p-3 bg-blue-50 rounded border border-blue-200 cursor-pointer hover:border-blue-500 transition">
+                            <input type="checkbox" id="chkTripleSort" checked
+                                class="mt-0.5 w-4 h-4 text-blue-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Smart Sort <span
+                                        class="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">Improved</span></div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Plant priority → Nearest expiry → Highest
+                                    qty</div>
+                            </div>
+                        </label>
+
+                        <label
+                            class="flex items-start gap-2 p-3 bg-blue-50 rounded border border-blue-200 cursor-pointer hover:border-blue-500 transition">
+                            <input type="checkbox" id="chkMultiRowConsume" checked
+                                class="mt-0.5 w-4 h-4 text-blue-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Multi-Row Qty Split <span
+                                        class="text-[9px] text-blue-600 bg-blue-100 px-1 rounded">Improved</span></div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Consume across multiple SAP rows if qty
+                                    insufficient in one</div>
+                            </div>
+                        </label>
+
+                    </div>
+                </div>
+                <!-- ===== END MATCHING LOGIC CONTROL ===== -->
+
+                <!-- ===== ADVANCED VALIDATION LOGIC TOGGLES ===== -->
+
+                <div data-role="admin" class="bg-indigo-50 p-5 rounded border border-indigo-200 md:col-span-2">
+                    <h4 class="text-sm font-bold text-indigo-800 mb-3 flex items-center">
+                        <i class="fas fa-flask mr-2 text-indigo-600"></i> Advanced Validation Logic
+                        <span
+                            class="ml-2 text-[10px] font-normal text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">New</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
+                            <input type="checkbox" id="chkDupeScan" checked
+                                class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Duplicate Scan Detection</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Flag agar ek hi barcode 2+ baar scan hua
+                                    ho (DUPE SCAN)</div>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
+                            <input type="checkbox" id="chkOverScan" checked
+                                class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Over-Scan Qty Alert</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Flag agar scanned qty SAP qty se zyada ho
+                                    (OVER SCAN)</div>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
+                            <input type="checkbox" id="chkPlantMismatch" checked
+                                class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Plant Mismatch Warning</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Warn agar matched item galat Plant mein ho
+                                </div>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
+                            <input type="checkbox" id="chkIncompleteScan" checked
+                                class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Incomplete Barcode Flag</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Flag agar barcode mein Batch ya Serial
+                                    missing ho</div>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
+                            <input type="checkbox" id="chkExpiryMismatch" checked
+                                class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Expiry Date Mismatch</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Warn agar scan expiry aur SAP SLED mein
+                                    farq ho (>7 days)</div>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
+                            <input type="checkbox" id="chkQtyRecon" checked
+                                class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">Qty Reconciliation KPI</div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Dashboard mein SAP vs Scan qty match %
+                                    dikhao</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <!-- ===== END ADVANCED LOGIC TOGGLES ===== -->
+
             </div>
+
+            <!-- ===== LOGIC FAQ ACCORDION (Bilingual) ===== -->
+            <div class="md:col-span-2 mt-2">
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+
+                    <!-- Header row with expand + language toggle -->
+                    <div class="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+                        <button
+                            onclick="document.getElementById('faqBody').classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-up');"
+                            class="flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-blue-700 transition">
+                            <i class="fas fa-question-circle text-blue-500"></i>
+                            Logic &amp; Settings — FAQ / Help Guide
+                            <i class="fas fa-chevron-down text-gray-400 text-xs ml-1"></i>
+                        </button>
+                        <!-- Language Toggle -->
+                        <button id="faqLangBtn" onclick="
+                            var hi = document.getElementById('faqHI');
+                            var en = document.getElementById('faqEN');
+                            if(hi.classList.contains('hidden')){
+                                hi.classList.remove('hidden'); en.classList.add('hidden');
+                                this.textContent='🇬🇧 English';
+                            } else {
+                                en.classList.remove('hidden'); hi.classList.add('hidden');
+                                this.textContent='🇮🇳 हिंदी';
+                            }"
+                            class="text-[11px] font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition border border-blue-200">
+                            🇬🇧 English
+                        </button>
+                    </div>
+
+                    <div id="faqBody" class="hidden">
+
+                        <!-- ===== HINDI PANEL (default) ===== -->
+                        <div id="faqHI" class="divide-y divide-gray-100 text-xs text-gray-700">
+
+                            <div class="px-5 py-3 bg-slate-50">
+                                <div class="font-bold text-slate-700 mb-2 uppercase tracking-wide text-[10px]">⚙️
+                                    Matching Logic Passes</div>
+                                <div class="space-y-2">
+                                    <div class="flex gap-2"><span class="w-28 font-bold text-green-700 shrink-0">Exact
+                                            Match</span><span class="text-gray-600">Scan ke Material + Batch + Serial
+                                            teeno SAP se exactly match hone chahiye. Yeh sabse strict aur accurate match
+                                            hai. <strong>Always ON rahega.</strong></span></div>
+                                    <div class="flex gap-2"><span class="w-28 font-bold text-blue-700 shrink-0">Concat
+                                            Match</span><span class="text-gray-600">Kuch barcodes mein Serial number
+                                            Batch ke saath concatenate hota hai (e.g. B001S001). Toggle enable karne par
+                                            validator automatically Batch+Serial combine karke SAP se match karta
+                                            hai.</span></div>
+                                    <div class="flex gap-2"><span class="w-28 font-bold text-yellow-700 shrink-0">Batch
+                                            Match</span><span class="text-gray-600">Agar exact match nahi mila, toh sirf
+                                            Material + Batch se match hota hai — Serial ignore. Result mein "Partial"
+                                            status aata hai.</span></div>
+                                    <div class="flex gap-2"><span
+                                            class="w-28 font-bold text-orange-700 shrink-0">Material Match</span><span
+                                            class="text-gray-600">Sabse loose match — sirf Material code se match hota
+                                            hai, Batch aur Serial dono ignore. Result mein "Warning" status aata hai.
+                                            <strong>Strict validation ke liye OFF karein.</strong></span></div>
+                                </div>
+                            </div>
+
+                            <div class="px-5 py-3 bg-blue-50">
+                                <div class="font-bold text-blue-700 mb-2 uppercase tracking-wide text-[10px]">🔧
+                                    Consumption Improvements</div>
+                                <div class="space-y-2">
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-blue-800 shrink-0">Smart
+                                            Sort</span><span class="text-gray-600">Multiple SAP rows mein se best item
+                                            choose karta hai: pehle Plant Priority wali, phir nearest expiry wali, phir
+                                            highest available qty wali. <strong>OFF karne par sirf Plant Priority sort
+                                                hoga.</strong></span></div>
+                                    <div class="flex gap-2"><span
+                                            class="w-36 font-bold text-blue-800 shrink-0">Multi-Row Qty
+                                            Split</span><span class="text-gray-600">Agar scan ki qty ek SAP row mein
+                                            puri nahi, toh doosri row se baaki qty leta hai. <strong>OFF karne par
+                                                single row consume hoga — remaining "Variance (Partial)"
+                                                dikhega.</strong></span></div>
+                                </div>
+                            </div>
+
+                            <div class="px-5 py-3 bg-indigo-50">
+                                <div class="font-bold text-indigo-700 mb-2 uppercase tracking-wide text-[10px]">🧪
+                                    Advanced Validation Logic</div>
+                                <div class="space-y-2">
+                                    <div class="flex gap-2"><span
+                                            class="w-36 font-bold text-purple-800 shrink-0">Duplicate Scan</span><span
+                                            class="text-gray-600">Agar ek hi barcode (Material+Batch+Serial) scan file
+                                            mein 2+ baar aaya — "DUPE SCAN" flag. Duplicate entry ya scanning mistake
+                                            detect karta hai.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-red-900 shrink-0">Serial
+                                            Conflict</span><span class="text-gray-600">Agar ek hi serial number alag
+                                            Material ya Batch ke saath aaya — "SERIAL CONFLICT" flag. Critical error
+                                            kyunki serial globally unique hona chahiye.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-red-800 shrink-0">Over-Scan
+                                            Alert</span><span class="text-gray-600">SAP qty se zyada items scan kiye —
+                                            "OVER SCAN" flag. e.g. SAP mein 5 hai, aapne 7 scan kiye.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-blue-800 shrink-0">Plant
+                                            Mismatch</span><span class="text-gray-600">Matched SAP item aise plant mein
+                                            jo Plant Priority list mein nahi — "PLANT MISMATCH" warning. Priority list
+                                            Settings mein fill karein.</span></div>
+                                    <div class="flex gap-2"><span
+                                            class="w-36 font-bold text-amber-800 shrink-0">Incomplete
+                                            Barcode</span><span class="text-gray-600">Barcode mein Batch ya Serial AI
+                                            code missing — "INCOMPLETE" flag. Poor barcode quality ya wrong format
+                                            detect karta hai.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-orange-800 shrink-0">Expiry
+                                            Mismatch</span><span class="text-gray-600">Barcode GS1 expiry aur SAP SLED
+                                            date mein 7+ din ka farq — "EXPIRY MISMATCH" flag. Labelling error ya wrong
+                                            batch detect karta hai.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-indigo-800 shrink-0">Qty
+                                            Recon KPI</span><span class="text-gray-600">Dashboard mein extra KPI card:
+                                            Total SAP qty vs Scanned qty ka % match (e.g. "94.5% — 12
+                                            unscanned").</span></div>
+                                </div>
+                            </div>
+
+                            <div class="px-5 py-3">
+                                <div class="font-bold text-gray-700 mb-2 uppercase tracking-wide text-[10px]">📊 Result
+                                    Status Meanings</div>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800">Matched</span><span
+                                            class="text-[10px] text-gray-500">Material+Batch+Serial teeno match</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800">Partial</span><span
+                                            class="text-[10px] text-gray-500">Batch match — Serial alag/missing</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">Warning</span><span
+                                            class="text-[10px] text-gray-500">Sirf Material match — Batch alag</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800">Variance</span><span
+                                            class="text-[10px] text-gray-500">SAP mein bilkul nahi mila</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Dupe
+                                            Scan</span><span class="text-[10px] text-gray-500">Same barcode 2+ baar scan
+                                            hua</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-300 text-red-950">Serial
+                                            Conflict</span><span class="text-[10px] text-gray-500">Serial alag Mat/Batch
+                                            pe mila</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-200 text-red-900">Over
+                                            Scan</span><span class="text-[10px] text-gray-500">Scanned qty &gt; SAP
+                                            qty</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900">Plant
+                                            Mismatch</span><span class="text-[10px] text-gray-500">Match mila but galat
+                                            plant mein</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">Incomplete</span><span
+                                            class="text-[10px] text-gray-500">Barcode mein Batch/Serial missing</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-200 text-orange-900">Expiry
+                                            Mismatch</span><span class="text-[10px] text-gray-500">Scan expiry ≠ SAP
+                                            SLED date</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===== ENGLISH PANEL (hidden by default) ===== -->
+                        <div id="faqEN" class="hidden divide-y divide-gray-100 text-xs text-gray-700">
+
+                            <div class="px-5 py-3 bg-slate-50">
+                                <div class="font-bold text-slate-700 mb-2 uppercase tracking-wide text-[10px]">⚙️
+                                    Matching Logic Passes</div>
+                                <div class="space-y-2">
+                                    <div class="flex gap-2"><span class="w-28 font-bold text-green-700 shrink-0">Exact
+                                            Match</span><span class="text-gray-600">All three — Material, Batch, and
+                                            Serial — must match exactly with SAP records. This is the strictest and most
+                                            accurate match type. <strong>Always ON and cannot be
+                                                disabled.</strong></span></div>
+                                    <div class="flex gap-2"><span class="w-28 font-bold text-blue-700 shrink-0">Concat
+                                            Match</span><span class="text-gray-600">Some barcodes encode the Serial
+                                            number concatenated with the Batch (e.g. B001S001). When enabled, the
+                                            validator automatically tries Batch+Serial combined as the serial key
+                                            against SAP records.</span></div>
+                                    <div class="flex gap-2"><span class="w-28 font-bold text-yellow-700 shrink-0">Batch
+                                            Match</span><span class="text-gray-600">If no exact match is found, the
+                                            validator tries matching on Material + Batch only, ignoring the Serial
+                                            number. Result shows "Partial" status.</span></div>
+                                    <div class="flex gap-2"><span
+                                            class="w-28 font-bold text-orange-700 shrink-0">Material Match</span><span
+                                            class="text-gray-600">The loosest match — only the Material code is
+                                            compared; Batch and Serial are ignored. Results show "Warning" status.
+                                            <strong>Turn OFF for strict serial-level validation.</strong></span></div>
+                                </div>
+                            </div>
+
+                            <div class="px-5 py-3 bg-blue-50">
+                                <div class="font-bold text-blue-700 mb-2 uppercase tracking-wide text-[10px]">🔧
+                                    Consumption Improvements</div>
+                                <div class="space-y-2">
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-blue-800 shrink-0">Smart
+                                            Sort</span><span class="text-gray-600">When multiple SAP rows are available
+                                            for the same Material/Batch, the best row is selected using a three-level
+                                            sort: 1) Plant Priority list → 2) Nearest expiry date → 3) Highest available
+                                            quantity. <strong>When OFF, only Plant Priority sorting
+                                                applies.</strong></span></div>
+                                    <div class="flex gap-2"><span
+                                            class="w-36 font-bold text-blue-800 shrink-0">Multi-Row Qty
+                                            Split</span><span class="text-gray-600">If a scan's quantity exceeds what
+                                            one SAP row can provide, the remaining quantity is consumed from the next
+                                            best SAP row. <strong>When OFF, only one row is consumed — remaining qty
+                                                shows as "Variance (Partial)".</strong></span></div>
+                                </div>
+                            </div>
+
+                            <div class="px-5 py-3 bg-indigo-50">
+                                <div class="font-bold text-indigo-700 mb-2 uppercase tracking-wide text-[10px]">🧪
+                                    Advanced Validation Logic</div>
+                                <div class="space-y-2">
+                                    <div class="flex gap-2"><span
+                                            class="w-36 font-bold text-purple-800 shrink-0">Duplicate Scan</span><span
+                                            class="text-gray-600">Flags rows where the same barcode
+                                            (Material+Batch+Serial) appears more than once in the scan file. Detects
+                                            scanning errors or accidental double-entries.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-red-900 shrink-0">Serial
+                                            Conflict</span><span class="text-gray-600">Flags when the same serial number
+                                            appears with different Material or Batch combinations in the scan file.
+                                            Critical error — serial numbers must be globally unique per item.</span>
+                                    </div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-red-800 shrink-0">Over-Scan
+                                            Alert</span><span class="text-gray-600">Flags rows where the total scanned
+                                            quantity for a batch exceeds the available SAP quantity (e.g. SAP has 5 but
+                                            you scanned 7).</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-blue-800 shrink-0">Plant
+                                            Mismatch</span><span class="text-gray-600">Warns when a matched SAP item
+                                            belongs to a plant not listed in your Plant Priority settings. Fill in your
+                                            priority plants (e.g. WGJ1, WGJ7) in Settings.</span></div>
+                                    <div class="flex gap-2"><span
+                                            class="w-36 font-bold text-amber-800 shrink-0">Incomplete
+                                            Barcode</span><span class="text-gray-600">Flags barcodes where the Batch or
+                                            Serial AI code is missing. Detects poor barcode print quality or unsupported
+                                            barcode formats.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-orange-800 shrink-0">Expiry
+                                            Mismatch</span><span class="text-gray-600">Compares the GS1 Application
+                                            Identifier (17) expiry date embedded in the barcode against the SAP SLED
+                                            date. Flags if the difference exceeds 7 days. Detects labelling errors or
+                                            wrong batch assignments.</span></div>
+                                    <div class="flex gap-2"><span class="w-36 font-bold text-indigo-800 shrink-0">Qty
+                                            Recon KPI</span><span class="text-gray-600">Adds an extra KPI card on the
+                                            dashboard showing the percentage match between total SAP quantity and total
+                                            scanned quantity (e.g. "94.5% — 12 items unscanned").</span></div>
+                                </div>
+                            </div>
+
+                            <div class="px-5 py-3">
+                                <div class="font-bold text-gray-700 mb-2 uppercase tracking-wide text-[10px]">📊 Result
+                                    Status Meanings</div>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800">Matched</span><span
+                                            class="text-[10px] text-gray-500">Exact Match — Material+Batch+Serial</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800">Partial</span><span
+                                            class="text-[10px] text-gray-500">Batch Match — Serial
+                                            different/missing</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">Warning</span><span
+                                            class="text-[10px] text-gray-500">Material-Only Match — Batch
+                                            different</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800">Variance</span><span
+                                            class="text-[10px] text-gray-500">Not found in SAP at any match level</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">Dupe
+                                            Scan</span><span class="text-[10px] text-gray-500">Same full barcode scanned
+                                            2+ times</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-300 text-red-950">Serial
+                                            Conflict</span><span class="text-[10px] text-gray-500">Serial found on
+                                            multiple Mat/Batch</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-200 text-red-900">Over
+                                            Scan</span><span class="text-[10px] text-gray-500">Scanned qty &gt; SAP
+                                            available qty</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900">Plant
+                                            Mismatch</span><span class="text-[10px] text-gray-500">Matched but item is
+                                            in wrong plant</span></div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">Incomplete</span><span
+                                            class="text-[10px] text-gray-500">Barcode missing Batch or Serial AI</span>
+                                    </div>
+                                    <div class="flex items-center gap-2"><span
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-200 text-orange-900">Expiry
+                                            Mismatch</span><span class="text-[10px] text-gray-500">Scan expiry ≠ SAP
+                                            SLED date (&gt;7 days)</span></div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ===== END LOGIC FAQ ===== -->
+
+
+
+
+
+            <!-- ===== END LOGIC FAQ ===== -->
+
+            <!-- ===== KPI CARD MANAGEMENT ===== -->
+            <div data-role="admin" class="md:col-span-2 mt-2">
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                    <button
+                        onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i').classList.toggle('fa-chevron-down'); this.querySelector('i').classList.toggle('fa-chevron-up');"
+                        class="w-full flex items-center justify-between px-5 py-3 bg-gray-50 hover:bg-gray-100 transition text-sm font-bold text-gray-700 border-b border-gray-200">
+                        <span><i class="fas fa-th-large mr-2 text-indigo-500"></i> KPI Card Management — Show/Hide &amp;
+                            Rename</span>
+                        <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                    </button>
+                    <div class="hidden px-5 py-4">
+                        <p class="text-[10px] text-gray-500 mb-3">Toggle visibility and customize title of each KPI
+                            card. Changes apply after clicking Save All Settings.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" id="kpiSettingsGrid">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ===== END KPI CARD MANAGEMENT ===== -->
 
             <div class="md:col-span-2 mt-4">
                 <button onclick="saveSettings(); alert('Settings Saved Successfully!');"
@@ -884,70 +1385,86 @@
 
     <div id="dashboard" class="hidden space-y-6">
 
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3" id="kpiGrid">
 
-            <div class="bg-blue-50 p-3 rounded shadow border-t-4 border-blue-900 relative overflow-hidden">
-                <div class="text-blue-900 text-[10px] uppercase font-bold">Total SAP Stock</div>
+            <div id="kpi-card-sys-total"
+                class="bg-blue-50 p-3 rounded shadow border-t-4 border-blue-900 relative overflow-hidden">
+                <div id="kpi-title-sys-total" class="text-blue-900 text-[10px] uppercase font-bold">Total SAP Stock
+                </div>
                 <div class="text-2xl font-extrabold text-blue-900" id="kpi-sys-total">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded shadow border-t-4 border-gray-500">
-                <div class="text-gray-500 text-[10px] uppercase font-bold">Total Scanned</div>
+            <div id="kpi-card-total" class="bg-white p-3 rounded shadow border-t-4 border-gray-500">
+                <div id="kpi-title-total" class="text-gray-500 text-[10px] uppercase font-bold">Total Scanned</div>
                 <div class="text-2xl font-bold text-gray-800" id="kpi-total">0</div>
                 <div class="text-[9px] text-gray-400 mt-1" id="kpi-scan-info"></div>
             </div>
 
-            <div class="bg-white p-3 rounded shadow border-t-4 border-green-500">
-                <div class="text-green-600 text-[10px] uppercase font-bold">Serial Match</div>
+            <div id="kpi-card-serial" class="bg-white p-3 rounded shadow border-t-4 border-green-500">
+                <div id="kpi-title-serial" class="text-green-600 text-[10px] uppercase font-bold">Serial Match</div>
                 <div class="text-2xl font-bold text-green-700" id="kpi-serial">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded shadow border-t-4 border-yellow-500">
-                <div class="text-yellow-600 text-[10px] uppercase font-bold">Batch Match</div>
+            <div id="kpi-card-batch" class="bg-white p-3 rounded shadow border-t-4 border-yellow-500">
+                <div id="kpi-title-batch" class="text-yellow-600 text-[10px] uppercase font-bold">Batch Match</div>
                 <div class="text-2xl font-bold text-yellow-700" id="kpi-batch">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded shadow border-t-4 border-orange-500">
-                <div class="text-orange-600 text-[10px] uppercase font-bold">Material Only</div>
+            <div id="kpi-card-mat" class="bg-white p-3 rounded shadow border-t-4 border-orange-500">
+                <div id="kpi-title-mat" class="text-orange-600 text-[10px] uppercase font-bold">Material Only</div>
                 <div class="text-2xl font-bold text-orange-700" id="kpi-mat">0</div>
             </div>
 
-            <div class="bg-white p-3 rounded shadow border-t-4 border-red-500">
-                <div class="text-red-600 text-[10px] uppercase font-bold">Variance</div>
+            <div id="kpi-card-var" class="bg-white p-3 rounded shadow border-t-4 border-red-500">
+                <div id="kpi-title-var" class="text-red-600 text-[10px] uppercase font-bold">Variance</div>
                 <div class="text-2xl font-bold text-red-700" id="kpi-var">0</div>
             </div>
 
-            <div class="bg-purple-50 p-3 rounded shadow border-t-4 border-purple-600 relative overflow-hidden">
-                <div class="text-purple-800 text-[10px] uppercase font-bold">Remaining SAP</div>
+            <div id="kpi-card-remain"
+                class="bg-purple-50 p-3 rounded shadow border-t-4 border-purple-600 relative overflow-hidden">
+                <div id="kpi-title-remain" class="text-purple-800 text-[10px] uppercase font-bold">Remaining SAP</div>
                 <div class="text-3xl font-extrabold text-purple-900" id="kpi-remain">0</div>
             </div>
 
-            <div class="bg-red-50 p-3 rounded shadow border-t-4 border-red-600">
-                <div class="text-red-900 text-[10px] uppercase font-bold">🔴 Damage</div>
+            <div id="kpi-card-damage" class="bg-red-50 p-3 rounded shadow border-t-4 border-red-600">
+                <div id="kpi-title-damage" class="text-red-900 text-[10px] uppercase font-bold">🔴 Damage</div>
                 <div class="text-2xl font-extrabold text-red-900" id="kpi-damage">0</div>
             </div>
 
-            <div class="bg-gray-800 p-3 rounded shadow border-t-4 border-black">
-                <div class="text-white text-[10px] uppercase font-bold">⚫ Expired</div>
+            <div id="kpi-card-expired" class="bg-gray-800 p-3 rounded shadow border-t-4 border-black">
+                <div id="kpi-title-expired" class="text-white text-[10px] uppercase font-bold">⚫ Expired</div>
                 <div class="text-2xl font-extrabold text-white" id="kpi-expired">0</div>
             </div>
 
-            <div class="bg-orange-50 p-3 rounded shadow border-t-4 border-orange-600">
-                <div class="text-orange-900 text-[10px] uppercase font-bold">🟠 Near Expiry</div>
+            <div id="kpi-card-near-expiry" class="bg-orange-50 p-3 rounded shadow border-t-4 border-orange-600">
+                <div id="kpi-title-near-expiry" class="text-orange-900 text-[10px] uppercase font-bold">🟠 Near Expiry
+                </div>
                 <div class="text-2xl font-extrabold text-orange-900" id="kpi-near-expiry">0</div>
             </div>
 
-            <div class="bg-yellow-50 p-3 rounded shadow border-t-4 border-yellow-600">
-                <div class="text-yellow-900 text-[10px] uppercase font-bold">🟡 Short Expiry</div>
+            <div id="kpi-card-short-expiry" class="bg-yellow-50 p-3 rounded shadow border-t-4 border-yellow-600">
+                <div id="kpi-title-short-expiry" class="text-yellow-900 text-[10px] uppercase font-bold">🟡 Short Expiry
+                </div>
                 <div class="text-2xl font-extrabold text-yellow-900" id="kpi-short-expiry">0</div>
             </div>
 
-            <div class="bg-green-50 p-3 rounded shadow border-t-4 border-green-600">
-                <div class="text-green-900 text-[10px] uppercase font-bold">🟢 Good Stock</div>
+            <div id="kpi-card-good-stock" class="bg-green-50 p-3 rounded shadow border-t-4 border-green-600">
+                <div id="kpi-title-good-stock" class="text-green-900 text-[10px] uppercase font-bold">🟢 Good Stock
+                </div>
                 <div class="text-2xl font-extrabold text-green-900" id="kpi-good-stock">0</div>
             </div>
 
+            <!-- Logic 6: Qty Reconciliation KPI (hidden until enabled) -->
+            <div id="kpi-card-qty-recon" style="order: 9999;"
+                class="hidden bg-indigo-50 p-3 rounded shadow border-t-4 border-indigo-600">
+                <div id="kpi-title-qty-recon" class="text-indigo-900 text-[10px] uppercase font-bold">📊 Qty
+                    Reconciliation</div>
+                <div class="text-2xl font-extrabold text-indigo-900" id="kpi-qty-recon-pct">0%</div>
+                <div class="text-[10px] text-indigo-700 mt-1 font-bold" id="kpi-qty-recon-diff">-</div>
+            </div>
+
         </div>
+
 
         <div id="summaryStats"
             class="hidden bg-gradient-to-r from-purple-50 to-blue-50 p-5 rounded-lg shadow-md border border-purple-200">
