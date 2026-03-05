@@ -660,6 +660,32 @@
             START RECONCILIATION
         </button>
 
+        <!-- Column Mapper Modal -->
+        <div id="colMapperModal" class="modal-backdrop hidden" style="z-index: 60;">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="bg-indigo-600 text-white p-4 font-bold flex justify-between items-center">
+                    <span><i class="fas fa-columns mr-2"></i> Map Excel Columns</span>
+                    <button onclick="document.getElementById('colMapperModal').classList.add('hidden')"
+                        class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="p-4 bg-yellow-50 text-xs text-yellow-800 border-b border-yellow-200">
+                    Please confirm or adjust the columns found in your System Excel file before reconciliations.
+                </div>
+                <div class="p-4 overflow-y-auto flex-1">
+                    <form id="colMapperForm" class="space-y-3">
+                        <!-- Injected dynamically -->
+                    </form>
+                </div>
+                <div class="p-4 border-t bg-gray-50 flex justify-end gap-2">
+                    <button onclick="document.getElementById('colMapperModal').classList.add('hidden')"
+                        class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100 font-bold text-sm">Cancel</button>
+                    <button onclick="confirmColumnMapping()"
+                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-bold text-sm"><i
+                            class="fas fa-play mr-2"></i> Run Reconciliation</button>
+                </div>
+            </div>
+        </div>
+
         <div id="dashboard" class="hidden space-y-6">
 
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -1009,33 +1035,6 @@
                             <div id="lmColList" class="lm-body select-none">
                                 <!-- Injected Rows -->
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Column Mapper Modal -->
-                <div id="colMapperModal" class="modal-backdrop hidden" style="z-index: 60;">
-                    <div
-                        class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-                        <div class="bg-indigo-600 text-white p-4 font-bold flex justify-between items-center">
-                            <span><i class="fas fa-columns mr-2"></i> Map Excel Columns</span>
-                            <button onclick="document.getElementById('colMapperModal').classList.add('hidden')"
-                                class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="p-4 bg-yellow-50 text-xs text-yellow-800 border-b border-yellow-200">
-                            Please confirm or adjust the columns found in your System Excel file before reconciliations.
-                        </div>
-                        <div class="p-4 overflow-y-auto flex-1">
-                            <form id="colMapperForm" class="space-y-3">
-                                <!-- Injected dynamically -->
-                            </form>
-                        </div>
-                        <div class="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                            <button onclick="document.getElementById('colMapperModal').classList.add('hidden')"
-                                class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100 font-bold text-sm">Cancel</button>
-                            <button onclick="confirmColumnMapping()"
-                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-bold text-sm"><i
-                                    class="fas fa-play mr-2"></i> Run Reconciliation</button>
                         </div>
                     </div>
                 </div>
