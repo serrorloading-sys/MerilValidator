@@ -41,10 +41,17 @@ async function startCall(contextId, callType) {
         uids.forEach(uid => { if (window.allProfiles[uid]) targets.push(window.allProfiles[uid]); });
         callTitle = `Group Call (${targets.length + 1})`;
     } else {
-        const targetId = contextId.replace(window.currentUser.id, '').replace('_', '');
-        if (window.allProfiles[targetId]) {
-            targets.push(window.allProfiles[targetId]);
-            callTitle = targets[0].name;
+        // contextId = "userIdA_userIdB" (sorted). Pick the part that is NOT our own ID.
+        const parts = contextId.split('_');
+        const targetId = parts.find(p => p !== window.currentUser.id) || '';
+        const profile = window.allProfiles && window.allProfiles[targetId];
+        if (profile) {
+            targets.push(profile);
+            callTitle = profile.name || targetId;
+        } else {
+            // Profile not loaded yet — use ID as fallback and still try to call
+            callTitle = targetId;
+            targets.push({ user_id: targetId, name: targetId });
         }
     }
 
