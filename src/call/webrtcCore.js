@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // WEBRTC CALLING
 // ============================================================
 
@@ -37,13 +37,13 @@ async function startCall(contextId, callType) {
     let callTitle = 'Call';
 
     if (isGroup) {
-        const uids = contextId.split('_').filter(id => id !== currentUser.id);
-        uids.forEach(uid => { if (allProfiles[uid]) targets.push(allProfiles[uid]); });
+        const uids = contextId.split('_').filter(id => id !== window.currentUser.id);
+        uids.forEach(uid => { if (window.allProfiles[uid]) targets.push(window.allProfiles[uid]); });
         callTitle = `Group Call (${targets.length + 1})`;
     } else {
-        const targetId = contextId.replace(currentUser.id, '').replace('_', '');
-        if (allProfiles[targetId]) {
-            targets.push(allProfiles[targetId]);
+        const targetId = contextId.replace(window.currentUser.id, '').replace('_', '');
+        if (window.allProfiles[targetId]) {
+            targets.push(window.allProfiles[targetId]);
             callTitle = targets[0].name;
         }
     }
@@ -52,7 +52,7 @@ async function startCall(contextId, callType) {
 
     activeCallContextId = contextId;
     window._activeCallType = callType;
-    const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
+    const displayName = window.currentUser.user_metadata?.display_name || window.currentUser.email?.split('@')[0] || 'User';
 
     // Show Active Call Window immediately
     showActiveCallWindow(callTitle, callType);
@@ -63,7 +63,7 @@ async function startCall(contextId, callType) {
 
     try {
         if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
-        localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        localStream = window.localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
 
         if (callType === 'video') {
             const localVideo = document.getElementById('local-video');
@@ -86,7 +86,7 @@ async function startCall(contextId, callType) {
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
         pc.onicecandidate = (e) => {
-            if (e.candidate) signalToPeer(target.user_id, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id });
+            if (e.candidate) signalToPeer(target.user_id, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: window.currentUser.id });
         };
 
         pc.ontrack = (e) => {
@@ -96,7 +96,7 @@ async function startCall(contextId, callType) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        signalToPeer(target.user_id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: currentUser.id, contextId, isGroup });
+        signalToPeer(target.user_id, { type: 'call-offer', offer, callType, callerName: displayName, callerId: window.currentUser.id, contextId, isGroup });
     }
 
     startRing(true);
@@ -234,7 +234,7 @@ async function acceptCall() {
 
     try {
         if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
-        localStream = await navigator.mediaDevices.getUserMedia({ video: pendingCallType === 'video', audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        localStream = window.localStream = await navigator.mediaDevices.getUserMedia({ video: pendingCallType === 'video', audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
 
         if (pendingCallType === 'video') {
             const localVideo = document.getElementById('local-video');
@@ -254,7 +254,7 @@ async function acceptCall() {
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
     pc.onicecandidate = (e) => {
-        if (e.candidate) signalToPeer(pendingCallerId, { type: 'ice-candidate', candidate: e.candidate, contextId: pendingContextId, senderId: currentUser.id });
+        if (e.candidate) signalToPeer(pendingCallerId, { type: 'ice-candidate', candidate: e.candidate, contextId: pendingContextId, senderId: window.currentUser.id });
     };
 
     pc.ontrack = (e) => {
@@ -265,7 +265,7 @@ async function acceptCall() {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
-    signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId, senderId: currentUser.id });
+    signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId, senderId: window.currentUser.id });
 
     // Process any ICE candidates that arrived before we hit accept
     if (window._pendingIceCandidates && window._pendingIceCandidates[pendingCallerId]) {
@@ -282,7 +282,7 @@ function declineCall() {
     stopRing();
     dismissCallNotification(); // close the browser call notification
     document.getElementById('incoming-call-modal').classList.add('hidden');
-    if (pendingCallerId) signalToPeer(pendingCallerId, { type: 'call-declined', contextId: pendingContextId, senderId: currentUser.id });
+    if (pendingCallerId) signalToPeer(pendingCallerId, { type: 'call-declined', contextId: pendingContextId, senderId: window.currentUser.id });
     pendingCallOffer = null;
 }
 
@@ -292,7 +292,7 @@ function endCall(isRemote = false) {
     // Broadcast hangup if we initiated it
     if (!isRemote) {
         Object.keys(window.peerConnections).forEach(peerId => {
-            signalToPeer(peerId, { type: 'call-ended', contextId: activeCallContextId, senderId: currentUser.id });
+            signalToPeer(peerId, { type: 'call-ended', contextId: activeCallContextId, senderId: window.currentUser.id });
         });
     }
 
@@ -302,6 +302,7 @@ function endCall(isRemote = false) {
 
     localStream?.getTracks().forEach(t => t.stop());
     localStream = null;
+    window.localStream = null;
     const localVideo = document.getElementById('local-video');
     if (localVideo) localVideo.srcObject = null;
 
@@ -350,7 +351,7 @@ function endCall(isRemote = false) {
     document.getElementById('active-call-window').classList.add('hidden');
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (activeCallContextId) {
-        appendMessageToWindow(activeCallContextId, { userId: currentUser.id, text: '\uD83D\uDD35 Call ended', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
+        appendMessageToWindow(activeCallContextId, { userId: window.currentUser.id, text: '\uD83D\uDD35 Call ended', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
     }
     activeCallContextId = null;
 }
@@ -375,19 +376,19 @@ async function handleWebRTCSignal(payload) {
         pendingCallOffer = payload.offer;
 
         // Block receiving own calls
-        if (senderId === currentUser.id) return;
+        if (senderId === window.currentUser.id) return;
 
         // Auto-answer if already in same group call
         if (activeCallContextId === contextId && localStream) {
             const pc = new RTCPeerConnection(window.RTC_CONFIG);
             window.peerConnections[payload.callerId] = pc;
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-            pc.onicecandidate = e => { if (e.candidate) signalToPeer(payload.callerId, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id }); };
+            pc.onicecandidate = e => { if (e.candidate) signalToPeer(payload.callerId, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: window.currentUser.id }); };
             pc.ontrack = e => handleRemoteStream(e.streams[0], payload.callerId, payload.callerName);
             await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
-            signalToPeer(payload.callerId, { type: 'call-answer', answer, contextId, senderId: currentUser.id });
+            signalToPeer(payload.callerId, { type: 'call-answer', answer, contextId, senderId: window.currentUser.id });
             return;
         }
 

@@ -233,6 +233,53 @@ function appendCallChatMessage(text, isMe, senderName = 'You') {
     container.scrollTop = container.scrollHeight;
 }
 
+// Toggle local video PiP between small and full-screen
+let _pipExpanded = false;
+function expandLocalVideo() {
+    const container = document.getElementById('local-video-container');
+    if (!container) return;
+    if (_pipExpanded) {
+        container.style.cssText = '';
+        _pipExpanded = false;
+    } else {
+        container.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; z-index:60; border-radius:0; border:none;';
+        _pipExpanded = true;
+    }
+}
+
+// Switch between front and rear cameras (mobile)
+let _facingMode = 'user';
+async function switchCamera() {
+    if (!window.localStream) return;
+    const videoTrack = window.localStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    _facingMode = _facingMode === 'user' ? 'environment' : 'user';
+    try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: _facingMode },
+            audio: false
+        });
+        const newTrack = newStream.getVideoTracks()[0];
+
+        // Replace in all peer connections
+        Object.values(window.peerConnections || {}).forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (sender) sender.replaceTrack(newTrack);
+        });
+
+        // Stop old video track and replace in localStream
+        videoTrack.stop();
+        window.localStream.removeTrack(videoTrack);
+        window.localStream.addTrack(newTrack);
+
+        const localVideo = document.getElementById('local-video');
+        if (localVideo) localVideo.srcObject = window.localStream;
+    } catch (e) {
+        console.warn("Camera switch failed:", e);
+    }
+}
+
 window.showIncomingCallModal = showIncomingCallModal;
 window.showActiveCallWindow = showActiveCallWindow;
 window.toggleMute = toggleMute;
@@ -240,3 +287,5 @@ window.toggleCamera = toggleCamera;
 window.toggleScreenShare = toggleScreenShare;
 window.sendCallChatMessage = sendCallChatMessage;
 window.appendCallChatMessage = appendCallChatMessage;
+window.expandLocalVideo = expandLocalVideo;
+window.switchCamera = switchCamera;

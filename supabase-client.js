@@ -1313,11 +1313,12 @@ function injectZohoUI() {
                 </div>
             </div>
 
-            <!-- Picture-in-Picture Local Video -->
-            <div id="local-video-container" class="absolute bottom-24 right-4 md:bottom-8 md:right-8 w-24 h-32 md:w-48 md:h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/50 z-30 transition-all hover:scale-105 cursor-move"
+            <!-- Picture-in-Picture Local Video (click to expand) -->
+            <div id="local-video-container" onclick="expandLocalVideo()" title="Click to expand/shrink your video"
+                class="absolute bottom-24 right-4 md:bottom-8 md:right-8 w-24 h-32 md:w-48 md:h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/50 z-30 transition-all hover:scale-105 cursor-pointer"
                 style="background:#111;">
                 <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
-                <div class="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/50 backdrop-blur text-white text-[9px] font-bold border border-white/10">You</div>
+                <div class="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/50 backdrop-blur text-white text-[9px] font-bold border border-white/10">You ⤢</div>
             </div>
 
             <!-- Bottom Floating Control Bar -->
@@ -1343,6 +1344,12 @@ function injectZohoUI() {
                         class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group relative overflow-hidden"
                         style="background:rgba(255,255,255,0.1); color:white;">
                         <i class="fas fa-desktop text-lg group-hover:scale-110 transition-transform"></i>
+                    </button>
+
+                    <button onclick="switchCamera()" id="btn-switch-cam" title="Switch Camera (Mobile)"
+                        class="w-12 h-12 rounded-xl flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg group"
+                        style="background:rgba(255,255,255,0.1); color:white;">
+                        <i class="fas fa-sync-alt text-lg group-hover:rotate-180 transition-transform"></i>
                     </button>
 
                     <button title="Toggle Chat Panel" onclick="document.getElementById('call-right-sidebar').classList.toggle('translate-x-full'); document.getElementById('call-right-sidebar').classList.toggle('w-0'); document.getElementById('call-right-sidebar').classList.toggle('w-80'); document.getElementById('call-right-sidebar').classList.toggle('opacity-0');"
