@@ -62,11 +62,11 @@ function showActiveCallWindow(peerName, callType) {
         remoteVideo.classList.add('opacity-0');
         if (localContainer) localContainer.classList.add('hidden');
         audioPlaceholder.classList.remove('hidden');
-        audioPlaceholder.style.display = 'flex';
     } else {
         remoteVideo.classList.remove('opacity-0');
         if (localContainer) localContainer.classList.remove('hidden');
         audioPlaceholder.classList.add('hidden');
+        audioPlaceholder.style.display = ''; // Clear any inline override causing the bug
         if (window.localStream) localVideo.srcObject = window.localStream;
     }
 }
@@ -180,10 +180,6 @@ async function sendCallChatMessage() {
     appendCallChatMessage(text, true);
 
     // Reuse existing send logic to broadcast to peer
-    const chatData = window.openChats.get(window.activeCallContextId);
-    if (!chatData) return;
-    const { target } = chatData;
-
     const displayName = window.currentUser.user_metadata?.display_name || window.currentUser.email?.split('@')[0] || 'User';
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -196,8 +192,15 @@ async function sendCallChatMessage() {
         text // Not encrypting for temporary call chat for speed/simplicity
     };
 
-    const ch = await window.getPeerChannel(target.id);
-    await ch.send({ type: 'broadcast', event: 'dm', payload });
+    // Broadcast message directly to all participants in this active WebRTC session
+    Object.keys(window.peerConnections || {}).forEach(async (peerId) => {
+        try {
+            const ch = await window.getPeerChannel(peerId);
+            await ch.send({ type: 'broadcast', event: 'dm', payload });
+        } catch (e) {
+            console.warn("Failed to send chat to peer:", peerId, e);
+        }
+    });
 }
 
 function appendCallChatMessage(text, isMe, senderName = 'You') {

@@ -61,7 +61,7 @@ async function startCall(contextId, callType) {
 
     try {
         if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
-        localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
 
         if (callType === 'video') {
             const localVideo = document.getElementById('local-video');
@@ -230,7 +230,7 @@ async function acceptCall() {
 
     try {
         if (!navigator.mediaDevices) throw new Error("Media devices not supported (secure context required e.g. localhost or https).");
-        localStream = await navigator.mediaDevices.getUserMedia({ video: pendingCallType === 'video', audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: pendingCallType === 'video', audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
 
         if (pendingCallType === 'video') {
             const localVideo = document.getElementById('local-video');

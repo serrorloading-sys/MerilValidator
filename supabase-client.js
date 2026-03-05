@@ -1201,7 +1201,7 @@ function injectZohoUI() {
     callWindow.style.cssText = 'background:#000000; font-family:"Inter", sans-serif;';
     callWindow.innerHTML = `
         <!-- Left Sidebar (Navigation/Participants) -->
-        <div class="w-64 flex flex-col flex-shrink-0 relative z-20 transition-all duration-300 transform" 
+        <div class="w-64 flex flex-col flex-shrink-0 absolute md:relative inset-y-0 left-0 z-50 transition-all duration-300 transform" 
             style="background:rgba(20,20,30,0.85); backdrop-filter:blur(20px); border-right:1px solid rgba(255,255,255,0.08);" id="call-left-sidebar">
             <div class="p-4 border-b border-white/10 flex items-center justify-between">
                 <div class="flex items-center gap-2 text-white">
@@ -1292,7 +1292,7 @@ function injectZohoUI() {
             </div>
 
             <!-- Picture-in-Picture Local Video -->
-            <div id="local-video-container" class="absolute bottom-8 right-8 w-48 h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/50 z-30 transition-all hover:scale-105 cursor-move"
+            <div id="local-video-container" class="absolute bottom-24 right-4 md:bottom-8 md:right-8 w-24 h-32 md:w-48 md:h-32 rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/50 z-30 transition-all hover:scale-105 cursor-move"
                 style="background:#111;">
                 <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
                 <div class="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/50 backdrop-blur text-white text-[9px] font-bold border border-white/10">You</div>
@@ -1342,7 +1342,7 @@ function injectZohoUI() {
         </div>
         
         <!-- Right Sidebar (Integrated Chat) -->
-        <div class="w-80 flex flex-col flex-shrink-0 relative z-20 transition-all duration-300 transform bg-[#11111a] border-l border-white/5" 
+        <div class="w-80 flex flex-col flex-shrink-0 absolute md:relative inset-y-0 right-0 z-50 transition-all duration-300 transform bg-[#11111a] border-l border-white/5" 
             id="call-right-sidebar">
             <div class="p-4 border-b border-white/10 flex items-center justify-between">
                 <h3 class="text-sm font-bold text-white tracking-wide flex items-center gap-2">
