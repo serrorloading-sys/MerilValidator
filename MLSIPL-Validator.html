@@ -651,14 +651,6 @@
                 <input type="file" id="fileSys" class="w-full text-xs mb-2" />
                 <div class="text-[10px] text-gray-500 mt-2 bg-green-50 p-2 rounded">
                     <div class="mb-1"><b>Fields:</b> Mat, Batch, Qty (Flexible), Plant, Customer</div>
-                    <div class="flex gap-2 border-t border-green-200 pt-1">
-                        <span>Ovr Cust Col: <input type="number" id="colCustOverride" placeholder="Auto"
-                                class="w-8 border text-center font-bold"></span>
-                        <span>Ovr Plant Col: <input type="number" id="colPlantOverride" placeholder="Auto"
-                                class="w-8 border text-center font-bold"></span>
-                        <span>Ovr Loc Col: <input type="number" id="colLocOverride" placeholder="Auto"
-                                class="w-8 border text-center font-bold"></span>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1017,6 +1009,33 @@
                             <div id="lmColList" class="lm-body select-none">
                                 <!-- Injected Rows -->
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column Mapper Modal -->
+                <div id="colMapperModal" class="modal-backdrop hidden" style="z-index: 60;">
+                    <div
+                        class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                        <div class="bg-indigo-600 text-white p-4 font-bold flex justify-between items-center">
+                            <span><i class="fas fa-columns mr-2"></i> Map Excel Columns</span>
+                            <button onclick="document.getElementById('colMapperModal').classList.add('hidden')"
+                                class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="p-4 bg-yellow-50 text-xs text-yellow-800 border-b border-yellow-200">
+                            Please confirm or adjust the columns found in your System Excel file before reconciliations.
+                        </div>
+                        <div class="p-4 overflow-y-auto flex-1">
+                            <form id="colMapperForm" class="space-y-3">
+                                <!-- Injected dynamically -->
+                            </form>
+                        </div>
+                        <div class="p-4 border-t bg-gray-50 flex justify-end gap-2">
+                            <button onclick="document.getElementById('colMapperModal').classList.add('hidden')"
+                                class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100 font-bold text-sm">Cancel</button>
+                            <button onclick="confirmColumnMapping()"
+                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-bold text-sm"><i
+                                    class="fas fa-play mr-2"></i> Run Reconciliation</button>
                         </div>
                     </div>
                 </div>
@@ -1566,38 +1585,104 @@
                         reader.readAsArrayBuffer(file);
                     });
 
+                    // --- MAPPING LOGIC ---
+                    let pendingSysData = null;
+                    let pendingScanFile = null;
+
                     async function runMLSIPL() {
                         const fScan = document.getElementById('fileScan').files[0];
                         const fSys = document.getElementById('fileSys').files[0];
-                        const cScan = parseInt(document.getElementById('colScan').value);
-                        const cCond = parseInt(document.getElementById('colCond').value);
-                        const hasHead = document.getElementById('chkScanHeader').checked;
 
                         if (!fScan || !fSys) { alert("Upload both files"); return; }
-                        document.getElementById('btnRun').innerText = "PROCESSING...";
+                        document.getElementById('btnRun').innerText = "READING HEADERS...";
 
                         try {
                             const rawSys = await readXlsx(fSys);
                             const h = rawSys[0].map(x => String(x).toLowerCase());
+                            pendingSysData = rawSys;
+                            pendingScanFile = fScan;
 
-                            const iMat = h.findIndex(x => x.includes('material') || x.includes('item'));
-                            const iBatch = h.findIndex(x => x.includes('batch') || x.includes('lot'));
+                            openColumnMapper(rawSys[0], h);
+                            document.getElementById('btnRun').innerText = "START RECONCILIATION";
+                        } catch (e) {
+                            console.error(e);
+                            document.getElementById('btnRun').innerText = "Error: " + e.message;
+                            alert("Error reading file: " + e.message);
+                        }
+                    }
 
-                            let iQty = -1;
-                            for (let k of configAdv.qtyKeys) { iQty = h.findIndex(x => x.includes(k)); if (iQty > -1) break; }
+                    function openColumnMapper(origHeaders, h) {
+                        const fields = [
+                            { id: 'm_mat', label: 'Material (Req)', keys: ['material', 'item'] },
+                            { id: 'm_batch', label: 'Batch/Lot', keys: ['batch', 'lot'] },
+                            { id: 'm_qty', label: 'Quantity (Req)', keys: configAdv.qtyKeys },
+                            { id: 'm_plant', label: 'Plant', keys: ['plant', 'site', 'wrks'] },
+                            { id: 'm_loc', label: 'Storage Loc', keys: ['sloc', 'stor', 'str. loc', 'loc'] },
+                            { id: 'm_cust', label: 'Customer Code', keys: ['customer', 'cust'] },
+                            { id: 'm_name', label: 'Customer Name', keys: ['name 1', 'name'] },
+                            { id: 'm_bdoc', label: 'Billing Doc', keys: ['billing document', 'inv no', 'invoice', 'bill doc'] },
+                            { id: 'm_bdate', label: 'Billing Date', keys: ['billing date', 'inv date', 'invoice date', 'bill date'] }
+                        ];
 
-                            const ovrCust = document.getElementById('colCustOverride').value;
-                            const ovrPlant = document.getElementById('colPlantOverride').value;
-                            const ovrLoc = document.getElementById('colLocOverride').value;
-                            let iCust = ovrCust ? parseInt(ovrCust) : h.findIndex(x => x.includes('customer') || x.includes('cust'));
-                            let iName = h.findIndex(x => x.includes('name 1') || x.includes('name'));
-                            let iPlant = ovrPlant ? parseInt(ovrPlant) : h.findIndex(x => x.includes('plant') || x.includes('site') || x.includes('wrks'));
-                            let iLoc = ovrLoc ? parseInt(ovrLoc) : h.findIndex(x => x.includes('sloc') || x.includes('stor') || x.includes('str. loc') || x.includes('loc'));
+                        const form = document.getElementById('colMapperForm');
+                        let html = '';
 
-                            let iBillDoc = h.findIndex(x => x.includes('billing document') || x.includes('inv no') || x.includes('invoice') || x.includes('bill doc'));
-                            let iBillDate = h.findIndex(x => x.includes('billing date') || x.includes('inv date') || x.includes('invoice date') || x.includes('bill date'));
+                        let options = `<option value="-1">-- Leave Blank / Not Present --</option>`;
+                        origHeaders.forEach((th, idx) => {
+                            options += `<option value="${idx}">[Col ${idx + 1}] ${th}</option>`;
+                        });
 
-                            if (iMat < 0 || iQty < 0) throw new Error("System file needs Material & Qty (Check Config Keywords)");
+                        fields.forEach(f => {
+                            html += `
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm font-bold text-gray-700 w-1/3">${f.label}</label>
+                                <select id="${f.id}" class="w-2/3 border rounded p-2 text-sm focus:border-indigo-500 outline-none">
+                                    ${options}
+                                </select>
+                            </div>`;
+                        });
+                        form.innerHTML = html;
+
+                        // Pre-select matches
+                        fields.forEach(f => {
+                            let bestIdx = -1;
+                            for (let k of f.keys) {
+                                bestIdx = h.findIndex(x => x.includes(k));
+                                if (bestIdx > -1) break;
+                            }
+                            if (bestIdx > -1) document.getElementById(f.id).value = bestIdx;
+                        });
+
+                        document.getElementById('colMapperModal').classList.remove('hidden');
+                    }
+
+                    async function confirmColumnMapping() {
+                        document.getElementById('colMapperModal').classList.add('hidden');
+                        document.getElementById('btnRun').innerText = "PROCESSING...";
+
+                        const iMat = parseInt(document.getElementById('m_mat').value);
+                        const iBatch = parseInt(document.getElementById('m_batch').value);
+                        const iQty = parseInt(document.getElementById('m_qty').value);
+                        const iPlant = parseInt(document.getElementById('m_plant').value);
+                        const iLoc = parseInt(document.getElementById('m_loc').value);
+                        const iCust = parseInt(document.getElementById('m_cust').value);
+                        const iName = parseInt(document.getElementById('m_name').value);
+                        const iBillDoc = parseInt(document.getElementById('m_bdoc').value);
+                        const iBillDate = parseInt(document.getElementById('m_bdate').value);
+
+                        if (iMat < 0 || iQty < 0) {
+                            alert("Material and Quantity columns are mandatory! Please map them.");
+                            document.getElementById('btnRun').innerText = "START RECONCILIATION";
+                            return;
+                        }
+
+                        const cScan = parseInt(document.getElementById('colScan').value);
+                        const cCond = parseInt(document.getElementById('colCond').value);
+                        const hasHead = document.getElementById('chkScanHeader').checked;
+                        const rawSys = pendingSysData;
+                        const fScan = pendingScanFile;
+
+                        try {
 
                             let inv = [];
                             for (let i = 1; i < rawSys.length; i++) {
