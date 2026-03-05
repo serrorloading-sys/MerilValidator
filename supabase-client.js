@@ -682,7 +682,7 @@ async function loadUserData(toolName) {
         .select('file_data')
         .eq('user_id', user.id)
         .eq('tool_name', toolName)
-        .single();
+        .maybeSingle();
 
     if (error) return null;
     return data ? data.file_data : null;

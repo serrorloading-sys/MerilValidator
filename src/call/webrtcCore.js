@@ -10,6 +10,7 @@ let pendingContextId = null;
 
 let rtcPeerConnection = null; // Legacy 1:1 format fallback
 window.peerConnections = {};  // New Mesh Network state
+window._pendingIceCandidates = {}; // Buffer for early arriving network candidates
 let localStream = null;
 let activeCallContextId = null;
 let callTimer = null;
@@ -262,6 +263,15 @@ async function acceptCall() {
     await pc.setLocalDescription(answer);
 
     signalToPeer(pendingCallerId, { type: 'call-answer', answer, contextId: pendingContextId, senderId: currentUser.id });
+
+    // Process any ICE candidates that arrived before we hit accept
+    if (window._pendingIceCandidates && window._pendingIceCandidates[pendingCallerId]) {
+        for (const c of window._pendingIceCandidates[pendingCallerId]) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.warn("ICE error", e); }
+        }
+        delete window._pendingIceCandidates[pendingCallerId];
+    }
+
     startCallTimer();
 }
 
@@ -395,6 +405,15 @@ async function handleWebRTCSignal(payload) {
         const pc = window.peerConnections[senderId];
         if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+
+            // Process any ICE candidates that arrived before we got the answer
+            if (window._pendingIceCandidates && window._pendingIceCandidates[senderId]) {
+                for (const c of window._pendingIceCandidates[senderId]) {
+                    try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.warn("ICE error", e); }
+                }
+                delete window._pendingIceCandidates[senderId];
+            }
+
             if (window._pendingOutCallTarget && window._pendingOutCallType) {
                 showActiveCallWindow(window._pendingOutCallTarget.name, window._pendingOutCallType);
                 startCallTimer();
@@ -405,7 +424,13 @@ async function handleWebRTCSignal(payload) {
     }
     else if (type === 'ice-candidate') {
         const pc = window.peerConnections[senderId];
-        if (pc) await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { console.warn("ICE error", e); }
+        } else {
+            if (!window._pendingIceCandidates) window._pendingIceCandidates = {};
+            if (!window._pendingIceCandidates[senderId]) window._pendingIceCandidates[senderId] = [];
+            window._pendingIceCandidates[senderId].push(payload.candidate);
+        }
     }
     else if (type === 'call-declined') {
         stopRing();
