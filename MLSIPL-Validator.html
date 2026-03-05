@@ -656,6 +656,8 @@
                                 class="w-8 border text-center font-bold"></span>
                         <span>Ovr Plant Col: <input type="number" id="colPlantOverride" placeholder="Auto"
                                 class="w-8 border text-center font-bold"></span>
+                        <span>Ovr Loc Col: <input type="number" id="colLocOverride" placeholder="Auto"
+                                class="w-8 border text-center font-bold"></span>
                     </div>
                 </div>
             </div>
@@ -1045,7 +1047,8 @@
                         { id: 13, label: "Exp", defLabel: "Exp", width: "auto", align: "left", render: (r) => r.p.exp, cls: "text-[10px]" },
                         { id: 14, label: "Remarks", defLabel: "Remarks", width: "auto", align: "left", render: (r) => r.rem, cls: "text-[10px] italic" },
                         { id: 15, label: "Bill Doc", defLabel: "Bill Doc", width: "auto", align: "left", render: (r) => r.sysBillDoc, cls: "font-mono text-[10px]" },
-                        { id: 16, label: "Bill Date", defLabel: "Bill Date", width: "auto", align: "left", render: (r) => r.sysBillDate, cls: "text-[10px]" }
+                        { id: 16, label: "Bill Date", defLabel: "Bill Date", width: "auto", align: "left", render: (r) => r.sysBillDate, cls: "text-[10px]" },
+                        { id: 17, label: "Stor Loc", defLabel: "Stor Loc", width: "w-20", align: "left", render: (r) => r.sysStorLoc, cls: "font-mono bg-gray-100" }
                     ];
 
                     // 2. Default Presets
@@ -1585,9 +1588,11 @@
 
                             const ovrCust = document.getElementById('colCustOverride').value;
                             const ovrPlant = document.getElementById('colPlantOverride').value;
+                            const ovrLoc = document.getElementById('colLocOverride').value;
                             let iCust = ovrCust ? parseInt(ovrCust) : h.findIndex(x => x.includes('customer') || x.includes('cust'));
                             let iName = h.findIndex(x => x.includes('name 1') || x.includes('name'));
                             let iPlant = ovrPlant ? parseInt(ovrPlant) : h.findIndex(x => x.includes('plant') || x.includes('site') || x.includes('wrks'));
+                            let iLoc = ovrLoc ? parseInt(ovrLoc) : h.findIndex(x => x.includes('sloc') || x.includes('stor') || x.includes('str. loc') || x.includes('loc'));
 
                             let iBillDoc = h.findIndex(x => x.includes('billing document') || x.includes('inv no') || x.includes('invoice') || x.includes('bill doc'));
                             let iBillDate = h.findIndex(x => x.includes('billing date') || x.includes('inv date') || x.includes('invoice date') || x.includes('bill date'));
@@ -1604,6 +1609,7 @@
                                 let cCode = iCust > -1 && r[iCust] ? String(r[iCust]).trim() : "-";
                                 let cName = iName > -1 && r[iName] ? String(r[iName]).trim() : "-";
                                 let pl = iPlant > -1 && r[iPlant] ? String(r[iPlant]).trim().toUpperCase() : "-";
+                                let sl = iLoc > -1 && r[iLoc] ? String(r[iLoc]).trim().toUpperCase() : "-";
                                 let bDoc = iBillDoc > -1 && r[iBillDoc] ? String(r[iBillDoc]).trim() : "-";
 
                                 // Parse excel dates sometimes coming as serial numbers or strings
@@ -1619,7 +1625,7 @@
                                     }
                                 }
 
-                                for (let k = 0; k < q; k++) inv.push({ mat: String(r[iMat]).trim().toUpperCase(), batch: iBatch > -1 ? String(r[iBatch]).trim().toUpperCase() : "NA", cust: cCode, name: cName, plant: pl, billDoc: bDoc, billDate: bDate, used: false });
+                                for (let k = 0; k < q; k++) inv.push({ mat: String(r[iMat]).trim().toUpperCase(), batch: iBatch > -1 ? String(r[iBatch]).trim().toUpperCase() : "NA", cust: cCode, name: cName, plant: pl, storLoc: sl, billDoc: bDoc, billDate: bDate, used: false });
                             }
 
                             const rawScan = await readXlsx(fScan);
@@ -1658,7 +1664,7 @@
                                     stats.good++;
                                 }
 
-                                let status = "Variance", sysBatch = "-", sysPlant = "-", custCode = "-", custName = "-", sysBillDoc = "-", sysBillDate = "-", rem = msgMap['Variance'], badge = "badge-err";
+                                let status = "Variance", sysBatch = "-", sysPlant = "-", sysStorLoc = "-", custCode = "-", custName = "-", sysBillDoc = "-", sysBillDate = "-", rem = msgMap['Variance'], badge = "badge-err";
 
                                 if (p.sapCode !== "Not in Master") {
                                     let candidates = inv.filter(x => !x.used && x.mat === p.sapCode);
@@ -1679,6 +1685,7 @@
                                         match.used = true;
                                         sysBatch = match.batch;
                                         sysPlant = match.plant;
+                                        sysStorLoc = match.storLoc || "-";
                                         sysBillDoc = match.billDoc || "-";
                                         sysBillDate = match.billDate || "-";
                                         if (custMap[match.cust.toUpperCase()]) custName = custMap[match.cust.toUpperCase()];
@@ -1697,7 +1704,7 @@
                                     }
                                 } else { stats.var++; rem = msgMap['Master Missing']; }
 
-                                results.push({ status, badge, cond, raw: rawStr, p, sysBatch, sysPlant, custCode, custName, sysBillDoc, sysBillDate, rem });
+                                results.push({ status, badge, cond, raw: rawStr, p, sysBatch, sysPlant, sysStorLoc, custCode, custName, sysBillDoc, sysBillDate, rem });
                             }
 
                             renderTable();
