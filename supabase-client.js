@@ -882,8 +882,30 @@ async function fetchAllProfiles() {
     } catch (e) { console.log("Offline profiles not available"); }
 }
 
-// Sound Effect
-const notificationAudio = new Audio("data:audio/mp3;base64,//uQRAAAAWMSLwUIYAAsYkXgoQwAEaYLWfkWgAI0wWs/ItAAAGzrCXowAAACAAAAAAAAAAIQIwIGJmZmZmmJmZmZnAAAAMrAABh4AAAKxAAApr4AAAO4AAAD0YAACPZAAAb18AAO5oAADmrAAACK4AAD3DAAApmwAAOpMAACmRAAACoIAAAGCAAegmpmZmhmZmZmMAAAAAAAAAAAAAAA==");
+
+
+// Generate a soft notification beep using Web Audio API (no external file needed)
+const notificationAudio = {
+    play() {
+        return new Promise((resolve) => {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+                osc.onended = () => { ctx.close(); resolve(); };
+            } catch (e) { resolve(); }
+        });
+    }
+};
 
 function playNotificationSound() {
     notificationAudio.play().catch(e => console.log("Audio play failed:", e));

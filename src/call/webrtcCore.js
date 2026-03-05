@@ -51,6 +51,7 @@ async function startCall(contextId, callType) {
     if (targets.length === 0) { window.showToast('Target user(s) not found.', 'error'); return; }
 
     activeCallContextId = contextId;
+    window._activeCallType = callType;
     const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'User';
 
     // Show Active Call Window immediately
@@ -108,66 +109,67 @@ function handleRemoteStream(stream, peerId, peerName) {
     const videoArea = document.getElementById('video-area');
     if (!videoArea) return;
 
-    const isAudioOnly = stream.getVideoTracks().length === 0;
-
-    // Hide standard 1-to-1 video placeholder logic only for video calls
-    const oldRemote = document.getElementById('remote-video');
     const placeholder = document.getElementById('audio-call-placeholder');
-
-    if (!isAudioOnly) {
-        if (placeholder) placeholder.classList.add('hidden');
-    }
-
-    // Check if it's a group call based on video area grid status or active connections
     const isGroupCall = Object.keys(window.peerConnections).length > 1;
 
-    let mediaEl;
-    if (!isGroupCall && !isAudioOnly) {
-        // For 1-to-1 video calls, reuse the existing hardcoded main video area
-        mediaEl = document.getElementById('remote-video');
-        if (mediaEl) {
-            mediaEl.classList.remove('hidden');
-            if (mediaEl.parentElement) mediaEl.parentElement.classList.remove('hidden');
-        }
-    } else {
-        // Group calls or pure audio calls
-        mediaEl = document.getElementById(`remote-video-${peerId}`);
-        if (!mediaEl) {
-            if (isAudioOnly) {
-                mediaEl = document.createElement('audio');
-                mediaEl.id = `remote-video-${peerId}`;
-                mediaEl.autoplay = true;
-                mediaEl.className = 'hidden';
-                videoArea.appendChild(mediaEl);
-            } else {
-                if (oldRemote) {
-                    oldRemote.classList.add('hidden');
-                    if (oldRemote.parentElement) oldRemote.parentElement.classList.add('hidden');
-                }
-                const wrapper = document.createElement('div');
-                wrapper.className = 'relative flex-1 min-w-[300px] h-full rounded-2xl overflow-hidden shadow-2xl animate-fade-in-up group z-10';
-                wrapper.id = `remote-wrap-${peerId}`;
+    // IMPORTANT: We do NOT check stream.getVideoTracks() here because ontrack
+    // fires PER TRACK. When the audio track arrives first, video tracks = 0
+    // which would wrongly create an <audio> element for a video call.
+    // Instead, we rely on the callType already set in the UI layer.
+    const callType = window._activeCallType || 'audio';
+    const isAudioOnly = callType === 'audio';
 
-                mediaEl = document.createElement('video');
-                mediaEl.id = `remote-video-${peerId}`;
-                mediaEl.autoplay = true;
-                mediaEl.playsInline = true;
-                mediaEl.className = 'w-full h-full object-cover';
-
-                const nameTag = document.createElement('div');
-                nameTag.className = 'absolute bottom-4 left-4 px-3 py-1.5 rounded-lg backdrop-blur-md bg-black/40 border border-white/10 text-white text-xs font-bold shadow-lg flex items-center gap-2';
-                nameTag.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${peerName}`;
-
-                wrapper.appendChild(mediaEl);
-                wrapper.appendChild(nameTag);
-
-                videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
-                videoArea.appendChild(wrapper);
-            }
-        }
+    if (!isAudioOnly && placeholder) {
+        placeholder.classList.add('hidden');
+        placeholder.style.display = '';
     }
 
-    if (mediaEl) mediaEl.srcObject = stream;
+    // For 1-to-1 calls (most common), always reuse the existing remote-video element.
+    if (!isGroupCall) {
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteVideo) {
+            remoteVideo.srcObject = stream;
+            remoteVideo.classList.remove('hidden', 'opacity-0');
+            if (remoteVideo.parentElement) remoteVideo.parentElement.classList.remove('hidden');
+        }
+        // Also create a hidden audio element as fallback for audio-only streams
+        if (isAudioOnly) {
+            let audioEl = document.getElementById(`remote-audio-${peerId}`);
+            if (!audioEl) {
+                audioEl = document.createElement('audio');
+                audioEl.id = `remote-audio-${peerId}`;
+                audioEl.autoplay = true;
+                audioEl.className = 'hidden';
+                videoArea.appendChild(audioEl);
+            }
+            audioEl.srcObject = stream;
+        }
+        return;
+    }
+
+    // Group call: inject dynamic per-peer video panel
+    let mediaEl = document.getElementById(`remote-video-${peerId}`);
+    if (!mediaEl) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative flex-1 min-w-[300px] h-full rounded-2xl overflow-hidden shadow-2xl animate-fade-in-up group z-10';
+        wrapper.id = `remote-wrap-${peerId}`;
+
+        mediaEl = document.createElement('video');
+        mediaEl.id = `remote-video-${peerId}`;
+        mediaEl.autoplay = true;
+        mediaEl.playsInline = true;
+        mediaEl.className = 'w-full h-full object-cover';
+
+        const nameTag = document.createElement('div');
+        nameTag.className = 'absolute bottom-4 left-4 px-3 py-1.5 rounded-lg backdrop-blur-md bg-black/40 border border-white/10 text-white text-xs font-bold shadow-lg flex items-center gap-2';
+        nameTag.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${peerName}`;
+
+        wrapper.appendChild(mediaEl);
+        wrapper.appendChild(nameTag);
+        videoArea.className = 'flex-1 bg-black relative flex flex-wrap gap-4 p-4';
+        videoArea.appendChild(wrapper);
+    }
+    mediaEl.srcObject = stream;
 }
 
 async function signalToPeer(peerId, payload) {
@@ -224,6 +226,7 @@ async function acceptCall() {
     if (!pendingCallOffer) return;
 
     activeCallContextId = pendingContextId;
+    window._activeCallType = pendingCallType;
     showActiveCallWindow(pendingCallerName, pendingCallType);
 
     const nameBadge = document.getElementById('call-peer-name');
@@ -347,7 +350,7 @@ function endCall(isRemote = false) {
     document.getElementById('active-call-window').classList.add('hidden');
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (activeCallContextId) {
-        appendMessageToWindow(activeCallContextId, { userId: currentUser.id, text: `ðŸ“µ Call ended`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
+        appendMessageToWindow(activeCallContextId, { userId: currentUser.id, text: '\uD83D\uDD35 Call ended', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isSystem: true });
     }
     activeCallContextId = null;
 }
