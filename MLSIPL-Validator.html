@@ -1048,7 +1048,7 @@
                         { id: 14, label: "Remarks", defLabel: "Remarks", width: "auto", align: "left", render: (r) => r.rem, cls: "text-[10px] italic" },
                         { id: 15, label: "Bill Doc", defLabel: "Bill Doc", width: "auto", align: "left", render: (r) => r.sysBillDoc, cls: "font-mono text-[10px]" },
                         { id: 16, label: "Bill Date", defLabel: "Bill Date", width: "auto", align: "left", render: (r) => r.sysBillDate, cls: "text-[10px]" },
-                        { id: 17, label: "Stor Loc", defLabel: "Stor Loc", width: "w-20", align: "left", render: (r) => r.sysStorLoc, cls: "font-mono bg-gray-100" }
+                        { id: 17, label: "Stor Loc", defLabel: "Stor Loc", width: "w-20", align: "left", render: (r) => r.sysStorLoc || '-', cls: "font-mono bg-gray-100" }
                     ];
 
                     // 2. Default Presets
@@ -1065,7 +1065,7 @@
                         editingLayout: null, // Temporary state for modal
 
                         init() {
-                            const saved = localStorage.getItem('mlsipl_layouts_v3');
+                            const saved = localStorage.getItem('mlsipl_layouts_v4');
                             if (saved) {
                                 this.layouts = JSON.parse(saved);
                                 // ROBUST: If array is empty, force reload defaults
@@ -1177,7 +1177,7 @@
                             if (idx > -1) this.layouts[idx] = this.editingLayout;
 
                             // Persist
-                            localStorage.setItem('mlsipl_layouts_v2', JSON.stringify(this.layouts));
+                            localStorage.setItem('mlsipl_layouts_v4', JSON.stringify(this.layouts));
 
                             // Set as active
                             this.activeLayoutId = this.editingLayout.id;
@@ -1190,7 +1190,7 @@
                         deleteCurrent() {
                             if (!confirm("Delete this layout?")) return;
                             this.layouts = this.layouts.filter(l => l.id !== this.editingLayout.id);
-                            localStorage.setItem('mlsipl_layouts_v2', JSON.stringify(this.layouts));
+                            localStorage.setItem('mlsipl_layouts_v4', JSON.stringify(this.layouts));
 
                             // Switch to standard
                             this.activeLayoutId = 'std';
