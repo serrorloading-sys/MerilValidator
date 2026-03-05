@@ -1007,7 +1007,7 @@ let typingTimers = {};
 
 // ===== WEBRTC CALLING STATE =====
 
-const RTC_CONFIG = {
+window.RTC_CONFIG = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 

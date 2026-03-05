@@ -78,7 +78,7 @@ async function startCall(contextId, callType) {
 
     // Initiate Mesh connections
     for (const target of targets) {
-        const pc = new RTCPeerConnection(RTC_CONFIG);
+        const pc = new RTCPeerConnection(window.RTC_CONFIG);
         window.peerConnections[target.user_id] = pc;
 
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
@@ -245,7 +245,7 @@ async function acceptCall() {
 
     if (nameBadge) nameBadge.textContent = pendingCallerName;
 
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection(window.RTC_CONFIG);
     window.peerConnections[pendingCallerId] = pc;
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
@@ -366,7 +366,7 @@ async function handleWebRTCSignal(payload) {
 
         // Auto-answer if already in same group call
         if (activeCallContextId === contextId && localStream) {
-            const pc = new RTCPeerConnection(RTC_CONFIG);
+            const pc = new RTCPeerConnection(window.RTC_CONFIG);
             window.peerConnections[payload.callerId] = pc;
             localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
             pc.onicecandidate = e => { if (e.candidate) signalToPeer(payload.callerId, { type: 'ice-candidate', candidate: e.candidate, contextId, senderId: currentUser.id }); };
