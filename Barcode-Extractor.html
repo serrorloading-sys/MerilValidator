@@ -1113,178 +1113,134 @@
             return info;
         }
 
-        function parseBarcodeMLSIPL(rawStr) {
-            if (!globalParseRulesMLSIPL) {
-                globalParseRulesMLSIPL = {};
-                let rulesRaw = localStorage.getItem('mlsipl_rules_v72');
-                if (rulesRaw) {
-                    rulesRaw.split('\n').forEach(l => {
-                        if (l.startsWith('#') || l.trim() === '') return;
-                        let p = l.split(',').map(x => parseInt(x.trim()));
-                        if (p.length >= 5) {
-                            if (!globalParseRulesMLSIPL[p[0]]) globalParseRulesMLSIPL[p[0]] = [];
-                            globalParseRulesMLSIPL[p[0]].push({ mS: p[1], mL: p[2], bS: p[3], bL: p[4], mgS: p[5] || 0, mgL: p[6] || 0, exS: p[7] || 0, exL: p[8] || 0 });
-                        }
-                    });
-                } else {
-                    const fb = { 20: [[1, 11, 12, 9, 0, 0, 0, 0]], 55: [[38, 10, 28, 10, 20, 6, 10, 6]], 56: [[39, 10, 28, 11, 20, 6, 10, 6]], 57: [[47, 11, 19, 9, 30, 6, 38, 6]] };
-                    for (let len in fb) globalParseRulesMLSIPL[len] = fb[len].map(p => ({ mS: p[0], mL: p[1], bS: p[2], bL: p[3], mgS: p[4] || 0, mgL: p[5] || 0, exS: p[6] || 0, exL: p[7] || 0 }));
-                }
-            }
-
-            // Normalize brackets
-            let s = String(rawStr).trim().replace(/[\x00-\x1F\x7F]/g, '').replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
-            let info = { scanCode: "", batch: "", sapCode: "Unknown", mfg: "-", exp: "-", serial: "", status: "Extracted", raw: rawStr };
-
-            let match;
-
-            // --- BRACKET GS1 (most common for MLSIPL) ---
-            if (s.includes('(')) {
-                const regex = /\((01|10|17|21|240|11|30)\)([^()]+)/g;
-                let hasBrackets = false;
-                while ((match = regex.exec(s)) !== null) {
-                    hasBrackets = true;
-                    const ai = match[1], val = match[2].trim();
-                    if (ai === "240") info.scanCode = val;
-                    if (ai === "01") info.sapCode = val;
-                    if (ai === "21") info.serial = val;
-                    if (ai === "10") info.batch = val;
-                    if (ai === "17") info.exp = formatGS1Date(val);
-                    if (ai === "11") info.mfg = formatGS1Date(val);
-                }
-                if (hasBrackets) {
-                    if (!info.scanCode && info.sapCode && info.sapCode !== 'Unknown') info.scanCode = info.sapCode;
-                    if (!info.scanCode) info.scanCode = s;
-                    info.status = "Parsed Bracket GS1";
-                    // Resolve SAP code from master
-                    let k = info.scanCode.toUpperCase();
-                    if (MATERIAL_MASTER[k]) {
-                        let dbRow = MATERIAL_MASTER[k];
-                        let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap') || key.toLowerCase().includes('material code'));
-                        info.sapCode = sapKey ? dbRow[sapKey] : k;
-                    }
-                    return info;
-                }
-            }
-
-            // --- CONTINUOUS GS1 PATTERNS (multiple orderings) ---
-            // 1. 01→10→11→17→240 or 21
-            if (match = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})(?:240|21)(.+)$/)) {
-                info.sapCode = match[1]; info.batch = match[2].trim();
-                info.mfg = formatGS1Date(match[3]); info.exp = formatGS1Date(match[4]);
-                info.scanCode = match[5].trim(); info.status = "Parsed GS1 Cont-1";
-            }
-            // 2. 01→10→17→240 (no mfg)
-            else if (match = s.match(/^01(\d{14})10(.+?)17(\d{6})240(.+)$/)) {
-                info.sapCode = match[1]; info.batch = match[2].trim();
-                info.exp = formatGS1Date(match[3]); info.scanCode = match[4].trim(); info.status = "Parsed GS1 Cont-2";
-            }
-            // 3. 01→10→17→21 (no mfg, serial at end)
-            else if (match = s.match(/^01(\d{14})10(.+?)17(\d{6})21(.+)$/)) {
-                info.sapCode = match[1]; info.batch = match[2].trim();
-                info.exp = formatGS1Date(match[3]); info.serial = match[4].trim();
-                info.scanCode = match[1]; info.status = "Parsed GS1 Cont-3";
-            }
-            // 4. 01→11→17→10→240 (mfg before batch)
-            else if (match = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)240(.+)$/)) {
-                info.sapCode = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
-                info.batch = match[4].trim(); info.scanCode = match[5].trim(); info.status = "Parsed GS1 Cont-4";
-            }
-            // 5. 01→11→17→10→21 (mfg before batch, serial)
-            else if (match = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)21(.+)$/)) {
-                info.sapCode = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
-                info.batch = match[4].trim(); info.serial = match[5].trim();
-                info.scanCode = match[1]; info.status = "Parsed GS1 Cont-5";
-            }
-            // 6. Generic: starts with 01 + 14 digits (basic fallback)
-            else if (match = s.match(/^01(\d{14})/)) {
-                info.sapCode = match[1]; info.scanCode = match[1];
-                // Try to get batch (AI 10)
-                const b = s.match(/10([A-Za-z0-9\-\/._]+?)(?=11|17|21|240|$)/);
-                if (b) info.batch = b[1].trim();
-                const ex = s.match(/17(\d{6})/);
-                if (ex) info.exp = formatGS1Date(ex[1]);
-                const mg = s.match(/11(\d{6})/);
-                if (mg) info.mfg = formatGS1Date(mg[1]);
-                const sc = s.match(/240([A-Za-z0-9\-\/._]+?)(?=21|$)/);
-                if (sc) info.scanCode = sc[1].trim();
-                const ser = s.match(/21([A-Za-z0-9\-\/._]+?)$/);
-                if (ser) info.serial = ser[1].trim();
-                info.status = "Parsed GS1 Generic";
-            }
-
-            // --- POSITION-BASED RULES (for non-GS1 fixed-length MLSIPL barcodes) ---
-            if (!info.status.includes("Parsed") && globalParseRulesMLSIPL[s.length]) {
-                let rule = globalParseRulesMLSIPL[s.length][0];
-                for (let r of globalParseRulesMLSIPL[s.length]) {
-                    let tc = s.substring(r.mS, r.mS + r.mL).trim().toUpperCase();
-                    if (MATERIAL_MASTER[tc]) { rule = r; break; }
-                }
-                info.scanCode = s.substring(rule.mS, rule.mS + rule.mL);
-                info.batch = s.substring(rule.bS, rule.bS + rule.bL);
-                if (rule.mgL) info.mfg = formatGS1Date(s.substring(rule.mgS, rule.mgS + rule.mgL));
-                if (rule.exL) info.exp = formatGS1Date(s.substring(rule.exS, rule.exS + rule.exL));
-                info.status = "Parsed Position-Based";
-            }
-
-            if (!info.status.includes("Parsed")) {
-                info.scanCode = s; info.batch = ""; info.status = "Fail: No AI pattern";
-            }
-
-            // Cleanup
-            info.scanCode = (info.scanCode || '').replace(/[\x00-\x1F\x7F]/g, '').trim();
-            info.batch = (info.batch || '').replace(/[\x00-\x1F\x7F]/g, '').trim();
-
-            // Master lookup
-            let k = info.scanCode.toUpperCase();
-            if (MATERIAL_MASTER[k]) {
-                let dbRow = MATERIAL_MASTER[k];
-                let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap') || key.toLowerCase().includes('material code'));
-                info.sapCode = sapKey ? dbRow[sapKey] : k;
-            } else if (info.sapCode && info.sapCode !== 'Unknown' && MATERIAL_MASTER[info.sapCode.toUpperCase()]) {
-                // already set from GS1 parse
-            } else {
-                info.sapCode = k || 'Unknown';
-            }
-
-            return info;
-        }
-
+        function parseBarcodeMLSIPL(s) { return parseUniversalGS1(s, "MLSIPL"); }
 
         function parseBarcodeCARDIO(s) { return parseUniversalGS1(s, "CARDIO"); }
         function parseBarcodeMDPL(s) { return parseUniversalGS1(s, "MDPL"); }
         function parseBarcodeTRAUMA(s) { return parseUniversalGS1(s, "TRAUMA"); }
 
         function parseUniversalGS1(rawStr, divisionName) {
-            let s = String(rawStr).trim().replace(/[\x00-\x1F\x7F]/g, '');
-            let info = { sapCode: "", batch: "", exp: "", status: "Extracted", mfg: "", scanCode: "", serial: "", raw: s };
+            // Normalize: strip control chars, normalize alternative brackets
+            let s = String(rawStr).trim()
+                .replace(/[\x00-\x1F\x7F]/g, '')
+                .replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
 
-            const gs1Match = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})(240|21)(.+)$/);
-            if (gs1Match) {
-                info.sapCode = gs1Match[1]; info.batch = gs1Match[2].trim();
-                info.mfg = formatGS1Date(gs1Match[3]); info.exp = formatGS1Date(gs1Match[4]);
-                if (gs1Match[5] === "21") { info.serial = gs1Match[6].trim(); info.scanCode = info.sapCode; }
-                else { info.scanCode = gs1Match[6].trim(); }
-                info.status = "Parsed Universal GS1";
-                return mapToMaster(info);
+            let info = { sapCode: "", batch: "", exp: "", status: "Extracted", mfg: "", scanCode: "", serial: "", raw: rawStr };
+            let m;
+
+            // ── PATH 1: BRACKET GS1 ──────────────────────────────────────────────────
+            if (s.includes('(')) {
+                const bRx = /\((01|10|17|21|240|241|11|30)\)([^()]+)/g;
+                let hasBrk = false;
+                while ((m = bRx.exec(s)) !== null) {
+                    hasBrk = true;
+                    const ai = m[1], v = m[2].trim();
+                    if (ai === '01') info.sapCode = v;
+                    if (ai === '10') info.batch = v;
+                    if (ai === '17') info.exp = formatGS1Date(v);
+                    if (ai === '11') info.mfg = formatGS1Date(v);
+                    if (ai === '21') info.serial = v;
+                    if (ai === '240' || ai === '241') info.scanCode = v;
+                }
+                if (hasBrk) {
+                    if (!info.scanCode) info.scanCode = info.sapCode || s;
+                    info.status = "Parsed Bracket GS1";
+                    return mapToMaster(info);
+                }
             }
 
-            // FIXED REGEX FOR BRACKETS
-            const regex = /\((01|10|17|21|240|11|30)\)([^()]+)/g;
-            let match, hasBrackets = false;
-            while ((match = regex.exec(s)) !== null) {
-                hasBrackets = true; const ai = match[1], val = match[2].trim();
-                if (ai === "01") info.sapCode = val; if (ai === "10") info.batch = val;
-                if (ai === "17") info.exp = formatGS1Date(val); if (ai === "11") info.mfg = formatGS1Date(val);
-                if (ai === "21") info.serial = val; if (ai === "240") info.scanCode = val;
+            // ── PATH 2: CONTINUOUS GS1 REGEX PATTERNS ───────────────────────────────
+            // P1: 01→10→11→17→240
+            if (m = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})240(.+)$/)) {
+                info.sapCode = m[1]; info.batch = m[2].trim(); info.mfg = formatGS1Date(m[3]); info.exp = formatGS1Date(m[4]); info.scanCode = m[5].trim(); info.status = "Parsed GS1-P1";
             }
-            if (hasBrackets) {
-                if (!info.scanCode) info.scanCode = info.sapCode;
-                info.status = "Parsed Bracketed GS1";
-                return mapToMaster(info);
+            // P2: 01→10→11→17→21
+            else if (m = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})21(.+)$/)) {
+                info.sapCode = m[1]; info.batch = m[2].trim(); info.mfg = formatGS1Date(m[3]); info.exp = formatGS1Date(m[4]); info.serial = m[5].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P2";
+            }
+            // P3: 01→10→17→240 (no mfg)
+            else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})240(.+)$/)) {
+                info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.scanCode = m[4].trim(); info.status = "Parsed GS1-P3";
+            }
+            // P4: 01→10→17→21 (no mfg, serial)
+            else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})21(.+)$/)) {
+                info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.serial = m[4].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P4";
+            }
+            // P5: 01→11→17→10→240 (mfg first)
+            else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)240(.+)$/)) {
+                info.sapCode = m[1]; info.mfg = formatGS1Date(m[2]); info.exp = formatGS1Date(m[3]); info.batch = m[4].trim(); info.scanCode = m[5].trim(); info.status = "Parsed GS1-P5";
+            }
+            // P6: 01→11→17→10→21 (mfg first, serial)
+            else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)21(.+)$/)) {
+                info.sapCode = m[1]; info.mfg = formatGS1Date(m[2]); info.exp = formatGS1Date(m[3]); info.batch = m[4].trim(); info.serial = m[5].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P6";
+            }
+            // P7: 01→10→17 (bare minimum)
+            else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})(.*)$/)) {
+                info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.scanCode = m[4].trim() || m[1]; info.status = "Parsed GS1-P7";
             }
 
-            info.scanCode = s; info.sapCode = s; info.status = "Fail: No AI pattern";
+            if (info.status.includes("Parsed")) return mapToMaster(info);
+
+            // ── PATH 3: TRUE GS1 AI POSITIONAL WALKER — works for ANY length ─────────
+            // AI table: [fixedLen (0=variable), maxVarLen]
+            const AI_DEF = {
+                '00': [18, 0], '01': [14, 0], '02': [14, 0],
+                '10': [0, 20], '11': [6, 0], '17': [6, 0],
+                '21': [0, 20], '30': [0, 8],
+                '240': [0, 30], '241': [0, 30], '250': [0, 30],
+                '310': [6, 0], '311': [6, 0], '320': [6, 0]
+            };
+            if (s.length >= 18) { // minimum meaningful GS1 barcode
+                let pos = 0, found = 0, safe = 40;
+                let walked = {};
+                while (pos < s.length && safe-- > 0) {
+                    // Try 3-digit AI first, then 2-digit
+                    let ai = null, def = null;
+                    for (let al of [3, 2]) {
+                        let cand = s.substring(pos, pos + al);
+                        if (AI_DEF[cand]) { ai = cand; def = AI_DEF[cand]; break; }
+                    }
+                    if (!ai) {
+                        // Unknown at this pos — if we haven't found anything yet, skip. Else stop.
+                        if (found === 0 && pos < 4) { pos++; continue; }
+                        break;
+                    }
+                    pos += ai.length;
+                    const [fixLen, maxVar] = def;
+                    let val = "";
+                    if (fixLen > 0) {
+                        val = s.substring(pos, pos + fixLen);
+                        pos += fixLen;
+                    } else {
+                        // Variable: read until next known AI or maxVar or end
+                        let end = Math.min(pos + maxVar, s.length);
+                        let bestEnd = end;
+                        for (let i = pos + 1; i <= end - 1; i++) {
+                            if (AI_DEF[s.substring(i, i + 3)] || AI_DEF[s.substring(i, i + 2)]) {
+                                bestEnd = i; break;
+                            }
+                        }
+                        val = s.substring(pos, bestEnd);
+                        pos = bestEnd;
+                    }
+                    if (val) { walked[ai] = val.trim(); found++; }
+                }
+                if (found >= 2) { // need at least 2 fields to consider it valid
+                    info.sapCode = walked['01'] || '';
+                    info.batch = walked['10'] || '';
+                    info.exp = walked['17'] ? formatGS1Date(walked['17']) : '';
+                    info.mfg = walked['11'] ? formatGS1Date(walked['11']) : '';
+                    info.serial = walked['21'] || walked['30'] || '';
+                    info.scanCode = walked['240'] || walked['241'] || walked['01'] || s;
+                    info.status = "Parsed GS1 Walker (len=" + rawStr.length + ")";
+                    return mapToMaster(info);
+                }
+            }
+
+            // ── PATH 4: SAFE FALLBACK — always return something ──────────────────────
+            info.scanCode = s;
+            info.sapCode = s;
+            info.status = "Extracted (len=" + s.length + ", no GS1 pattern)";
             return mapToMaster(info);
         }
 
