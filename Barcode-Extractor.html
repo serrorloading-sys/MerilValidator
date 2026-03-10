@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -418,7 +418,7 @@
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold text-gray-800" id="headerTitle">Advanced Barcode Extractor</h1>
-                        <p class="text-xs text-gray-500 mt-1 font-mono" id="dbStatusBadge">⚪ Initializing...</p>
+                        <p class="text-xs text-gray-500 mt-1 font-mono" id="dbStatusBadge">âšª Initializing...</p>
                     </div>
                 </div>
 
@@ -442,14 +442,14 @@
                     <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
                             class="fas fa-bone text-purple-600 group-[.active]:text-white"></i> MHPL</span>
                     <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTHOPEDIC</span>
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH / TRAUMA</span>
                 </button>
                 <button onclick="switchMode('MLSIPL')" id="btnMLSIPL"
                     class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-mlsipl group">
                     <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
                             class="fas fa-crutch text-blue-600 group-[.active]:text-white"></i> MLSIPL</span>
                     <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTHOPEDIC</span>
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH / TRAUMA</span>
                 </button>
                 <button onclick="switchMode('CARDIO')" id="btnCARDIO"
                     class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-cardio group">
@@ -595,7 +595,7 @@
                     <div class="flex justify-between items-start mb-3 flex-wrap gap-2">
                         <div>
                             <h3 class="font-bold text-orange-800 text-sm"><i class="fas fa-copy mr-2"></i>Duplicate
-                                Report — <span id="dupModeName"></span></h3>
+                                Report â€” <span id="dupModeName"></span></h3>
                             <p class="text-xs text-orange-600 mt-1" id="dupSummary"></p>
                         </div>
                         <div class="flex gap-2 flex-wrap">
@@ -643,12 +643,12 @@
                             <i class="fas fa-filter-circle-xmark mr-1"></i>Reset
                         </button>
                         <button onclick="masterPrevPage()" id="btnMasterPrev"
-                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">◀
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">â—€
                             Prev</button>
                         <span id="masterPageInfo" class="px-2 py-1 text-xs font-mono text-gray-600"></span>
                         <button onclick="masterNextPage()" id="btnMasterNext"
                             class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">Next
-                            ▶</button>
+                            â–¶</button>
                     </div>
                 </div>
 
@@ -1171,7 +1171,7 @@
                 else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(str);
                 else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(str);
                 else if (currentMode === 'MDPL') res = parseBarcodeMDPL(str);
-                // Note: TRAUMA is part of MHPL — uses MHPL parser
+                // Note: TRAUMA is part of MHPL â€” uses MHPL parser
 
                 res.raw = str;
                 extractedDataStore[currentMode].push(res);
@@ -1253,7 +1253,7 @@
             // MLSIPL-specific fix: In MLSIPL barcodes, AI(21) contains the
             // material scan code (e.g. LPSXA111-K), NOT just a serial number.
             // If scanCode is only a 14-digit GTIN (no material code found)
-            // and serial exists — use serial as scanCode after stripping GS1 separators.
+            // and serial exists â€” use serial as scanCode after stripping GS1 separators.
             if (info.serial && /^\d{14}$/.test(info.scanCode || '')) {
                 // Strip leading GS1 special chars: %, \x1D (GS), \x1C (FS), space
                 let cleanSerial = info.serial.replace(/^[%\x1D\x1C\x1E\s]+/, '').trim();
@@ -1278,12 +1278,12 @@
             // Normalize: strip control chars, normalize alternative brackets
             let s = String(rawStr).trim()
                 .replace(/[\x00-\x1F\x7F]/g, '')
-                .replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
+                .replace(/[\[\]\{\}ã€ã€‘ï¼ˆï¼‰]/g, m => (m === '[' || m === '{' || m === 'ã€' || m === 'ï¼ˆ') ? '(' : ')');
 
             let info = { sapCode: "", batch: "", exp: "", status: "Extracted", mfg: "", scanCode: "", serial: "", raw: rawStr };
             let m;
 
-            // ── PATH 1: BRACKET GS1 ──────────────────────────────────────────────────
+            // â”€â”€ PATH 1: BRACKET GS1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (s.includes('(')) {
                 const bRx = /\((01|10|17|21|240|241|11|30)\)([^()]+)/g;
                 let hasBrk = false;
@@ -1306,39 +1306,39 @@
                 }
             }
 
-            // ── PATH 2: CONTINUOUS GS1 REGEX PATTERNS ───────────────────────────────
-            // P1: 01→10→11→17→240
+            // â”€â”€ PATH 2: CONTINUOUS GS1 REGEX PATTERNS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // P1: 01â†’10â†’11â†’17â†’240
             if (m = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})240(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.mfg = formatGS1Date(m[3]); info.exp = formatGS1Date(m[4]); info.scanCode = m[5].trim(); info.status = "Parsed GS1-P1";
             }
-            // P2: 01→10→11→17→21
+            // P2: 01â†’10â†’11â†’17â†’21
             else if (m = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})21(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.mfg = formatGS1Date(m[3]); info.exp = formatGS1Date(m[4]); info.serial = m[5].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P2";
             }
-            // P3: 01→10→17→240 (no mfg)
+            // P3: 01â†’10â†’17â†’240 (no mfg)
             else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})240(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.scanCode = m[4].trim(); info.status = "Parsed GS1-P3";
             }
-            // P4: 01→10→17→21 (no mfg, serial)
+            // P4: 01â†’10â†’17â†’21 (no mfg, serial)
             else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})21(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.serial = m[4].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P4";
             }
-            // P5: 01→11→17→10→240 (mfg first)
+            // P5: 01â†’11â†’17â†’10â†’240 (mfg first)
             else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)240(.+)$/)) {
                 info.sapCode = m[1]; info.mfg = formatGS1Date(m[2]); info.exp = formatGS1Date(m[3]); info.batch = m[4].trim(); info.scanCode = m[5].trim(); info.status = "Parsed GS1-P5";
             }
-            // P6: 01→11→17→10→21 (mfg first, serial)
+            // P6: 01â†’11â†’17â†’10â†’21 (mfg first, serial)
             else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)21(.+)$/)) {
                 info.sapCode = m[1]; info.mfg = formatGS1Date(m[2]); info.exp = formatGS1Date(m[3]); info.batch = m[4].trim(); info.serial = m[5].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P6";
             }
-            // P7: 01→10→17 (bare minimum)
+            // P7: 01â†’10â†’17 (bare minimum)
             else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})(.*)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.scanCode = m[4].trim() || m[1]; info.status = "Parsed GS1-P7";
             }
 
             if (info.status.includes("Parsed")) return mapToMaster(info);
 
-            // ── PATH 3: TRUE GS1 AI POSITIONAL WALKER — works for ANY length ─────────
+            // â”€â”€ PATH 3: TRUE GS1 AI POSITIONAL WALKER â€” works for ANY length â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // AI table: [fixedLen (0=variable), maxVarLen]
             const AI_DEF = {
                 '00': [18, 0], '01': [14, 0], '02': [14, 0],
@@ -1358,7 +1358,7 @@
                         if (AI_DEF[cand]) { ai = cand; def = AI_DEF[cand]; break; }
                     }
                     if (!ai) {
-                        // Unknown at this pos — if we haven't found anything yet, skip. Else stop.
+                        // Unknown at this pos â€” if we haven't found anything yet, skip. Else stop.
                         if (found === 0 && pos < 4) { pos++; continue; }
                         break;
                     }
@@ -1394,7 +1394,7 @@
                 }
             }
 
-            // ── PATH 4: SAFE FALLBACK — always return something ──────────────────────
+            // â”€â”€ PATH 4: SAFE FALLBACK â€” always return something â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             info.scanCode = s;
             info.sapCode = s;
             info.status = "Extracted (len=" + s.length + ", no GS1 pattern)";
@@ -1700,7 +1700,7 @@
             }, 100);
         }
 
-        // ── MATERIAL MASTER TAB LOGIC ──────────────────────────────────────────────
+        // â”€â”€ MATERIAL MASTER TAB LOGIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         let masterCurrentPage = 0;
         const MASTER_PAGE_SIZE = 50;
@@ -1729,7 +1729,7 @@
             if (el) el.textContent = `(${total.toLocaleString()} records in ${currentMode} DB)`;
         }
 
-        // ── MASTER TABLE STATE ─────────────────────────────────────────────────────
+        // â”€â”€ MASTER TABLE STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let masterSort = { col: null, asc: true };
         let masterColFilters = {};   // { colName: 'filterValue' }
         let masterPageSize = 50;
@@ -1786,12 +1786,12 @@
             if (activeFilters.length > 0) {
                 html += ` &nbsp;|&nbsp; <span class="text-orange-600 font-bold">Filters: `;
                 html += activeFilters.map(([col, val]) =>
-                    `<span class="bg-orange-100 px-1 rounded cursor-pointer" onclick="clearColFilter('${col}')" title="Click to clear">${col}: ${val} ✕</span>`
+                    `<span class="bg-orange-100 px-1 rounded cursor-pointer" onclick="clearColFilter('${col}')" title="Click to clear">${col}: ${val} âœ•</span>`
                 ).join(' ');
                 html += `</span>`;
             }
             if (masterSort.col) {
-                html += ` &nbsp;|&nbsp; <span class="text-blue-600">Sort: ${masterSort.col} ${masterSort.asc ? '↑' : '↓'}</span>`;
+                html += ` &nbsp;|&nbsp; <span class="text-blue-600">Sort: ${masterSort.col} ${masterSort.asc ? 'â†‘' : 'â†“'}</span>`;
             }
             info.innerHTML = html;
         }
@@ -1809,24 +1809,24 @@
             const pageRows = masterFilteredRows.slice(start, end);
             const totalPages = ps === 0 ? 1 : Math.ceil(total / ps) || 1;
 
-            // ─── Header with sort + filter ──────────────────────────────────────
+            // â”€â”€â”€ Header with sort + filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             thead.innerHTML = `<tr>
                 ${headers.map(h => {
                 const isSort = masterSort.col === h;
-                const sortIcon = isSort ? (masterSort.asc ? ' ↑' : ' ↓') : ' ⇅';
+                const sortIcon = isSort ? (masterSort.asc ? ' â†‘' : ' â†“') : ' â‡…';
                 const hasFilter = masterColFilters[h] && masterColFilters[h] !== '';
                 const filterBg = hasFilter ? 'text-orange-500' : 'text-gray-400 hover:text-gray-600';
                 return `<th class="px-2 py-2 text-left text-[10px] font-bold uppercase bg-teal-50 border-r border-gray-200 whitespace-nowrap select-none" style="min-width:80px;">
                         <div class="flex items-center gap-1">
                             <span class="cursor-pointer hover:text-teal-700 flex-1" onclick="masterSortByCol('${h}')">${h}<span class="opacity-60">${sortIcon}</span></span>
-                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}">▾</span>
+                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}">â–¾</span>
                         </div>
                     </th>`;
             }).join('')}
                 <th class="px-2 py-2 bg-teal-50 border-r text-[10px] text-gray-400 w-6"></th>
             </tr>`;
 
-            // ─── Rows ────────────────────────────────────────────────────────────
+            // â”€â”€â”€ Rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (pageRows.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="${headers.length + 1}" class="text-center py-12 text-gray-400 text-sm">
                     <i class="fas fa-search text-2xl mb-2 block opacity-30"></i>No records found
@@ -1855,7 +1855,7 @@
                 }).join('');
             }
 
-            // ─── Pagination controls ─────────────────────────────────────────────
+            // â”€â”€â”€ Pagination controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (pageInfo) pageInfo.textContent = `Page ${masterCurrentPage + 1} / ${totalPages}`;
             document.getElementById('btnMasterPrev').disabled = masterCurrentPage === 0;
             document.getElementById('btnMasterNext').disabled = end >= total;
@@ -1880,7 +1880,7 @@
             const uniques = [...new Set(allRows.map(r => String(r[col] || '').trim()))].filter(Boolean).sort();
             if (uniques.length === 0) return;
             if (uniques.length > 500) {
-                alert(`Column "${col}" has ${uniques.length} unique values — too many for a filter dropdown. Use the search bar instead.`); return;
+                alert(`Column "${col}" has ${uniques.length} unique values â€” too many for a filter dropdown. Use the search bar instead.`); return;
             }
 
             const current = masterColFilters[col] || '';
@@ -1892,7 +1892,7 @@
             popup.innerHTML = `
                 <div class="font-bold text-gray-700 mb-1 pb-1 border-b flex justify-between">
                     <span>Filter: ${col}</span>
-                    <button onclick="document.getElementById('masterColFilterPopup')?.remove()" class="text-gray-400 hover:text-red-500">✕</button>
+                    <button onclick="document.getElementById('masterColFilterPopup')?.remove()" class="text-gray-400 hover:text-red-500">âœ•</button>
                 </div>
                 <div onclick="setMasterColFilter('${col}','')" class="cursor-pointer px-2 py-1 rounded hover:bg-gray-100 ${current === '' ? 'bg-teal-50 font-bold text-teal-700' : ''}">(All)</div>
                 ${uniques.map(v => `<div onclick="setMasterColFilter('${col}','${v.replace(/'/g, "\\'")}') "
@@ -1975,7 +1975,7 @@
             setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
         }
 
-        // ── DUPLICATE FINDER ──────────────────────────────────────────────────────
+        // â”€â”€ DUPLICATE FINDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let dupRows = []; // stores all detected duplicate rows
 
         function findDuplicates() {
@@ -1997,7 +1997,7 @@
             const headers = headerRow || MASTER_HEADERS || ['Column 1', 'Column 2'];
 
             // Count occurrences of the first column (key column)
-            const seen = {};   // key → [lineIndex, ...]
+            const seen = {};   // key â†’ [lineIndex, ...]
             dataLines.forEach((line, idx) => {
                 if (!line.trim()) return;
                 const key = line.split(',')[0].replace(/["\r\n]/g, '').trim().toUpperCase();
@@ -2022,12 +2022,12 @@
             // Render results
             document.getElementById('dupModeName').textContent = currentMode;
             if (dupRows.length === 0) {
-                document.getElementById('dupSummary').innerHTML = `<span class="text-green-600 font-bold">✅ No duplicates found! Your ${currentMode} Master is clean.</span>`;
+                document.getElementById('dupSummary').innerHTML = `<span class="text-green-600 font-bold">âœ… No duplicates found! Your ${currentMode} Master is clean.</span>`;
                 document.getElementById('dupThead').innerHTML = '';
                 document.getElementById('dupTbody').innerHTML = '';
             } else {
                 document.getElementById('dupSummary').innerHTML =
-                    `⚠️ <b>${dupKeys.length}</b> material code(s) have duplicates &nbsp;|&nbsp; <b>${dupRows.length}</b> total duplicate rows &nbsp;|&nbsp; <b>${dataLines.length}</b> total rows`;
+                    `âš ï¸ <b>${dupKeys.length}</b> material code(s) have duplicates &nbsp;|&nbsp; <b>${dupRows.length}</b> total duplicate rows &nbsp;|&nbsp; <b>${dataLines.length}</b> total rows`;
 
                 // Render duplicate table
                 document.getElementById('dupThead').innerHTML = `<tr>
@@ -2068,7 +2068,7 @@
         function cleanDuplicates() {
             // Admin-only guard
             if (!window.currentUser || window.currentUser.role !== 'admin') {
-                alert('⛔ Access Denied: Only Admins can remove duplicate records.');
+                alert('â›” Access Denied: Only Admins can remove duplicate records.');
                 return;
             }
             if (dupRows.length === 0) { alert('No duplicates to clean. Run Find Duplicates first.'); return; }
@@ -2100,7 +2100,7 @@
             document.getElementById('dupPanel').classList.add('hidden');
             searchMaterialMaster();
             refreshMasterCount();
-            alert(`✅ Done! Removed ${total} duplicate rows. ${currentMode} Master now has ${Object.keys(MATERIAL_MASTER).length} unique entries.\n\nNote: This change is in-session only. To make it permanent, export the master and update your database.`);
+            alert(`âœ… Done! Removed ${total} duplicate rows. ${currentMode} Master now has ${Object.keys(MATERIAL_MASTER).length} unique entries.\n\nNote: This change is in-session only. To make it permanent, export the master and update your database.`);
         }
 
         function checkMissingSaps() {
