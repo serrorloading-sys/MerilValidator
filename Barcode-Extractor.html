@@ -563,6 +563,8 @@
 
         <!-- ===== TAB: MATERIAL MASTER SEARCH ===== -->
         <div id="tabMaster" class="hidden">
+
+            <!-- Search + Action Bar -->
             <div class="bg-white rounded shadow border-t-4 border-teal-500 p-5 mb-4">
                 <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
                     <div class="flex-1">
@@ -577,7 +579,11 @@
                                 class="w-full border rounded pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-inner bg-gray-50">
                         </div>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="findDuplicates()"
+                            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-copy"></i> Find Duplicates
+                        </button>
                         <button onclick="exportMasterSearch()"
                             class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
                             <i class="fas fa-file-excel"></i> Export
@@ -590,23 +596,54 @@
                 </div>
             </div>
 
+            <!-- Duplicate Finder Panel (hidden by default) -->
+            <div id="dupPanel" class="hidden mb-4">
+                <div class="bg-orange-50 border-2 border-orange-300 rounded-lg shadow-md p-4">
+                    <div class="flex justify-between items-start mb-3 flex-wrap gap-2">
+                        <div>
+                            <h3 class="font-bold text-orange-800 text-sm"><i class="fas fa-copy mr-2"></i>Duplicate
+                                Report — <span id="dupModeName"></span></h3>
+                            <p class="text-xs text-orange-600 mt-1" id="dupSummary"></p>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="exportDuplicates()"
+                                class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1">
+                                <i class="fas fa-file-excel"></i> Export Duplicates
+                            </button>
+                            <button onclick="cleanDuplicates()"
+                                class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1">
+                                <i class="fas fa-trash-alt"></i> Remove Duplicates (Keep First)
+                            </button>
+                            <button onclick="document.getElementById('dupPanel').classList.add('hidden')"
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-600 px-3 py-1.5 rounded text-xs font-bold">
+                                <i class="fas fa-times"></i> Close
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded border overflow-auto" style="max-height: 300px;">
+                        <table id="dupTable" style="width: max-content; min-width: 100%;">
+                            <thead id="dupThead"></thead>
+                            <tbody id="dupTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Master Table -->
             <div class="bg-white p-2 rounded shadow border">
                 <div class="text-xs text-gray-500 px-2 pb-2 flex justify-between items-center">
                     <span id="masterResultInfo" class="font-bold text-teal-700"></span>
                     <div class="flex gap-2">
                         <button onclick="masterPrevPage()" id="btnMasterPrev"
-                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">
-                            ◀ Prev
-                        </button>
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">◀
+                            Prev</button>
                         <span id="masterPageInfo" class="px-2 py-1 text-xs font-mono"></span>
                         <button onclick="masterNextPage()" id="btnMasterNext"
-                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">
-                            Next ▶
-                        </button>
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">Next
+                            ▶</button>
                     </div>
                 </div>
-                <div class="table-container" style="height: calc(100vh - 380px);">
+                <div class="table-container" style="height: calc(100vh - 420px);">
                     <table id="masterTable" style="width: max-content; min-width: 100%;">
                         <thead id="masterThead"></thead>
                         <tbody id="masterTbody"></tbody>
@@ -614,6 +651,8 @@
                 </div>
             </div>
         </div><!-- end tabMaster -->
+
+
 
     </div>
 
@@ -1752,6 +1791,129 @@
             a.href = url; a.download = `${currentMode}_MaterialMaster_${new Date().toISOString().slice(0, 10)}.xlsx`;
             document.body.appendChild(a); a.click();
             setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
+        }
+
+        // ── DUPLICATE FINDER ──────────────────────────────────────────────────────
+        let dupRows = []; // stores all detected duplicate rows
+
+        function findDuplicates() {
+            const rawCSV = DB_CACHE[currentMode];
+            if (!rawCSV || rawCSV.trim().length === 0) {
+                alert(`No ${currentMode} Master Data loaded. Please check DB Status.`);
+                return;
+            }
+
+            // Parse CSV lines
+            const lines = rawCSV.split(/\r?\n/).filter(l => l.trim().length > 0);
+            if (lines.length < 2) { alert('Not enough data to check duplicates.'); return; }
+
+            // Detect header
+            const firstLine = lines[0].toLowerCase();
+            const hasHeader = firstLine.includes('sap') || firstLine.includes('material') || firstLine.includes('scan') || firstLine.includes('desc') || firstLine.includes('gtin') || firstLine.includes('code');
+            const headerRow = hasHeader ? lines[0].split(',').map(h => h.trim()) : null;
+            const dataLines = hasHeader ? lines.slice(1) : lines;
+            const headers = headerRow || MASTER_HEADERS || ['Column 1', 'Column 2'];
+
+            // Count occurrences of the first column (key column)
+            const seen = {};   // key → [lineIndex, ...]
+            dataLines.forEach((line, idx) => {
+                if (!line.trim()) return;
+                const key = line.split(',')[0].replace(/["\r\n]/g, '').trim().toUpperCase();
+                if (!key) return;
+                if (!seen[key]) seen[key] = [];
+                seen[key].push({ idx, line });
+            });
+
+            // Collect all keys that appear more than once
+            dupRows = [];
+            const dupKeys = Object.keys(seen).filter(k => seen[k].length > 1);
+            dupKeys.forEach(k => {
+                seen[k].forEach(entry => {
+                    const cols = entry.line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+                    const rowObj = {};
+                    headers.forEach((h, i) => { rowObj[h] = cols[i] || ''; });
+                    rowObj['__dupKey'] = k;
+                    dupRows.push(rowObj);
+                });
+            });
+
+            // Render results
+            document.getElementById('dupModeName').textContent = currentMode;
+            if (dupRows.length === 0) {
+                document.getElementById('dupSummary').innerHTML = `<span class="text-green-600 font-bold">✅ No duplicates found! Your ${currentMode} Master is clean.</span>`;
+                document.getElementById('dupThead').innerHTML = '';
+                document.getElementById('dupTbody').innerHTML = '';
+            } else {
+                document.getElementById('dupSummary').innerHTML =
+                    `⚠️ <b>${dupKeys.length}</b> material code(s) have duplicates &nbsp;|&nbsp; <b>${dupRows.length}</b> total duplicate rows &nbsp;|&nbsp; <b>${dataLines.length}</b> total rows`;
+
+                // Render duplicate table
+                document.getElementById('dupThead').innerHTML = `<tr>
+                    <th class="px-3 py-2 text-[10px] font-bold uppercase text-gray-600 bg-orange-100 border-r whitespace-nowrap">#</th>
+                    ${headers.map(h => `<th class="px-3 py-2 text-[10px] font-bold uppercase text-gray-600 bg-orange-100 border-r whitespace-nowrap">${h}</th>`).join('')}
+                </tr>`;
+
+                let prevKey = null, colorToggle = false;
+                document.getElementById('dupTbody').innerHTML = dupRows.map((row, i) => {
+                    if (row['__dupKey'] !== prevKey) { colorToggle = !colorToggle; prevKey = row['__dupKey']; }
+                    const bg = colorToggle ? 'bg-amber-50' : 'bg-white';
+                    return `<tr class="${bg} hover:bg-orange-100">
+                        <td class="px-3 py-1 text-[11px] text-gray-400 border-r">${i + 1}</td>
+                        ${headers.map(h => `<td class="px-3 py-1.5 text-[11px] border-r text-gray-700 whitespace-nowrap">${row[h] || ''}</td>`).join('')}
+                    </tr>`;
+                }).join('');
+            }
+
+            document.getElementById('dupPanel').classList.remove('hidden');
+        }
+
+        function exportDuplicates() {
+            if (dupRows.length === 0) { alert('No duplicates to export. Run Find Duplicates first.'); return; }
+            const headers = MASTER_HEADERS.length > 0 ? MASTER_HEADERS : Object.keys(dupRows[0]).filter(k => k !== '__dupKey');
+            const wsData = [headers, ...dupRows.map(row => headers.map(h => row[h] || ''))];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, `${currentMode}_Duplicates`);
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `${currentMode}_Duplicates_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
+        }
+
+        function cleanDuplicates() {
+            if (dupRows.length === 0) { alert('No duplicates to clean. Run Find Duplicates first.'); return; }
+            const dupKeySet = new Set(dupRows.map(r => r['__dupKey']));
+            const total = dupRows.length;
+            if (!confirm(`Remove duplicates for ${dupKeySet.size} material code(s)? (${total} rows will be removed, keeping first occurrence each). This updates the DB in your current session only.`)) return;
+
+            const rawCSV = DB_CACHE[currentMode];
+            const lines = rawCSV.split(/\r?\n/).filter(l => l.trim().length > 0);
+            const firstLine = lines[0].toLowerCase();
+            const hasHeader = firstLine.includes('sap') || firstLine.includes('material') || firstLine.includes('scan') || firstLine.includes('desc') || firstLine.includes('gtin') || firstLine.includes('code');
+
+            const seenKeys = new Set();
+            const cleanedLines = lines.filter((line, idx) => {
+                if (idx === 0 && hasHeader) return true; // always keep header
+                const key = line.split(',')[0].replace(/["\r\n]/g, '').trim().toUpperCase();
+                if (!key) return false;
+                if (seenKeys.has(key)) return false;
+                seenKeys.add(key);
+                return true;
+            });
+
+            // Rebuild DB_CACHE and reload
+            DB_CACHE[currentMode] = cleanedLines.join('\n');
+            parseDBCSV(DB_CACHE[currentMode]);
+            globalParseRulesMLSIPL = null; // reset parse rules
+
+            dupRows = [];
+            document.getElementById('dupPanel').classList.add('hidden');
+            searchMaterialMaster();
+            refreshMasterCount();
+            alert(`✅ Done! Removed ${total} duplicate rows. ${currentMode} Master now has ${Object.keys(MATERIAL_MASTER).length} unique entries.\n\nNote: This change is in-session only. To make it permanent, export the master and update your database.`);
         }
 
         function checkMissingSaps() {
