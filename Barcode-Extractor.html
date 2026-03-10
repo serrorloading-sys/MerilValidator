@@ -1827,7 +1827,7 @@
                 return `<th class="px-2 py-2 text-left text-[10px] font-bold uppercase bg-teal-50 border-r border-gray-200 whitespace-nowrap select-none" style="min-width:80px;">
                         <div class="flex items-center gap-1">
                             <span class="cursor-pointer hover:text-teal-700 flex-1" onclick="masterSortByCol('${h}')">${h}<span class="opacity-60">${sortIcon}</span></span>
-                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}">F</span>
+                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}"><i class="fas fa-filter text-[9px]"></i></span>
                         </div>
                     </th>`;
             }).join('')}
