@@ -1068,7 +1068,14 @@
 
             LayoutManager.initColumns();
             applyFiltersAndRender();
+
+            // Refresh Material Master tab for this mode (for ALL entities)
+            refreshMasterCount();
+            if (!document.getElementById('tabMaster').classList.contains('hidden')) {
+                searchMaterialMaster(); // auto-reload master table if that tab is active
+            }
         }
+
 
         function clearData() {
             if (confirm(`Clear all extracted results for ${currentMode}?`)) {
