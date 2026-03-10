@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -442,14 +442,16 @@
                     <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
                             class="fas fa-bone text-purple-600 group-[.active]:text-white"></i> MHPL</span>
                     <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH / TRAUMA</span>
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH
+                        / TRAUMA</span>
                 </button>
                 <button onclick="switchMode('MLSIPL')" id="btnMLSIPL"
                     class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-mlsipl group">
                     <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
                             class="fas fa-crutch text-blue-600 group-[.active]:text-white"></i> MLSIPL</span>
                     <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH / TRAUMA</span>
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH
+                        / TRAUMA</span>
                 </button>
                 <button onclick="switchMode('CARDIO')" id="btnCARDIO"
                     class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-cardio group">
@@ -1007,6 +1009,12 @@
             const lines = csvStr.split(/\r?\n/).filter(l => l.trim().length > 0);
             if (lines.length === 0) return;
 
+            // Fix double-encoded UTF-8 (e.g. Ã¢Â€Â¦ → …, Â½ → ½)
+            const fixEnc = (str) => {
+                if (!str) return str;
+                try { return decodeURIComponent(escape(str)); } catch (e) { return str; }
+            };
+
             const parseCSVLine = (str) => {
                 let arr = [], quote = false, col = '';
                 for (let i = 0; i < str.length; i++) {
@@ -1017,7 +1025,7 @@
                     else col += c;
                 }
                 arr.push(col.trim());
-                return arr;
+                return arr.map(fixEnc);  // fix encoding on every cell
             };
 
             let firstRow = parseCSVLine(lines[0]);
@@ -1025,7 +1033,7 @@
 
             let headerCheckStr = lines[0].toLowerCase();
             if (headerCheckStr.includes('sap code') || headerCheckStr.includes('scan code') || headerCheckStr.includes('material') || headerCheckStr.includes('desc') || headerCheckStr.includes('gtin')) {
-                hasHeaders = true; MASTER_HEADERS = firstRow;
+                hasHeaders = true; MASTER_HEADERS = firstRow.map(fixEnc);
             } else {
                 if (firstRow.length >= 3) {
                     MASTER_HEADERS = ["Scan Code", "SAP Code", "Description"];
