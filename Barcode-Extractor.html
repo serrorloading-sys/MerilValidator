@@ -465,15 +465,8 @@
                     <span
                         class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">DIAGNOSTIC</span>
                 </button>
-                <button onclick="switchMode('TRAUMA')" id="btnTRAUMA"
-                    class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-trauma group">
-                    <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
-                            class="fas fa-truck-medical text-orange-600 group-[.active]:text-white"></i> TRAUMA</span>
-                    <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">TRAUMA
-                        CARE</span>
-                </button>
             </div>
+
         </div>
 
         <!-- ===== MAIN TABS ===== -->
@@ -610,8 +603,8 @@
                                 class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1">
                                 <i class="fas fa-file-excel"></i> Export Duplicates
                             </button>
-                            <button onclick="cleanDuplicates()"
-                                class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1">
+                            <button onclick="cleanDuplicates()" id="btnRemoveDuplicates"
+                                class="admin-only-btn hidden bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1">
                                 <i class="fas fa-trash-alt"></i> Remove Duplicates (Keep First)
                             </button>
                             <button onclick="document.getElementById('dupPanel').classList.add('hidden')"
@@ -767,9 +760,9 @@
 
     <script>
         // --- DUAL DATABASE STATE ---
-        let DB_CACHE = { 'MHPL': '', 'MLSIPL': '', 'CARDIO': '', 'MDPL': '', 'TRAUMA': '' };
+        let DB_CACHE = { 'MHPL': '', 'MLSIPL': '', 'CARDIO': '', 'MDPL': '' };
 
-        let extractedDataStore = { 'MHPL': [], 'MLSIPL': [], 'CARDIO': [], 'MDPL': [], 'TRAUMA': [] };
+        let extractedDataStore = { 'MHPL': [], 'MLSIPL': [], 'CARDIO': [], 'MDPL': [] };
 
         let currentMode = 'MHPL';
         let globalExtracted = extractedDataStore[currentMode];
@@ -787,7 +780,16 @@
         let globalParseRulesMLSIPL = null; // MLSIPL position-based parse rules cache
 
 
+        // Show/hide admin-only UI elements based on current user role
+        function applyAdminUI() {
+            const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+            document.querySelectorAll('.admin-only-btn').forEach(el => {
+                el.classList.toggle('hidden', !isAdmin);
+            });
+        }
+
         function formatGS1Date(dateStr) {
+
             if (!dateStr || dateStr.length !== 6 || dateStr === "-") return dateStr || "-";
             let yy = dateStr.substring(0, 2);
             let mm = dateStr.substring(2, 4);
@@ -966,6 +968,7 @@
                 if (window.currentUser) {
                     let dispName = window.currentUser.name || window.currentUser.email || "Verified User";
                     document.getElementById('userNameDisplay').innerText = dispName;
+                    applyAdminUI(); // Show/hide admin-only elements based on role
                 }
 
                 const fetchSettingsSafe = async (key, memKey) => {
@@ -981,7 +984,6 @@
                 await fetchSettingsSafe('mlsipl_settings', 'MLSIPL');
                 await fetchSettingsSafe('cardio_settings', 'CARDIO');
                 await fetchSettingsSafe('mdpl_settings', 'MDPL');
-                await fetchSettingsSafe('trauma_settings', 'TRAUMA');
 
             } catch (err) {
                 console.error("Initialization Error:", err);
@@ -1080,7 +1082,7 @@
             document.getElementById('bulkExcel').value = '';
             document.getElementById('globalSearch').value = '';
 
-            const modes = ['MHPL', 'MLSIPL', 'CARDIO', 'MDPL', 'TRAUMA'];
+            const modes = ['MHPL', 'MLSIPL', 'CARDIO', 'MDPL'];
             modes.forEach(m => {
                 let btn = document.getElementById(`btn${m}`);
                 if (btn) btn.classList.remove('active');
@@ -1103,9 +1105,6 @@
             } else if (mode === 'MDPL') {
                 hdr.className = "bg-white border-l-8 border-emerald-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
                 btnExt.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded font-bold shadow transition";
-            } else if (mode === 'TRAUMA') {
-                hdr.className = "bg-white border-l-8 border-orange-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
-                btnExt.className = "flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 rounded font-bold shadow transition";
             }
 
             parseDBCSV(DB_CACHE[mode]);
@@ -1172,7 +1171,7 @@
                 else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(str);
                 else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(str);
                 else if (currentMode === 'MDPL') res = parseBarcodeMDPL(str);
-                else if (currentMode === 'TRAUMA') res = parseBarcodeTRAUMA(str);
+                // Note: TRAUMA is part of MHPL — uses MHPL parser
 
                 res.raw = str;
                 extractedDataStore[currentMode].push(res);
@@ -2067,6 +2066,11 @@
         }
 
         function cleanDuplicates() {
+            // Admin-only guard
+            if (!window.currentUser || window.currentUser.role !== 'admin') {
+                alert('⛔ Access Denied: Only Admins can remove duplicate records.');
+                return;
+            }
             if (dupRows.length === 0) { alert('No duplicates to clean. Run Find Duplicates first.'); return; }
             const dupKeySet = new Set(dupRows.map(r => r['__dupKey']));
             const total = dupRows.length;
