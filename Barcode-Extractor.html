@@ -476,73 +476,147 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white p-5 rounded shadow relative border-t-4 border-indigo-500" id="inputCard">
-                <label class="font-bold text-gray-700 text-sm mb-2 block"><i class="fas fa-keyboard mr-2"></i>Raw
-                    Barcode Input <span class="text-[10px] font-normal text-gray-400 ml-2">(One per line)</span></label>
-                <textarea id="rawInput"
-                    class="w-full h-32 border rounded p-3 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white shadow-inner mb-3"
-                    placeholder="Paste single or bulk barcodes here..."></textarea>
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <button onclick="processTextarea()" id="btnExtract"
-                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded font-bold shadow transition"><i
-                            class="fas fa-cog fa-spin-hover mr-2"></i>Extract Text</button>
-                    <button onclick="clearData()"
-                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold transition"><i
-                            class="fas fa-trash-alt mr-1"></i> Clear Selection</button>
-                </div>
-            </div>
+        <!-- ===== MAIN TABS ===== -->
+        <div class="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg border border-gray-200 w-fit">
+            <button id="tabBtnExtract" onclick="switchMainTab('extract')"
+                class="px-4 py-2 rounded text-xs font-bold transition-all bg-white text-indigo-700 shadow border border-indigo-200">
+                <i class="fas fa-barcode mr-1"></i> Extractor
+            </button>
+            <button id="tabBtnMaster" onclick="switchMainTab('master')"
+                class="px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white">
+                <i class="fas fa-database mr-1"></i> Material Master
+            </button>
+        </div>
 
-            <div class="bg-white p-5 rounded shadow relative border-t-4 border-green-500 flex flex-col" id="excelCard">
-                <label class="font-bold text-gray-700 text-sm mb-2 block"><i class="fas fa-file-excel mr-2"></i>Excel
-                    Bulk Extraction</label>
-                <div class="text-[11px] text-gray-600 mb-4 bg-green-50 p-3 rounded border border-green-100 flex-1">
-                    Upload an Excel file containing a column of raw barcodes. <br>
-                    The extractor will use the isolated rules engine for the currently selected Entity to map data.
+        <!-- ===== TAB: EXTRACTOR ===== -->
+        <div id="tabExtract">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white p-5 rounded shadow relative border-t-4 border-indigo-500" id="inputCard">
+                    <label class="font-bold text-gray-700 text-sm mb-2 block"><i class="fas fa-keyboard mr-2"></i>Raw
+                        Barcode Input <span class="text-[10px] font-normal text-gray-400 ml-2">(One per
+                            line)</span></label>
+                    <textarea id="rawInput"
+                        class="w-full h-32 border rounded p-3 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white shadow-inner mb-3"
+                        placeholder="Paste single or bulk barcodes here..."></textarea>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="processTextarea()" id="btnExtract"
+                            class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded font-bold shadow transition"><i
+                                class="fas fa-cog fa-spin-hover mr-2"></i>Extract Text</button>
+                        <button onclick="clearData()"
+                            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold transition"><i
+                                class="fas fa-trash-alt mr-1"></i> Clear Selection</button>
+                    </div>
                 </div>
-                <div class="flex gap-3 items-end">
-                    <div class="flex-1">
-                        <input type="file" id="bulkExcel" accept=".xlsx, .xls, .csv"
-                            class="w-full text-xs border p-2 rounded cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+
+                <div class="bg-white p-5 rounded shadow relative border-t-4 border-green-500 flex flex-col"
+                    id="excelCard">
+                    <label class="font-bold text-gray-700 text-sm mb-2 block"><i
+                            class="fas fa-file-excel mr-2"></i>Excel
+                        Bulk Extraction</label>
+                    <div class="text-[11px] text-gray-600 mb-4 bg-green-50 p-3 rounded border border-green-100 flex-1">
+                        Upload an Excel file containing a column of raw barcodes. <br>
+                        The extractor will use the isolated rules engine for the currently selected Entity to map data.
+                    </div>
+                    <div class="flex gap-3 items-end">
+                        <div class="flex-1">
+                            <input type="file" id="bulkExcel" accept=".xlsx, .xls, .csv"
+                                class="w-full text-xs border p-2 rounded cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div
-            class="bg-white p-3 rounded-t border-b flex flex-col md:flex-row justify-between md:items-center shadow-sm z-20 relative gap-3">
-            <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-2/3">
-                <div class="text-sm font-bold text-gray-700 whitespace-nowrap">
-                    <i class="fas fa-list-ul mr-2 text-indigo-500"></i>Results (<span id="resultCount">0</span>)
+            <div
+                class="bg-white p-3 rounded-t border-b flex flex-col md:flex-row justify-between md:items-center shadow-sm z-20 relative gap-3">
+                <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-2/3">
+                    <div class="text-sm font-bold text-gray-700 whitespace-nowrap">
+                        <i class="fas fa-list-ul mr-2 text-indigo-500"></i>Results (<span id="resultCount">0</span>)
+                    </div>
+                    <div class="relative w-full max-w-sm">
+                        <i class="fas fa-search absolute left-3 top-2 text-gray-400 text-xs"></i>
+                        <input type="text" id="globalSearch" onkeyup="applyFiltersAndRender()"
+                            placeholder="Search anywhere..."
+                            class="w-full border rounded pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 shadow-inner bg-gray-50">
+                    </div>
                 </div>
-                <div class="relative w-full max-w-sm">
-                    <i class="fas fa-search absolute left-3 top-2 text-gray-400 text-xs"></i>
-                    <input type="text" id="globalSearch" onkeyup="applyFiltersAndRender()"
-                        placeholder="Search anywhere..."
-                        class="w-full border rounded pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 shadow-inner bg-gray-50">
+                <div class="flex gap-2">
+                    <button onclick="LayoutManager.open()"
+                        class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
+                        <i class="fas fa-columns"></i> Layout
+                    </button>
+                    <button onclick="exportExcel()"
+                        class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
+                        <i class="fas fa-file-excel"></i> Export Data
+                    </button>
                 </div>
             </div>
-            <div class="flex gap-2">
-                <button onclick="LayoutManager.open()"
-                    class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
-                    <i class="fas fa-columns"></i> Layout
-                </button>
-                <button onclick="exportExcel()"
-                    class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
-                    <i class="fas fa-file-excel"></i> Export Data
-                </button>
-            </div>
-        </div>
 
-        <div class="bg-white shadow-sm border-x border-b rounded-b">
-            <div class="table-container">
-                <table id="resultsTable">
-                    <thead id="tblHead"></thead>
-                    <tbody id="tblBody"></tbody>
-                </table>
+            <div class="bg-white shadow-sm border-x border-b rounded-b">
+                <div class="table-container">
+                    <table id="resultsTable">
+                        <thead id="tblHead"></thead>
+                        <tbody id="tblBody"></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
+        </div><!-- end tabExtract -->
+
+        <!-- ===== TAB: MATERIAL MASTER SEARCH ===== -->
+        <div id="tabMaster" class="hidden">
+            <div class="bg-white rounded shadow border-t-4 border-teal-500 p-5 mb-4">
+                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                    <div class="flex-1">
+                        <label class="font-bold text-gray-700 text-sm mb-2 block">
+                            <i class="fas fa-search mr-2 text-teal-600"></i>Search Material Master
+                            <span class="text-[10px] font-normal text-gray-400 ml-2" id="masterRecordCount"></span>
+                        </label>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+                            <input type="text" id="masterSearchInput" oninput="searchMaterialMaster()"
+                                placeholder="Search by Material Code, SAP Code, Description..."
+                                class="w-full border rounded pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-inner bg-gray-50">
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportMasterSearch()"
+                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-file-excel"></i> Export
+                        </button>
+                        <button onclick="document.getElementById('masterSearchInput').value=''; searchMaterialMaster()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded text-xs font-bold">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Master Table -->
+            <div class="bg-white p-2 rounded shadow border">
+                <div class="text-xs text-gray-500 px-2 pb-2 flex justify-between items-center">
+                    <span id="masterResultInfo" class="font-bold text-teal-700"></span>
+                    <div class="flex gap-2">
+                        <button onclick="masterPrevPage()" id="btnMasterPrev"
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">
+                            ◀ Prev
+                        </button>
+                        <span id="masterPageInfo" class="px-2 py-1 text-xs font-mono"></span>
+                        <button onclick="masterNextPage()" id="btnMasterNext"
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">
+                            Next ▶
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container" style="height: calc(100vh - 380px);">
+                    <table id="masterTable" style="width: max-content; min-width: 100%;">
+                        <thead id="masterThead"></thead>
+                        <tbody id="masterTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- end tabMaster -->
+
     </div>
+
 
     <div id="adminRegModal"
         class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -1565,6 +1639,114 @@
             }, 100);
         }
 
+        // ── MATERIAL MASTER TAB LOGIC ──────────────────────────────────────────────
+
+        let masterCurrentPage = 0;
+        const MASTER_PAGE_SIZE = 50;
+        let masterFilteredRows = [];
+
+        function switchMainTab(tab) {
+            const isExtract = tab === 'extract';
+            document.getElementById('tabExtract').classList.toggle('hidden', !isExtract);
+            document.getElementById('tabMaster').classList.toggle('hidden', isExtract);
+
+            const btnE = document.getElementById('tabBtnExtract');
+            const btnM = document.getElementById('tabBtnMaster');
+            if (isExtract) {
+                btnE.className = 'px-4 py-2 rounded text-xs font-bold transition-all bg-white text-indigo-700 shadow border border-indigo-200';
+                btnM.className = 'px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white';
+            } else {
+                btnM.className = 'px-4 py-2 rounded text-xs font-bold transition-all bg-white text-teal-700 shadow border border-teal-200';
+                btnE.className = 'px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white';
+                searchMaterialMaster(); // refresh when switching to master tab
+            }
+        }
+
+        function refreshMasterCount() {
+            const total = Object.keys(MATERIAL_MASTER).length;
+            const el = document.getElementById('masterRecordCount');
+            if (el) el.textContent = `(${total.toLocaleString()} total records in ${currentMode} DB)`;
+        }
+
+        function searchMaterialMaster() {
+            const query = (document.getElementById('masterSearchInput')?.value || '').toLowerCase().trim();
+            const allKeys = Object.keys(MATERIAL_MASTER);
+
+            if (!query) {
+                masterFilteredRows = allKeys.map(k => MATERIAL_MASTER[k]);
+            } else {
+                masterFilteredRows = allKeys
+                    .map(k => MATERIAL_MASTER[k])
+                    .filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
+            }
+
+            masterCurrentPage = 0;
+            masterRenderPage();
+            refreshMasterCount();
+        }
+
+        function masterRenderPage() {
+            const thead = document.getElementById('masterThead');
+            const tbody = document.getElementById('masterTbody');
+            const info = document.getElementById('masterResultInfo');
+            const pageInfo = document.getElementById('masterPageInfo');
+
+            const headers = MASTER_HEADERS.length > 0 ? MASTER_HEADERS : ['Code', 'Description'];
+            const total = masterFilteredRows.length;
+            const start = masterCurrentPage * MASTER_PAGE_SIZE;
+            const end = Math.min(start + MASTER_PAGE_SIZE, total);
+            const pageRows = masterFilteredRows.slice(start, end);
+
+            // Header
+            thead.innerHTML = `<tr>${headers.map(h =>
+                `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-gray-600 bg-teal-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
+            ).join('')}</tr>`;
+
+            // Rows
+            if (pageRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${headers.length}" class="text-center py-12 text-gray-400 text-sm">
+                    <i class="fas fa-search text-2xl mb-2 block opacity-30"></i>No records found
+                </td></tr>`;
+            } else {
+                tbody.innerHTML = pageRows.map((row, i) => `
+                    <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-teal-50 transition-colors">
+                        ${headers.map(h => {
+                    const v = row[h] || '';
+                    return `<td class="px-3 py-1.5 text-[11px] border-r border-gray-100 whitespace-nowrap text-gray-700">${v}</td>`;
+                }).join('')}
+                    </tr>`).join('');
+            }
+
+            // Pagination info
+            const totalPages = Math.ceil(total / MASTER_PAGE_SIZE) || 1;
+            info.textContent = total === 0 ? 'No records found' : `Showing ${start + 1}–${end} of ${total} records`;
+            pageInfo.textContent = `Page ${masterCurrentPage + 1} / ${totalPages}`;
+            document.getElementById('btnMasterPrev').disabled = masterCurrentPage === 0;
+            document.getElementById('btnMasterNext').disabled = end >= total;
+        }
+
+        function masterPrevPage() { if (masterCurrentPage > 0) { masterCurrentPage--; masterRenderPage(); } }
+        function masterNextPage() {
+            const totalPages = Math.ceil(masterFilteredRows.length / MASTER_PAGE_SIZE);
+            if (masterCurrentPage < totalPages - 1) { masterCurrentPage++; masterRenderPage(); }
+        }
+
+        function exportMasterSearch() {
+            const headers = MASTER_HEADERS.length > 0 ? MASTER_HEADERS : ['Code', 'Description'];
+            const rows = masterFilteredRows.map(row => headers.map(h => row[h] || ''));
+            const wsData = [headers, ...rows];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, `${currentMode}_Master`);
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `${currentMode}_MaterialMaster_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
+        }
+
         function checkMissingSaps() {
             if (!window.currentUser || window.currentUser.role !== 'admin') return;
             if (isPromptingAdmin) return;
@@ -1578,6 +1760,7 @@
             }
             processModalQueue();
         }
+
 
         let activeAdminTab = 'new';
         function switchAdminTab(tabId) {
