@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1799,7 +1799,7 @@
                 html += `</span>`;
             }
             if (masterSort.col) {
-                html += ` &nbsp;|&nbsp; <span class="text-blue-600">Sort: ${masterSort.col} ${masterSort.asc ? 'â†‘' : 'â†“'}</span>`;
+                html += ` &nbsp;|&nbsp; <span class="text-blue-600">Sort: ${masterSort.col} ${masterSort.asc ? '&uarr;' : '&darr;'}</span>`;
             }
             info.innerHTML = html;
         }
@@ -1821,13 +1821,13 @@
             thead.innerHTML = `<tr>
                 ${headers.map(h => {
                 const isSort = masterSort.col === h;
-                const sortIcon = isSort ? (masterSort.asc ? ' â†‘' : ' â†“') : ' â‡…';
+                const sortIcon = isSort ? (masterSort.asc ? ' &uarr;' : ' &darr;') : ' &#8645;';
                 const hasFilter = masterColFilters[h] && masterColFilters[h] !== '';
                 const filterBg = hasFilter ? 'text-orange-500' : 'text-gray-400 hover:text-gray-600';
                 return `<th class="px-2 py-2 text-left text-[10px] font-bold uppercase bg-teal-50 border-r border-gray-200 whitespace-nowrap select-none" style="min-width:80px;">
                         <div class="flex items-center gap-1">
                             <span class="cursor-pointer hover:text-teal-700 flex-1" onclick="masterSortByCol('${h}')">${h}<span class="opacity-60">${sortIcon}</span></span>
-                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}">â–¾</span>
+                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}">F</span>
                         </div>
                     </th>`;
             }).join('')}
