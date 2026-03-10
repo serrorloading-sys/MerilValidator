@@ -1113,7 +1113,27 @@
             return info;
         }
 
-        function parseBarcodeMLSIPL(s) { return parseUniversalGS1(s, "MLSIPL"); }
+        function parseBarcodeMLSIPL(rawStr) {
+            let info = parseUniversalGS1(rawStr, "MLSIPL");
+            // MLSIPL-specific fix: In MLSIPL barcodes, AI(21) contains the
+            // material scan code (e.g. LPSXA111-K), NOT just a serial number.
+            // If scanCode is only a 14-digit GTIN (no material code found)
+            // and serial exists — use serial as scanCode after stripping GS1 separators.
+            if (info.serial && /^\d{14}$/.test(info.scanCode || '')) {
+                // Strip leading GS1 special chars: %, \x1D (GS), \x1C (FS), space
+                let cleanSerial = info.serial.replace(/^[%\x1D\x1C\x1E\s]+/, '').trim();
+                if (cleanSerial) {
+                    info.scanCode = cleanSerial;
+                    // Re-do master lookup with the correct scan code
+                    info = mapToMaster(info);
+                }
+            }
+            // Also clean leading separators from scanCode if needed
+            if (info.scanCode) {
+                info.scanCode = info.scanCode.replace(/^[%\x1D\x1C\x1E\s]+/, '').trim();
+            }
+            return info;
+        }
 
         function parseBarcodeCARDIO(s) { return parseUniversalGS1(s, "CARDIO"); }
         function parseBarcodeMDPL(s) { return parseUniversalGS1(s, "MDPL"); }
@@ -1134,7 +1154,9 @@
                 let hasBrk = false;
                 while ((m = bRx.exec(s)) !== null) {
                     hasBrk = true;
-                    const ai = m[1], v = m[2].trim();
+                    const ai = m[1];
+                    // Strip GS1 FNC1/separator chars (%, \x1D, \x1C, \x1E) from values
+                    const v = m[2].replace(/^[%\x1D\x1C\x1E]+/, '').trim();
                     if (ai === '01') info.sapCode = v;
                     if (ai === '10') info.batch = v;
                     if (ai === '17') info.exp = formatGS1Date(v);
