@@ -655,6 +655,8 @@
 
         let missingSapsQueue = [];
         let isPromptingAdmin = false;
+        let globalParseRulesMLSIPL = null; // MLSIPL position-based parse rules cache
+
 
         function formatGS1Date(dateStr) {
             if (!dateStr || dateStr.length !== 6 || dateStr === "-") return dateStr || "-";
