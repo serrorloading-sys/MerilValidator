@@ -1130,54 +1130,124 @@
                 }
             }
 
-            let s = String(rawStr).trim().replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
+            // Normalize brackets
+            let s = String(rawStr).trim().replace(/[\x00-\x1F\x7F]/g, '').replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
             let info = { scanCode: "", batch: "", sapCode: "Unknown", mfg: "-", exp: "-", serial: "", status: "Extracted", raw: rawStr };
 
-            const gs1 = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})(240|21)(.+)$/);
-            if (gs1) {
-                info.batch = gs1[2].trim(); info.mfg = formatGS1Date(gs1[3]); info.exp = formatGS1Date(gs1[4]);
-                info.scanCode = gs1[6].trim(); info.status = "Parsed GS1 Regex";
-            } else if (s.includes('(')) {
-                // FIXED REGEX FOR BRACKETS
+            let match;
+
+            // --- BRACKET GS1 (most common for MLSIPL) ---
+            if (s.includes('(')) {
                 const regex = /\((01|10|17|21|240|11|30)\)([^()]+)/g;
-                let match, hasBrackets = false;
+                let hasBrackets = false;
                 while ((match = regex.exec(s)) !== null) {
-                    hasBrackets = true; const ai = match[1], val = match[2].trim();
+                    hasBrackets = true;
+                    const ai = match[1], val = match[2].trim();
                     if (ai === "240") info.scanCode = val;
+                    if (ai === "01") info.sapCode = val;
                     if (ai === "21") info.serial = val;
                     if (ai === "10") info.batch = val;
                     if (ai === "17") info.exp = formatGS1Date(val);
                     if (ai === "11") info.mfg = formatGS1Date(val);
                 }
                 if (hasBrackets) {
+                    if (!info.scanCode && info.sapCode && info.sapCode !== 'Unknown') info.scanCode = info.sapCode;
                     if (!info.scanCode) info.scanCode = s;
                     info.status = "Parsed Bracket GS1";
+                    // Resolve SAP code from master
+                    let k = info.scanCode.toUpperCase();
+                    if (MATERIAL_MASTER[k]) {
+                        let dbRow = MATERIAL_MASTER[k];
+                        let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap') || key.toLowerCase().includes('material code'));
+                        info.sapCode = sapKey ? dbRow[sapKey] : k;
+                    }
+                    return info;
                 }
-            } else if (globalParseRulesMLSIPL[s.length]) {
+            }
+
+            // --- CONTINUOUS GS1 PATTERNS (multiple orderings) ---
+            // 1. 01→10→11→17→240 or 21
+            if (match = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})(?:240|21)(.+)$/)) {
+                info.sapCode = match[1]; info.batch = match[2].trim();
+                info.mfg = formatGS1Date(match[3]); info.exp = formatGS1Date(match[4]);
+                info.scanCode = match[5].trim(); info.status = "Parsed GS1 Cont-1";
+            }
+            // 2. 01→10→17→240 (no mfg)
+            else if (match = s.match(/^01(\d{14})10(.+?)17(\d{6})240(.+)$/)) {
+                info.sapCode = match[1]; info.batch = match[2].trim();
+                info.exp = formatGS1Date(match[3]); info.scanCode = match[4].trim(); info.status = "Parsed GS1 Cont-2";
+            }
+            // 3. 01→10→17→21 (no mfg, serial at end)
+            else if (match = s.match(/^01(\d{14})10(.+?)17(\d{6})21(.+)$/)) {
+                info.sapCode = match[1]; info.batch = match[2].trim();
+                info.exp = formatGS1Date(match[3]); info.serial = match[4].trim();
+                info.scanCode = match[1]; info.status = "Parsed GS1 Cont-3";
+            }
+            // 4. 01→11→17→10→240 (mfg before batch)
+            else if (match = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)240(.+)$/)) {
+                info.sapCode = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
+                info.batch = match[4].trim(); info.scanCode = match[5].trim(); info.status = "Parsed GS1 Cont-4";
+            }
+            // 5. 01→11→17→10→21 (mfg before batch, serial)
+            else if (match = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)21(.+)$/)) {
+                info.sapCode = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
+                info.batch = match[4].trim(); info.serial = match[5].trim();
+                info.scanCode = match[1]; info.status = "Parsed GS1 Cont-5";
+            }
+            // 6. Generic: starts with 01 + 14 digits (basic fallback)
+            else if (match = s.match(/^01(\d{14})/)) {
+                info.sapCode = match[1]; info.scanCode = match[1];
+                // Try to get batch (AI 10)
+                const b = s.match(/10([A-Za-z0-9\-\/._]+?)(?=11|17|21|240|$)/);
+                if (b) info.batch = b[1].trim();
+                const ex = s.match(/17(\d{6})/);
+                if (ex) info.exp = formatGS1Date(ex[1]);
+                const mg = s.match(/11(\d{6})/);
+                if (mg) info.mfg = formatGS1Date(mg[1]);
+                const sc = s.match(/240([A-Za-z0-9\-\/._]+?)(?=21|$)/);
+                if (sc) info.scanCode = sc[1].trim();
+                const ser = s.match(/21([A-Za-z0-9\-\/._]+?)$/);
+                if (ser) info.serial = ser[1].trim();
+                info.status = "Parsed GS1 Generic";
+            }
+
+            // --- POSITION-BASED RULES (for non-GS1 fixed-length MLSIPL barcodes) ---
+            if (!info.status.includes("Parsed") && globalParseRulesMLSIPL[s.length]) {
                 let rule = globalParseRulesMLSIPL[s.length][0];
                 for (let r of globalParseRulesMLSIPL[s.length]) {
                     let tc = s.substring(r.mS, r.mS + r.mL).trim().toUpperCase();
                     if (MATERIAL_MASTER[tc]) { rule = r; break; }
                 }
-                info.scanCode = s.substring(rule.mS, rule.mS + rule.mL); info.batch = s.substring(rule.bS, rule.bS + rule.bL);
+                info.scanCode = s.substring(rule.mS, rule.mS + rule.mL);
+                info.batch = s.substring(rule.bS, rule.bS + rule.bL);
                 if (rule.mgL) info.mfg = formatGS1Date(s.substring(rule.mgS, rule.mgS + rule.mgL));
                 if (rule.exL) info.exp = formatGS1Date(s.substring(rule.exS, rule.exS + rule.exL));
-                info.status = "Parsed Basic Mapping";
-            } else {
-                info.scanCode = s; info.batch = "Unknown"; info.status = `Fail: No AI pattern`;
+                info.status = "Parsed Position-Based";
             }
 
-            info.scanCode = info.scanCode.replace(/[\x00-\x1F\x7F]/g, '').trim();
-            info.batch = info.batch.replace(/[\x00-\x1F\x7F]/g, '').trim();
-            let k = info.scanCode.toUpperCase();
+            if (!info.status.includes("Parsed")) {
+                info.scanCode = s; info.batch = ""; info.status = "Fail: No AI pattern";
+            }
 
+            // Cleanup
+            info.scanCode = (info.scanCode || '').replace(/[\x00-\x1F\x7F]/g, '').trim();
+            info.batch = (info.batch || '').replace(/[\x00-\x1F\x7F]/g, '').trim();
+
+            // Master lookup
+            let k = info.scanCode.toUpperCase();
             if (MATERIAL_MASTER[k]) {
                 let dbRow = MATERIAL_MASTER[k];
-                let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap code') || key.toLowerCase() === 'material code');
+                let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap') || key.toLowerCase().includes('material code'));
                 info.sapCode = sapKey ? dbRow[sapKey] : k;
-            } else { info.sapCode = k; }
+            } else if (info.sapCode && info.sapCode !== 'Unknown' && MATERIAL_MASTER[info.sapCode.toUpperCase()]) {
+                // already set from GS1 parse
+            } else {
+                info.sapCode = k || 'Unknown';
+            }
+
             return info;
         }
+
 
         function parseBarcodeCARDIO(s) { return parseUniversalGS1(s, "CARDIO"); }
         function parseBarcodeMDPL(s) { return parseUniversalGS1(s, "MDPL"); }
