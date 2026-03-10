@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -418,7 +418,11 @@
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold text-gray-800" id="headerTitle">Advanced Barcode Extractor</h1>
-                        <p class="text-xs text-gray-500 mt-1 font-mono" id="dbStatusBadge">âšª Initializing...</p>
+                        <p class="text-xs text-gray-500 mt-1 font-mono flex items-center gap-2 flex-wrap" id="dbStatusBadge">âšª Initializing...
+                            <button onclick="refreshDB()" id="btnRefreshDB" title="Reload Database for current mode"
+                                class="px-2 py-0.5 text-[10px] bg-gray-100 hover:bg-blue-100 hover:text-blue-700 border border-gray-300 rounded font-bold transition hidden">
+                                <i class="fas fa-sync-alt"></i> Refresh DB
+                            </button></p>
                     </div>
                 </div>
 
@@ -442,7 +446,7 @@
                     <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
                             class="fas fa-bone text-purple-600 group-[.active]:text-white"></i> MHPL</span>
                     <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTHOPEDICS
                         / TRAUMA</span>
                 </button>
                 <button onclick="switchMode('MLSIPL')" id="btnMLSIPL"
@@ -450,8 +454,8 @@
                     <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
                             class="fas fa-crutch text-blue-600 group-[.active]:text-white"></i> MLSIPL</span>
                     <span
-                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTH
-                        / TRAUMA</span>
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTHOPEDICS
+                    </span>
                 </button>
                 <button onclick="switchMode('CARDIO')" id="btnCARDIO"
                     class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-cardio group">
@@ -480,6 +484,10 @@
             <button id="tabBtnMaster" onclick="switchMainTab('master')"
                 class="px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white">
                 <i class="fas fa-database mr-1"></i> Material Master
+            </button>
+            <button id="tabBtnLiveScan" onclick="switchMainTab('livescan')"
+                class="px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white">
+                <i class="fas fa-wifi mr-1"></i> Live Scan
             </button>
         </div>
 
@@ -521,6 +529,17 @@
                 </div>
             </div>
 
+            <!-- Session Stats Bar -->
+            <div id="sessionStatsBar"
+                class="bg-indigo-50 border border-indigo-100 rounded px-4 py-2 mb-3 flex flex-wrap gap-4 text-xs font-bold items-center">
+                <span class="text-gray-500"><i class="fas fa-chart-bar mr-1"></i>Session:</span>
+                <span id="statTotal" class="text-gray-700">Total: 0</span>
+                <span id="statFound" class="text-green-700 cursor-pointer hover:underline" onclick="filterByStatus('found')" title="Click to filter">&#10003; Found: 0</span>
+                <span id="statNotFound" class="text-red-600 cursor-pointer hover:underline" onclick="filterByStatus('notfound')" title="Click to filter">&#10007; Not Found: 0</span>
+                <span id="statDup" class="text-orange-600 cursor-pointer hover:underline" onclick="filterByStatus('dup')" title="Click to filter">&#9888; Duplicates: 0</span>
+                <button onclick="clearStatsFilter()" class="ml-auto text-[10px] text-gray-400 hover:text-gray-600">Clear Filter</button>
+            </div>
+
             <div
                 class="bg-white p-3 rounded-t border-b flex flex-col md:flex-row justify-between md:items-center shadow-sm z-20 relative gap-3">
                 <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-2/3">
@@ -534,14 +553,18 @@
                             class="w-full border rounded pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 shadow-inner bg-gray-50">
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 flex-wrap">
                     <button onclick="LayoutManager.open()"
                         class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
                         <i class="fas fa-columns"></i> Layout
                     </button>
+                    <button onclick="exportNotFound()"
+                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1" title="Export rows not found in DB">
+                        <i class="fas fa-exclamation-circle"></i> Not Found
+                    </button>
                     <button onclick="exportExcel()"
                         class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
-                        <i class="fas fa-file-excel"></i> Export Data
+                        <i class="fas fa-file-excel"></i> Export All
                     </button>
                 </div>
             </div>
@@ -662,6 +685,57 @@
                 </div>
             </div>
         </div><!-- end tabMaster -->
+
+        <!-- ===== TAB: LIVE SCAN ===== -->
+        <div id="tabLiveScan" class="hidden">
+            <div class="bg-white rounded shadow border-t-4 border-cyan-500 p-5 mb-4">
+                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center mb-4">
+                    <div class="flex-1">
+                        <label class="font-bold text-gray-700 text-sm mb-2 block">
+                            <i class="fas fa-wifi mr-2 text-cyan-600"></i>Live Scan
+                            <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan to extract instantly</span>
+                        </label>
+                        <input type="text" id="liveScanInput" placeholder="Scan or type a barcode and press Enter..."
+                            class="w-full border-2 border-cyan-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 shadow-inner"
+                            onkeydown="handleLiveScanKey(event)">
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="toggleLiveScanPause()" id="btnLivePause"
+                            class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-pause"></i> Pause
+                        </button>
+                        <button onclick="exportLiveScan()"
+                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-file-excel"></i> Export
+                        </button>
+                        <button onclick="clearLiveScan()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-trash-alt"></i> Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Stats -->
+                <div class="flex flex-wrap gap-4 text-xs font-bold bg-cyan-50 border border-cyan-100 rounded px-4 py-2">
+                    <span class="text-gray-500"><i class="fas fa-chart-bar mr-1"></i>Live Stats:</span>
+                    <span id="lsTotal" class="text-gray-700">Total: 0</span>
+                    <span id="lsFound" class="text-green-700">&#10003; Found: 0</span>
+                    <span id="lsNotFound" class="text-red-600">&#10007; Not Found: 0</span>
+                    <span id="lsDup" class="text-orange-600">&#9888; Duplicates: 0</span>
+                    <span id="lsStatus" class="ml-auto text-cyan-600 font-bold"><i class="fas fa-circle text-green-400 mr-1"></i>Ready</span>
+                </div>
+            </div>
+
+            <!-- Live Scan Table -->
+            <div class="bg-white shadow-sm border rounded">
+                <div class="table-container" style="height: calc(100vh - 380px);">
+                    <table id="liveScanTable" style="width: max-content; min-width: 100%;">
+                        <thead id="liveScanThead"></thead>
+                        <tbody id="liveScanTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- end tabLiveScan -->
 
 
 
@@ -971,6 +1045,7 @@
                     let dispName = window.currentUser.name || window.currentUser.email || "Verified User";
                     document.getElementById('userNameDisplay').innerText = dispName;
                     applyAdminUI(); // Show/hide admin-only elements based on role
+                    showRefreshBtn();
                 }
 
                 const fetchSettingsSafe = async (key, memKey) => {
@@ -1460,6 +1535,16 @@
             if (currentSort.colId === colId) { currentSort.asc = !currentSort.asc; }
             else { currentSort.colId = colId; currentSort.asc = true; }
             applyFiltersAndRender();
+            // === Stats Status Filter ===
+            if (typeof statsStatusFilter !== 'undefined' && statsStatusFilter) {
+                if (statsStatusFilter === 'found') filteredExtracted = filteredExtracted.filter(r => !!getDbRow(r));
+                else if (statsStatusFilter === 'notfound') filteredExtracted = filteredExtracted.filter(r => !getDbRow(r));
+                else if (statsStatusFilter === 'dup') {
+                    const _seen = {}; const _dupKeys = new Set();
+                    filteredExtracted.forEach(r => { const k = r.gtin||r.sapCode||r.matCode||r.scanCode||''; if(k && _seen[k]) _dupKeys.add(k); else if(k) _seen[k]=true; });
+                    filteredExtracted = filteredExtracted.filter(r => _dupKeys.has(r.gtin||r.sapCode||r.matCode||r.scanCode||''));
+                }
+            }
         }
 
         function openFilter(e, colId) {
@@ -1569,6 +1654,7 @@
             buildTableHeader();
             const b = document.getElementById('tblBody');
             document.getElementById('resultCount').innerText = filteredExtracted.length;
+            updateSessionStats();
 
             let cols = LayoutManager.getActiveCols();
             let html = '';
@@ -2255,6 +2341,287 @@
                 btn.innerHTML = '<i class="fas fa-save mr-2"></i> Save Final'; btn.disabled = false;
             }
         }
+
+        // ====================================================================
+        // ===== FEATURE: Tab Switching (Main tabs) ===========================
+        // ====================================================================
+        const MAIN_TABS = ['extract', 'master', 'livescan'];
+        const TAB_BTN_IDS = { extract: 'tabBtnExtract', master: 'tabBtnMaster', livescan: 'tabBtnLiveScan' };
+        const TAB_DIV_IDS = { extract: 'tabExtract', master: 'tabMaster', livescan: 'tabLiveScan' };
+        let activeMainTab = 'extract';
+
+        function switchMainTab(tab) {
+            activeMainTab = tab;
+            MAIN_TABS.forEach(t => {
+                const div = document.getElementById(TAB_DIV_IDS[t]);
+                const btn = document.getElementById(TAB_BTN_IDS[t]);
+                if (!div || !btn) return;
+                if (t === tab) {
+                    div.classList.remove('hidden');
+                    btn.classList.add('bg-white', 'text-indigo-700', 'shadow', 'border', 'border-indigo-200');
+                    btn.classList.remove('text-gray-500');
+                } else {
+                    div.classList.add('hidden');
+                    btn.classList.remove('bg-white', 'text-indigo-700', 'shadow', 'border', 'border-indigo-200');
+                    btn.classList.add('text-gray-500');
+                }
+            });
+            if (tab === 'livescan') {
+                setTimeout(() => { const el = document.getElementById('liveScanInput'); if (el) el.focus(); }, 100);
+            }
+        }
+
+        // ====================================================================
+        // ===== FEATURE: Session Stats Bar ===================================
+        // ====================================================================
+        let statsStatusFilter = null; // null = no filter, 'found'|'notfound'|'dup'
+
+        function updateSessionStats() {
+            const rows = globalExtracted || [];
+            let found = 0, notFound = 0, dup = 0;
+            const seenKeys = {};
+            rows.forEach(r => {
+                const dbRow = getDbRow(r);
+                const key = r.gtin || r.sapCode || r.matCode || r.scanCode || '';
+                if (key && seenKeys[key]) dup++;
+                else if (key) seenKeys[key] = true;
+                if (dbRow) found++; else notFound++;
+            });
+            const total = rows.length;
+            const el = id => document.getElementById(id);
+            if (el('statTotal')) el('statTotal').textContent = 'Total: ' + total;
+            if (el('statFound')) el('statFound').textContent = '\u2713 Found: ' + found;
+            if (el('statNotFound')) el('statNotFound').textContent = '\u2717 Not Found: ' + notFound;
+            if (el('statDup')) el('statDup').textContent = '\u26a0 Duplicates: ' + dup;
+        }
+
+        function filterByStatus(type) {
+            statsStatusFilter = type;
+            applyFiltersAndRender();
+        }
+
+        function clearStatsFilter() {
+            statsStatusFilter = null;
+            applyFiltersAndRender();
+        }
+
+        // ====================================================================
+        // ===== FEATURE: Export Not Found ====================================
+        // ====================================================================
+        function exportNotFound() {
+            const rows = globalExtracted || [];
+            const notFoundRows = rows.filter(r => !getDbRow(r));
+            if (notFoundRows.length === 0) { alert('No "Not Found" rows to export!'); return; }
+            const headers = LayoutManager.getActive().cols.filter(c => c.visible).map(c => c.label);
+            const colIds = LayoutManager.getActive().cols.filter(c => c.visible).map(c => c.id);
+            const wsData = [headers, ...notFoundRows.map(r => colIds.map(id => getCellValue(r, id)))];
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Not Found');
+            XLSX.writeFile(wb, 'NotFound_' + currentMode + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
+        }
+
+        // ====================================================================
+        // ===== FEATURE: DB Refresh ==========================================
+        // ====================================================================
+        async function refreshDB() {
+            const btn = document.getElementById('btnRefreshDB');
+            const badge = document.getElementById('dbStatusBadge');
+            if (btn) { btn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Refreshing...'; btn.disabled = true; }
+            try {
+                const keyMap = { MHPL: 'mhpl_settings', MLSIPL: 'mlsipl_settings', CARDIO: 'cardio_settings', MDPL: 'mdpl_settings' };
+                const key = keyMap[currentMode];
+                if (key) {
+                    const conf = await initFeatureFlags(key);
+                    if (conf && conf.material_master_csv) {
+                        DB_CACHE[currentMode] = conf.material_master_csv;
+                        parseDBCSV(DB_CACHE[currentMode]);
+                        applyFiltersAndRender();
+                    }
+                }
+                if (badge) badge.childNodes[0].textContent = '\u26ab DB Loaded (' + currentMode + ') \u2713';
+            } catch(e) {
+                if (badge) badge.childNodes[0].textContent = '\u26a0 Refresh Failed';
+            }
+            if (btn) { btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh DB'; btn.disabled = false; }
+        }
+
+        // Show Refresh DB button once user is authenticated
+        function showRefreshBtn() {
+            const btn = document.getElementById('btnRefreshDB');
+            if (btn) btn.classList.remove('hidden');
+        }
+
+        // ====================================================================
+        // ===== FEATURE: Keyboard Shortcuts ==================================
+        // ====================================================================
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Enter → Extract (when rawInput has focus or Ctrl pressed)
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                processTextarea();
+            }
+            // Escape → Clear rawInput and globalSearch
+            if (e.key === 'Escape') {
+                const ri = document.getElementById('rawInput');
+                const gs = document.getElementById('globalSearch');
+                if (ri) ri.value = '';
+                if (gs) { gs.value = ''; applyFiltersAndRender(); }
+                statsStatusFilter = null;
+            }
+        });
+
+        // Add hint text under rawInput (runs once DOM is ready)
+        document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('btnExtract');
+            if (btn) {
+                const hint = document.createElement('p');
+                hint.className = 'text-[10px] text-gray-400 mt-1';
+                hint.innerHTML = '<i class="fas fa-keyboard mr-1"></i>Ctrl+Enter to extract &nbsp;|&nbsp; Esc to clear';
+                btn.closest('.flex')?.after(hint);
+            }
+        });
+
+        // ====================================================================
+        // ===== FEATURE: Live Scan Tab =======================================
+        // ====================================================================
+        let liveScanRows = [];
+        let liveScanPaused = false;
+        let liveScanSeenKeys = {};
+
+        function handleLiveScanKey(event) {
+            if (event.key !== 'Enter') return;
+            if (liveScanPaused) return;
+            event.preventDefault();
+            const input = document.getElementById('liveScanInput');
+            const raw = (input.value || '').trim();
+            if (!raw) return;
+            input.value = '';
+
+            // Parse the barcode using current mode
+            let res;
+            if (currentMode === 'MHPL') res = parseBarcodeMHPL(raw);
+            else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(raw);
+            else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(raw);
+            else if (currentMode === 'MDPL') res = parseBarcodeMDPL(raw);
+            else res = parseBarcodeMHPL(raw);
+            res.raw = raw;
+            res._scanTime = new Date().toLocaleTimeString();
+
+            const dbRow = getDbRow(res);
+            const key = res.gtin || res.sapCode || res.matCode || res.scanCode || raw;
+            const isDup = !!liveScanSeenKeys[key];
+            if (key) liveScanSeenKeys[key] = true;
+            res._dbFound = !!dbRow;
+            res._isDup = isDup;
+
+            liveScanRows.unshift(res); // newest on top
+            renderLiveScanTable();
+            updateLiveScanStats();
+
+            // Flash feedback
+            const statusEl = document.getElementById('lsStatus');
+            if (statusEl) {
+                if (isDup) { statusEl.innerHTML = '<i class="fas fa-circle text-orange-400 mr-1"></i>Duplicate!'; }
+                else if (dbRow) { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Found \u2713'; }
+                else { statusEl.innerHTML = '<i class="fas fa-circle text-red-400 mr-1"></i>Not Found'; }
+                setTimeout(() => { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
+            }
+        }
+
+        function renderLiveScanTable() {
+            const thead = document.getElementById('liveScanThead');
+            const tbody = document.getElementById('liveScanTbody');
+            if (!thead || !tbody) return;
+
+            // Build headers from current mode
+            const cols = ['#', 'Time', 'Raw', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Status', 'DB Match'];
+            thead.innerHTML = '<tr>' + cols.map(h =>
+                `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase bg-cyan-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
+            ).join('') + '</tr>';
+
+            tbody.innerHTML = liveScanRows.map((r, i) => {
+                const dbRow = getDbRow(r);
+                const desc = dbRow ? (Object.values(dbRow)[2] || '') : '-';
+                let rowCls = '';
+                if (r._isDup) rowCls = 'bg-orange-50';
+                else if (r._dbFound) rowCls = 'bg-green-50';
+                else rowCls = 'bg-red-50';
+
+                const statusBadge = r._isDup
+                    ? '<span class="text-orange-600 font-bold">DUP</span>'
+                    : (r._dbFound ? '<span class="text-green-600 font-bold">FOUND</span>' : '<span class="text-red-600 font-bold">NOT FOUND</span>');
+
+                return `<tr class="${rowCls} border-b hover:brightness-95 text-xs">
+                    <td class="px-2 py-1 text-gray-400">${liveScanRows.length - i}</td>
+                    <td class="px-2 py-1 text-gray-500 whitespace-nowrap">${r._scanTime || ''}</td>
+                    <td class="px-2 py-1 font-mono text-gray-700 max-w-[200px] truncate" title="${r.raw || ''}">${r.raw || ''}</td>
+                    <td class="px-2 py-1 font-mono">${r.gtin || r.sapCode || '-'}</td>
+                    <td class="px-2 py-1 font-mono">${r.matCode || r.scanCode || '-'}</td>
+                    <td class="px-2 py-1">${r.batch || '-'}</td>
+                    <td class="px-2 py-1">${r.exp || '-'}</td>
+                    <td class="px-2 py-1">${r.mfg || '-'}</td>
+                    <td class="px-2 py-1">${statusBadge}</td>
+                    <td class="px-2 py-1 text-gray-600 max-w-[200px] truncate" title="${desc}">${desc}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function updateLiveScanStats() {
+            const total = liveScanRows.length;
+            const found = liveScanRows.filter(r => r._dbFound && !r._isDup).length;
+            const notFound = liveScanRows.filter(r => !r._dbFound).length;
+            const dup = liveScanRows.filter(r => r._isDup).length;
+            const el = id => document.getElementById(id);
+            if (el('lsTotal')) el('lsTotal').textContent = 'Total: ' + total;
+            if (el('lsFound')) el('lsFound').textContent = '\u2713 Found: ' + found;
+            if (el('lsNotFound')) el('lsNotFound').textContent = '\u2717 Not Found: ' + notFound;
+            if (el('lsDup')) el('lsDup').textContent = '\u26a0 Duplicates: ' + dup;
+        }
+
+        function toggleLiveScanPause() {
+            liveScanPaused = !liveScanPaused;
+            const btn = document.getElementById('btnLivePause');
+            const statusEl = document.getElementById('lsStatus');
+            if (btn) {
+                btn.innerHTML = liveScanPaused
+                    ? '<i class="fas fa-play"></i> Resume'
+                    : '<i class="fas fa-pause"></i> Pause';
+                btn.className = liveScanPaused
+                    ? 'bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1'
+                    : 'bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded text-xs font-bold shadow flex items-center gap-1';
+            }
+            if (statusEl) statusEl.innerHTML = liveScanPaused
+                ? '<i class="fas fa-circle text-yellow-400 mr-1"></i>Paused'
+                : '<i class="fas fa-circle text-green-400 mr-1"></i>Ready';
+        }
+
+        function clearLiveScan() {
+            if (liveScanRows.length > 0 && !confirm('Clear all ' + liveScanRows.length + ' scanned rows?')) return;
+            liveScanRows = [];
+            liveScanSeenKeys = {};
+            renderLiveScanTable();
+            updateLiveScanStats();
+            const statusEl = document.getElementById('lsStatus');
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready';
+        }
+
+        function exportLiveScan() {
+            if (liveScanRows.length === 0) { alert('No scanned data to export!'); return; }
+            const headers = ['#','Time','Raw Barcode','GTIN/SAP','Mat Code','Batch','Expiry','Mfg','Status','DB Description'];
+            const wsData = [headers, ...liveScanRows.map((r, i) => {
+                const dbRow = getDbRow(r);
+                const desc = dbRow ? (Object.values(dbRow)[2] || '') : '';
+                const status = r._isDup ? 'DUPLICATE' : (r._dbFound ? 'FOUND' : 'NOT FOUND');
+                return [i+1, r._scanTime||'', r.raw||'', r.gtin||r.sapCode||'', r.matCode||r.scanCode||'',
+                        r.batch||'', r.exp||'', r.mfg||'', status, desc];
+            })];
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'LiveScan');
+            XLSX.writeFile(wb, 'LiveScan_' + currentMode + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
+        }
+
     </script>
 </body>
 
