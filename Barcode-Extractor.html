@@ -632,17 +632,33 @@
             <!-- Master Table -->
             <div class="bg-white p-2 rounded shadow border">
                 <div class="text-xs text-gray-500 px-2 pb-2 flex justify-between items-center">
-                    <span id="masterResultInfo" class="font-bold text-teal-700"></span>
-                    <div class="flex gap-2">
+                    <span id="masterResultInfo" class="font-bold text-teal-700 text-xs"></span>
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <span class="text-xs text-gray-500">Rows:</span>
+                        <select onchange="masterSetPageSize(this.value)"
+                            class="text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 bg-gray-50">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                            <option value="0">All</option>
+                        </select>
+                        <button
+                            onclick="masterColFilters={}; masterSort={col:null,asc:true}; applyMasterFiltersAndSort()"
+                            class="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs font-bold"
+                            title="Clear all filters & sort">
+                            <i class="fas fa-filter-circle-xmark mr-1"></i>Reset
+                        </button>
                         <button onclick="masterPrevPage()" id="btnMasterPrev"
                             class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">◀
                             Prev</button>
-                        <span id="masterPageInfo" class="px-2 py-1 text-xs font-mono"></span>
+                        <span id="masterPageInfo" class="px-2 py-1 text-xs font-mono text-gray-600"></span>
                         <button onclick="masterNextPage()" id="btnMasterNext"
                             class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold disabled:opacity-40">Next
                             ▶</button>
                     </div>
                 </div>
+
                 <div class="table-container" style="height: calc(100vh - 420px);">
                     <table id="masterTable" style="width: max-content; min-width: 100%;">
                         <thead id="masterThead"></thead>
@@ -1711,71 +1727,238 @@
         function refreshMasterCount() {
             const total = Object.keys(MATERIAL_MASTER).length;
             const el = document.getElementById('masterRecordCount');
-            if (el) el.textContent = `(${total.toLocaleString()} total records in ${currentMode} DB)`;
+            if (el) el.textContent = `(${total.toLocaleString()} records in ${currentMode} DB)`;
         }
 
-        function searchMaterialMaster() {
-            const query = (document.getElementById('masterSearchInput')?.value || '').toLowerCase().trim();
-            const allKeys = Object.keys(MATERIAL_MASTER);
+        // ── MASTER TABLE STATE ─────────────────────────────────────────────────────
+        let masterSort = { col: null, asc: true };
+        let masterColFilters = {};   // { colName: 'filterValue' }
+        let masterPageSize = 50;
 
-            if (!query) {
-                masterFilteredRows = allKeys.map(k => MATERIAL_MASTER[k]);
-            } else {
-                masterFilteredRows = allKeys
-                    .map(k => MATERIAL_MASTER[k])
-                    .filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
+        function searchMaterialMaster() {
+            masterCurrentPage = 0;
+            applyMasterFiltersAndSort();
+            refreshMasterCount();
+        }
+
+        function applyMasterFiltersAndSort() {
+            const query = (document.getElementById('masterSearchInput')?.value || '').toLowerCase().trim();
+            const allRows = Object.values(MATERIAL_MASTER);
+
+            // Step 1: Global text search
+            let rows = query
+                ? allRows.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)))
+                : allRows.slice();
+
+            // Step 2: Column filters
+            for (const [col, val] of Object.entries(masterColFilters)) {
+                if (val === '') continue;
+                rows = rows.filter(row => String(row[col] || '') === val);
             }
 
-            masterCurrentPage = 0;
+            // Step 3: Sort
+            if (masterSort.col) {
+                const col = masterSort.col, asc = masterSort.asc;
+                rows.sort((a, b) => {
+                    const va = String(a[col] || '').toLowerCase();
+                    const vb = String(b[col] || '').toLowerCase();
+                    // Numeric sort if both are numbers
+                    const na = parseFloat(va), nb = parseFloat(vb);
+                    if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+                    if (va < vb) return asc ? -1 : 1;
+                    if (va > vb) return asc ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            masterFilteredRows = rows;
             masterRenderPage();
-            refreshMasterCount();
+            masterRenderStats();
+        }
+
+        function masterRenderStats() {
+            const info = document.getElementById('masterResultInfo');
+            if (!info) return;
+            const total = Object.keys(MATERIAL_MASTER).length;
+            const filtered = masterFilteredRows.length;
+            const activeFilters = Object.entries(masterColFilters).filter(([, v]) => v !== '');
+            let html = `<span class="text-teal-700 font-bold">${filtered.toLocaleString()} shown</span>`;
+            html += ` <span class="text-gray-400">/ ${total.toLocaleString()} total</span>`;
+            if (activeFilters.length > 0) {
+                html += ` &nbsp;|&nbsp; <span class="text-orange-600 font-bold">Filters: `;
+                html += activeFilters.map(([col, val]) =>
+                    `<span class="bg-orange-100 px-1 rounded cursor-pointer" onclick="clearColFilter('${col}')" title="Click to clear">${col}: ${val} ✕</span>`
+                ).join(' ');
+                html += `</span>`;
+            }
+            if (masterSort.col) {
+                html += ` &nbsp;|&nbsp; <span class="text-blue-600">Sort: ${masterSort.col} ${masterSort.asc ? '↑' : '↓'}</span>`;
+            }
+            info.innerHTML = html;
         }
 
         function masterRenderPage() {
             const thead = document.getElementById('masterThead');
             const tbody = document.getElementById('masterTbody');
-            const info = document.getElementById('masterResultInfo');
             const pageInfo = document.getElementById('masterPageInfo');
 
             const headers = MASTER_HEADERS.length > 0 ? MASTER_HEADERS : ['Code', 'Description'];
             const total = masterFilteredRows.length;
-            const start = masterCurrentPage * MASTER_PAGE_SIZE;
-            const end = Math.min(start + MASTER_PAGE_SIZE, total);
+            const ps = masterPageSize === 0 ? total : masterPageSize;
+            const start = masterCurrentPage * ps;
+            const end = Math.min(start + ps, total);
             const pageRows = masterFilteredRows.slice(start, end);
+            const totalPages = ps === 0 ? 1 : Math.ceil(total / ps) || 1;
 
-            // Header
-            thead.innerHTML = `<tr>${headers.map(h =>
-                `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase text-gray-600 bg-teal-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
-            ).join('')}</tr>`;
+            // ─── Header with sort + filter ──────────────────────────────────────
+            thead.innerHTML = `<tr>
+                ${headers.map(h => {
+                const isSort = masterSort.col === h;
+                const sortIcon = isSort ? (masterSort.asc ? ' ↑' : ' ↓') : ' ⇅';
+                const hasFilter = masterColFilters[h] && masterColFilters[h] !== '';
+                const filterBg = hasFilter ? 'text-orange-500' : 'text-gray-400 hover:text-gray-600';
+                return `<th class="px-2 py-2 text-left text-[10px] font-bold uppercase bg-teal-50 border-r border-gray-200 whitespace-nowrap select-none" style="min-width:80px;">
+                        <div class="flex items-center gap-1">
+                            <span class="cursor-pointer hover:text-teal-700 flex-1" onclick="masterSortByCol('${h}')">${h}<span class="opacity-60">${sortIcon}</span></span>
+                            <span class="${filterBg} cursor-pointer text-[11px]" onclick="masterShowColFilter('${h}', this)" title="Filter by ${h}">▾</span>
+                        </div>
+                    </th>`;
+            }).join('')}
+                <th class="px-2 py-2 bg-teal-50 border-r text-[10px] text-gray-400 w-6"></th>
+            </tr>`;
 
-            // Rows
+            // ─── Rows ────────────────────────────────────────────────────────────
             if (pageRows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${headers.length}" class="text-center py-12 text-gray-400 text-sm">
+                tbody.innerHTML = `<tr><td colspan="${headers.length + 1}" class="text-center py-12 text-gray-400 text-sm">
                     <i class="fas fa-search text-2xl mb-2 block opacity-30"></i>No records found
                 </td></tr>`;
             } else {
-                tbody.innerHTML = pageRows.map((row, i) => `
-                    <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-teal-50 transition-colors">
+                const searchQ = (document.getElementById('masterSearchInput')?.value || '').toLowerCase().trim();
+                tbody.innerHTML = pageRows.map((row, i) => {
+                    const rowText = headers.map(h => row[h] || '').join(' | ');
+                    return `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-teal-50 transition-colors group">
                         ${headers.map(h => {
-                    const v = row[h] || '';
-                    return `<td class="px-3 py-1.5 text-[11px] border-r border-gray-100 whitespace-nowrap text-gray-700">${v}</td>`;
-                }).join('')}
-                    </tr>`).join('');
+                        let v = row[h] || '';
+                        // Highlight search term
+                        if (searchQ && v.toLowerCase().includes(searchQ)) {
+                            v = v.replace(new RegExp(`(${searchQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+                                '<mark class="bg-yellow-200 rounded px-0.5">$1</mark>');
+                        }
+                        return `<td class="px-3 py-1.5 text-[11px] border-r border-gray-100 whitespace-nowrap text-gray-700">${v}</td>`;
+                    }).join('')}
+                        <td class="px-1 py-1 border-r border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="copyMasterRow('${rowText.replace(/'/g, '\\\'')}')"
+                                title="Copy row" class="text-gray-400 hover:text-teal-600 text-[10px]">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                }).join('');
             }
 
-            // Pagination info
-            const totalPages = Math.ceil(total / MASTER_PAGE_SIZE) || 1;
-            info.textContent = total === 0 ? 'No records found' : `Showing ${start + 1}–${end} of ${total} records`;
-            pageInfo.textContent = `Page ${masterCurrentPage + 1} / ${totalPages}`;
+            // ─── Pagination controls ─────────────────────────────────────────────
+            if (pageInfo) pageInfo.textContent = `Page ${masterCurrentPage + 1} / ${totalPages}`;
             document.getElementById('btnMasterPrev').disabled = masterCurrentPage === 0;
             document.getElementById('btnMasterNext').disabled = end >= total;
         }
 
-        function masterPrevPage() { if (masterCurrentPage > 0) { masterCurrentPage--; masterRenderPage(); } }
-        function masterNextPage() {
-            const totalPages = Math.ceil(masterFilteredRows.length / MASTER_PAGE_SIZE);
-            if (masterCurrentPage < totalPages - 1) { masterCurrentPage++; masterRenderPage(); }
+        function masterSortByCol(col) {
+            if (masterSort.col === col) {
+                masterSort.asc = !masterSort.asc;
+            } else {
+                masterSort = { col, asc: true };
+            }
+            masterCurrentPage = 0;
+            applyMasterFiltersAndSort();
         }
+
+        function masterShowColFilter(col, btnEl) {
+            // Remove any existing filter popup
+            document.getElementById('masterColFilterPopup')?.remove();
+
+            // Collect unique values for this column
+            const allRows = Object.values(MATERIAL_MASTER);
+            const uniques = [...new Set(allRows.map(r => String(r[col] || '').trim()))].filter(Boolean).sort();
+            if (uniques.length === 0) return;
+            if (uniques.length > 500) {
+                alert(`Column "${col}" has ${uniques.length} unique values — too many for a filter dropdown. Use the search bar instead.`); return;
+            }
+
+            const current = masterColFilters[col] || '';
+            const popup = document.createElement('div');
+            popup.id = 'masterColFilterPopup';
+            popup.className = 'absolute z-50 bg-white border border-gray-300 rounded shadow-xl p-2 text-xs';
+            popup.style.cssText = 'min-width:180px; max-height:260px; overflow-y:auto;';
+
+            popup.innerHTML = `
+                <div class="font-bold text-gray-700 mb-1 pb-1 border-b flex justify-between">
+                    <span>Filter: ${col}</span>
+                    <button onclick="document.getElementById('masterColFilterPopup')?.remove()" class="text-gray-400 hover:text-red-500">✕</button>
+                </div>
+                <div onclick="setMasterColFilter('${col}','')" class="cursor-pointer px-2 py-1 rounded hover:bg-gray-100 ${current === '' ? 'bg-teal-50 font-bold text-teal-700' : ''}">(All)</div>
+                ${uniques.map(v => `<div onclick="setMasterColFilter('${col}','${v.replace(/'/g, "\\'")}') "
+                    class="cursor-pointer px-2 py-1 rounded hover:bg-orange-50 truncate ${current === v ? 'bg-orange-100 font-bold text-orange-700' : ''}"
+                    title="${v}">${v}</div>`).join('')}`;
+
+            // Position near the button
+            const rect = btnEl.getBoundingClientRect();
+            popup.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+            popup.style.left = (rect.left + window.scrollX - 140) + 'px';
+            popup.style.position = 'fixed';
+            popup.style.top = (rect.bottom + 4) + 'px';
+            popup.style.left = Math.max(4, rect.left - 140) + 'px';
+
+            document.body.appendChild(popup);
+            // Close on outside click
+            setTimeout(() => {
+                document.addEventListener('click', function closePop(e) {
+                    if (!popup.contains(e.target) && e.target !== btnEl) {
+                        popup.remove();
+                        document.removeEventListener('click', closePop);
+                    }
+                });
+            }, 10);
+        }
+
+        function setMasterColFilter(col, val) {
+            masterColFilters[col] = val;
+            masterCurrentPage = 0;
+            document.getElementById('masterColFilterPopup')?.remove();
+            applyMasterFiltersAndSort();
+        }
+
+        function clearColFilter(col) {
+            delete masterColFilters[col];
+            masterCurrentPage = 0;
+            applyMasterFiltersAndSort();
+        }
+
+        function masterChangePage(delta) {
+            const ps = masterPageSize === 0 ? masterFilteredRows.length : masterPageSize;
+            const totalPages = Math.ceil(masterFilteredRows.length / (ps || 1)) || 1;
+            masterCurrentPage = Math.max(0, Math.min(masterCurrentPage + delta, totalPages - 1));
+            masterRenderPage();
+            masterRenderStats();
+        }
+
+        function masterPrevPage() { masterChangePage(-1); }
+        function masterNextPage() { masterChangePage(1); }
+
+        function masterSetPageSize(n) {
+            masterPageSize = parseInt(n) || 0;
+            masterCurrentPage = 0;
+            masterRenderPage();
+            masterRenderStats();
+        }
+
+        function copyMasterRow(text) {
+            navigator.clipboard?.writeText(text).then(() => {
+                const btn = event.currentTarget;
+                btn.innerHTML = '<i class="fas fa-check text-green-500"></i>';
+                setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 1200);
+            }).catch(() => alert(text));
+        }
+
 
         function exportMasterSearch() {
             const headers = MASTER_HEADERS.length > 0 ? MASTER_HEADERS : ['Code', 'Description'];
