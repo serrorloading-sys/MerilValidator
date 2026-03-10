@@ -21,6 +21,55 @@
         // Store raw CSV content for saving
         window.tempMaterialMasterCSV = "";
         window.tempCustomerMasterCSV = "";
+        // Track all column headers from Material Master CSV
+        window.MHPL_MASTER_HEADERS = [];
+
+        // Helper: robust CSV line parser (handles quoted fields with commas)
+        function parseCsvLine(line) {
+            const result = [];
+            let cur = '', inQuote = false;
+            for (let i = 0; i < line.length; i++) {
+                const c = line[i];
+                if (c === '"') { inQuote = !inQuote; }
+                else if (c === ',' && !inQuote) { result.push(cur.trim()); cur = ''; }
+                else { cur += c; }
+            }
+            result.push(cur.trim());
+            return result;
+        }
+
+        // Helper: Build MATERIAL_MASTER (full objects) from CSV text
+        function parseMaterialMasterCSV(text) {
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+            if (lines.length < 2) return 0;
+
+            const rawHeaders = parseCsvLine(lines[0]);
+            const headers = rawHeaders.map(x => x.replace(/^"|"$/g, '').trim());
+
+            // Find the material code column (first priority: exact 'material', fallback: first col)
+            let iMat = headers.findIndex(h => /^material$/i.test(h));
+            if (iMat === -1) iMat = headers.findIndex(h => /(material|matnr|code|sku|item)/i.test(h));
+            if (iMat === -1) iMat = 0;
+
+            // Store column headers (display names, trimmed)
+            window.MHPL_MASTER_HEADERS = headers;
+
+            window.MATERIAL_MASTER = {};
+            let count = 0;
+            for (let i = 1; i < lines.length; i++) {
+                const row = parseCsvLine(lines[i]);
+                const matCode = (row[iMat] || '').replace(/^"|"$/g, '').trim().toUpperCase();
+                if (!matCode) continue;
+                const obj = {};
+                headers.forEach((h, idx) => {
+                    obj[h] = (row[idx] || '').replace(/^"|"$/g, '').trim();
+                });
+                window.MATERIAL_MASTER[matCode] = obj;
+                count++;
+            }
+            console.log(`[MHPL] Loaded ${count} materials. Columns: ${headers.join(', ')}`);
+            return count;
+        }
 
         // --- MASTER DATA LOADING ---
         async function loadMasterData() {
@@ -32,48 +81,13 @@
                 const text = e.target.result;
                 window.tempMaterialMasterCSV = text; // Store for saving
 
-                // Process for current session
-                const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-                if (lines.length > 0) {
-                    const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
-                    let iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
-                    let iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
+                const count = parseMaterialMasterCSV(text);
 
-                    let startRow = 1;
-
-                    // Fallback heuristics if specific headers aren't found
-                    if (iMat === -1 || iDesc === -1) {
-                        iMat = 0;
-                        iDesc = 1;
-                        startRow = 0; // Assume first row is data if headers not clearly identified
-                        console.log("Headers not found, assuming Col 0 = Material, Col 1 = Description. Starting at row 0.");
-                    }
-
-                    if (iMat > -1 && iDesc > -1) {
-                        window.MATERIAL_MASTER = {}; // Clear existing map entirely
-                        let count = 0;
-                        for (let i = startRow; i < lines.length; i++) {
-                            const row = lines[i].split(',');
-                            if (row.length > Math.max(iMat, iDesc)) {
-                                const m = row[iMat].trim().toUpperCase();
-                                const d = row[iDesc].trim();
-                                if (m) {
-                                    window.MATERIAL_MASTER[m] = d;
-                                    count++;
-                                }
-                            }
-                        }
-                        console.log(`Loaded ${count} materials from file`);
-
-                        // UI Feedback
-                        const listEl = document.getElementById('masterList');
-                        if (listEl) {
-                            listEl.innerHTML = `<li class="text-blue-600 font-bold"><i class="fas fa-check"></i> File Loaded: ${count} items</li>`;
-                            document.getElementById('masterCount').innerText = count;
-                        }
-                    } else {
-                        alert("Could not infer 'Material' and 'Description' columns in CSV.");
-                    }
+                // UI Feedback
+                const listEl = document.getElementById('masterList');
+                if (listEl) {
+                    listEl.innerHTML = `<li class="text-blue-600 font-bold"><i class="fas fa-check"></i> File Loaded: ${count} items (${window.MHPL_MASTER_HEADERS.length} columns)</li>`;
+                    document.getElementById('masterCount').innerText = count;
                 }
             };
             reader.readAsText(file);
@@ -206,10 +220,6 @@
             if (window.currentUser && window.currentUser.role === 'admin') {
                 const btn1 = document.getElementById('btnSaveToMaster');
                 const btn2 = document.getElementById('btnSaveToMasterCust');
-                if (btn1) btn1.style.display = 'flex'; // It was 'flex' in my previous replace
-                // wait, I made them hidden by default. 
-                // The previous code: class="hidden mt-3 flex justify-end"
-                // So removing 'hidden' might be enough, but display:flex is better if I want flex behavior.
                 if (btn1) btn1.classList.remove('hidden');
                 if (btn2) btn2.classList.remove('hidden');
             }
@@ -230,53 +240,17 @@
                     // Re-apply to UI so non-admins see the admin's globally saved settings
                     if (typeof loadSettings === 'function') loadSettings();
 
-                    // Material Master
+                    // Material Master (full multi-column objects)
                     if (config.material_master_csv && config.material_master_csv.length > 10) {
                         try {
-                            // Parse CSV manually to avoid file object dependency issues
-                            const lines = config.material_master_csv.split(/\r?\n/).filter(l => l.trim() !== "");
-                            if (lines.length > 0) {
-                                const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
-                                // Simple index find
-                                let iMat = headers.findIndex(h => h.includes('material') || h.includes('code'));
-                                let iDesc = headers.findIndex(h => h.includes('desc') || h.includes('name'));
-
-                                let startRow = 1;
-
-                                // Fallback for files if headers not found clearly
-                                if (iMat === -1 || iDesc === -1) {
-                                    iMat = 0;
-                                    iDesc = 1;
-                                    startRow = 0; // Assume first row is actual data
-                                    console.log("Headers not found, assuming Col 0 = Material, Col 1 = Description");
-                                }
-
-                                if (iMat > -1 && iDesc > -1) {
-                                    window.MATERIAL_MASTER = window.MATERIAL_MASTER || {};
-                                    let count = 0;
-                                    // Start from interpreted startRow
-                                    for (let i = startRow; i < lines.length; i++) {
-                                        const row = lines[i].split(','); // Basic split, might fail on quoted commas but sufficient for simple lists
-                                        if (row.length > Math.max(iMat, iDesc)) {
-                                            const m = row[iMat].trim().toUpperCase();
-                                            const d = row[iDesc].trim();
-                                            if (m) {
-                                                window.MATERIAL_MASTER[m] = d;
-                                                count++;
-                                            }
-                                        }
-                                    }
-                                    console.log(`Auto-loaded ${count} materials from Config`);
-                                    // UI Feedback
-                                    const listEl = document.getElementById('masterList');
-                                    if (listEl) {
-                                        listEl.innerHTML = `<li class="text-green-600 font-bold"><i class="fas fa-magic"></i> Config Loaded: ${count} items</li>`;
-                                        document.getElementById('masterCount').innerText = `${count} (Config)`;
-                                        const input = document.getElementById('fileMaster');
-                                        if (input && (!window.currentUser || window.currentUser.role !== 'admin')) {
-                                            input.style.display = 'none';
-                                        }
-                                    }
+                            const count = parseMaterialMasterCSV(config.material_master_csv);
+                            const listEl = document.getElementById('masterList');
+                            if (listEl) {
+                                listEl.innerHTML = `<li class="text-green-600 font-bold"><i class="fas fa-magic"></i> Config Loaded: ${count} items (${window.MHPL_MASTER_HEADERS.length} columns)</li>`;
+                                document.getElementById('masterCount').innerText = `${count} (Config)`;
+                                const input = document.getElementById('fileMaster');
+                                if (input && (!window.currentUser || window.currentUser.role !== 'admin')) {
+                                    input.style.display = 'none';
                                 }
                             }
                         } catch (e) { console.error("Error loading Material Master", e); }
@@ -357,6 +331,10 @@
                     class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-2 rounded text-sm font-bold shadow transition flex items-center gap-1">
                     <i class="fas fa-trash-alt"></i> Clear Data
                 </button>
+                <a href="Barcode-Extractor.html"
+                    class="bg-orange-50 hover:bg-orange-100 text-orange-700 px-3 py-2 rounded text-sm font-bold border border-orange-200 transition flex items-center gap-1 decoration-none">
+                    <i class="fas fa-barcode"></i> Barcode Extractor
+                </a>
                 <a href="index.html" data-feature="allow_switch_entity"
                     class="group bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg hover:shadow-slate-500/50 transition-all duration-300 transform hover:-translate-y-1 hover:scale-105 flex items-center decoration-none border border-white/20 relative overflow-hidden">
                     <div
@@ -421,8 +399,10 @@
                             class="fas fa-database text-purple-600 mr-2"></i>Master Data Management</h3>
                     <div class="mb-3">
                         <label class="block text-xs font-bold text-gray-700 mb-1">Upload Material Master (Excel)</label>
-                        <div class="text-[10px] text-gray-500 mb-2">Required Columns: <b>Material</b>,
-                            <b>Description</b>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Upload Material Master (CSV)</label>
+                        <div class="text-[10px] text-gray-500 mb-2">
+                            Supports full CSV — all columns auto-detected: <b>Material, Material Description, Material
+                                Group, Division, EAN/UPC, Gross Weight, Net Weight, PH Level 01–05</b> etc.
                         </div>
                         <input type="file" id="fileMaster" onchange="loadMasterData()"
                             class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-white file:text-purple-700 hover:file:bg-purple-100 cursor-pointer border rounded bg-white p-1" />
@@ -738,7 +718,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         <label
                             class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
-                            <input type="checkbox" id="chkDupeScan" checked
+                            <input type="checkbox" id="chkDupeScan" checked onchange="saveSettings()"
                                 class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
                             <div>
                                 <div class="text-xs font-bold text-gray-800">Duplicate Scan Detection</div>
@@ -748,7 +728,7 @@
                         </label>
                         <label
                             class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
-                            <input type="checkbox" id="chkOverScan" checked
+                            <input type="checkbox" id="chkOverScan" checked onchange="saveSettings()"
                                 class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
                             <div>
                                 <div class="text-xs font-bold text-gray-800">Over-Scan Qty Alert</div>
@@ -758,7 +738,7 @@
                         </label>
                         <label
                             class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
-                            <input type="checkbox" id="chkPlantMismatch" checked
+                            <input type="checkbox" id="chkPlantMismatch" checked onchange="saveSettings()"
                                 class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
                             <div>
                                 <div class="text-xs font-bold text-gray-800">Plant Mismatch Warning</div>
@@ -768,7 +748,7 @@
                         </label>
                         <label
                             class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
-                            <input type="checkbox" id="chkIncompleteScan" checked
+                            <input type="checkbox" id="chkIncompleteScan" checked onchange="saveSettings()"
                                 class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
                             <div>
                                 <div class="text-xs font-bold text-gray-800">Incomplete Barcode Flag</div>
@@ -778,7 +758,7 @@
                         </label>
                         <label
                             class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
-                            <input type="checkbox" id="chkExpiryMismatch" checked
+                            <input type="checkbox" id="chkExpiryMismatch" checked onchange="saveSettings()"
                                 class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
                             <div>
                                 <div class="text-xs font-bold text-gray-800">Expiry Date Mismatch</div>
@@ -788,7 +768,7 @@
                         </label>
                         <label
                             class="flex items-start gap-2 p-3 bg-white rounded border border-indigo-100 cursor-pointer hover:border-indigo-400 transition">
-                            <input type="checkbox" id="chkQtyRecon" checked
+                            <input type="checkbox" id="chkQtyRecon" checked onchange="saveSettings()"
                                 class="mt-0.5 w-4 h-4 text-indigo-600 rounded">
                             <div>
                                 <div class="text-xs font-bold text-gray-800">Qty Reconciliation KPI</div>
@@ -796,9 +776,28 @@
                                     dikhao</div>
                             </div>
                         </label>
+                        <label
+                            class="flex items-start gap-2 p-3 bg-teal-50 rounded border border-teal-200 cursor-pointer hover:border-teal-500 transition">
+                            <input type="checkbox" id="chkGroupSuggest" onchange="saveSettings()"
+                                class="mt-0.5 w-4 h-4 text-teal-600 rounded">
+                            <div>
+                                <div class="text-xs font-bold text-gray-800">💡 Material Group Suggestion
+                                    <span class="text-[9px] text-teal-600 bg-teal-100 px-1 rounded">New</span>
+                                </div>
+                                <div class="text-[10px] text-gray-500 mt-0.5">Variance rows ke liye same Material
+                                    Group ke substitute materials suggest karo</div>
+                            </div>
+                        </label>
                     </div>
                 </div>
                 <!-- ===== END ADVANCED LOGIC TOGGLES ===== -->
+                <!-- Reset Button -->
+                <div class="mt-3 flex justify-end">
+                    <button onclick="resetAdvLogicToDefaults()"
+                        class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold flex items-center gap-1 transition">
+                        <i class="fas fa-redo-alt"></i> Reset Advanced Logic to Defaults (All ON)
+                    </button>
+                </div>
 
             </div>
 

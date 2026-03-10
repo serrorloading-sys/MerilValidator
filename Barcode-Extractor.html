@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Entity Barcode Extractor V8.1 - Regex Fix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="src/core/EventBus.js"></script>
+    <script src="src/utils/crypto.js"></script>
+    <script src="supabase-client.js"></script>
+    <script src="feature-flags.js"></script>
+
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .table-container {
+            overflow: auto;
+            height: calc(100vh - 360px);
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            position: relative;
+        }
+
+        table {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #f1f5f9;
+            z-index: 20;
+            font-size: 11px;
+            border-right: 1px solid #cbd5e1;
+            border-bottom: 2px solid #cbd5e1;
+            border-top: 1px solid #e2e8f0;
+            color: #475569;
+            padding: 8px 12px;
+            white-space: nowrap;
+            text-align: left;
+            user-select: none;
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        td {
+            font-size: 11px;
+            vertical-align: middle;
+            border-bottom: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            white-space: nowrap;
+            color: #334155;
+        }
+
+        tr:hover td {
+            background-color: #f0f9ff;
+        }
+
+        .extracted-col {
+            background-color: #f8fafc;
+            font-family: monospace;
+        }
+
+        .master-col {
+            background-color: #ffffff;
+        }
+
+        .badge-ok {
+            color: #166534;
+            background: #dcfce7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            border: 1px solid #86efac;
+            font-size: 10px;
+        }
+
+        .badge-err {
+            color: #991b1b;
+            background: #fee2e2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            border: 1px solid #fca5a5;
+            font-size: 10px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        #loadingOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .filter-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            padding: 8px;
+            z-index: 100;
+            width: 220px;
+            font-weight: normal;
+            display: none;
+            top: 100%;
+            left: 0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .filter-search {
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            outline: none;
+        }
+
+        .filter-search:focus {
+            border-color: #4f46e5;
+        }
+
+        .filter-list {
+            max-height: 150px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border: 1px solid #f1f5f9;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            color: #334155;
+            cursor: pointer;
+        }
+
+        .filter-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .filter-icon {
+            margin-left: 6px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: color 0.2s;
+            font-size: 10px;
+        }
+
+        .filter-icon:hover,
+        .filter-icon.active {
+            color: #2563eb;
+        }
+
+        .sort-icon {
+            margin-left: 4px;
+            color: #cbd5e1;
+            cursor: pointer;
+            font-size: 10px;
+            display: inline-block;
+        }
+
+        th:hover .sort-icon {
+            color: #94a3b8;
+        }
+
+        .sort-icon.active {
+            color: #4f46e5;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+
+        .lm-container {
+            background: white;
+            width: 900px;
+            max-width: 95vw;
+            height: 600px;
+            max-height: 90vh;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            display: flex;
+        }
+
+        .lm-sidebar {
+            width: 250px;
+            background: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .lm-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+
+        .lm-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+
+        .lm-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .lm-col-row {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #f1f5f9;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .lm-col-row:hover {
+            background: #f8fafc;
+        }
+
+        .lm-col-row.disabled {
+            opacity: 0.5;
+            background: #fafafa;
+        }
+
+        .lm-layout-item {
+            padding: 10px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            font-size: 13px;
+            color: #374151;
+            transition: background 0.2s;
+        }
+
+        .lm-layout-item:hover {
+            background: #e2e8f0;
+        }
+
+        .lm-layout-item.active {
+            background: #4f46e5;
+            color: white;
+            font-weight: bold;
+        }
+
+        .btn-lm {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-lm-save {
+            background: #10b981;
+            color: white;
+            border: 1px solid #059669;
+        }
+
+        .btn-lm-save:hover {
+            background: #059669;
+        }
+
+        .btn-lm-danger {
+            background: #f3f4f6;
+            color: #ef4444;
+            border: 1px solid #e5e7eb;
+        }
+
+        .btn-lm-danger:hover {
+            background: #fee2e2;
+            border-color: #fca5a5;
+        }
+
+        .btn-create {
+            background: #4f46e5;
+            color: white;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .btn-create:hover {
+            background: #4338ca;
+        }
+
+        .mode-mhpl.active {
+            background: #9333ea;
+            color: white;
+            border-color: #7e22ce;
+        }
+
+        .mode-mlsipl.active {
+            background: #2563eb;
+            color: white;
+            border-color: #1d4ed8;
+        }
+
+        .mode-cardio.active {
+            background: #dc2626;
+            color: white;
+            border-color: #b91c1c;
+        }
+
+        .mode-mdpl.active {
+            background: #059669;
+            color: white;
+            border-color: #047857;
+        }
+
+        .mode-trauma.active {
+            background: #ea580c;
+            color: white;
+            border-color: #c2410c;
+        }
+    </style>
+</head>
+
+<body class="p-4">
+
+    <div id="loadingOverlay">
+        <i class="fas fa-database fa-3x text-indigo-500 mb-4 animate-bounce"></i>
+        <h2 class="text-xl font-bold text-gray-800">Initializing All Databases...</h2>
+        <p class="text-sm text-gray-500 mt-2" id="loadingText">Fetching Master Configs</p>
+    </div>
+
+    <div class="max-w-[99%] mx-auto fade-in hidden" id="mainApp">
+        <div class="bg-white border-l-8 border-indigo-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors"
+            id="headerCard">
+            <div class="flex justify-between items-start md:items-center w-full flex-col md:flex-row gap-3">
+                <div class="flex items-center">
+                    <img src="logo.png"
+                        onerror="this.style.display='none'; document.getElementById('altIcon').style.display='flex';"
+                        alt="Meril Logo" class="h-10 mr-4 rounded object-contain" id="toolLogo">
+                    <div class="w-12 h-12 rounded-lg bg-indigo-100 text-indigo-600 hidden items-center justify-center mr-4 shadow-inner"
+                        id="altIcon">
+                        <i class="fas fa-barcode text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800" id="headerTitle">Advanced Barcode Extractor</h1>
+                        <p class="text-xs text-gray-500 mt-1 font-mono" id="dbStatusBadge">⚪ Initializing...</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div id="userInfo"
+                        class="text-xs font-bold text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg shadow-sm flex items-center gap-2">
+                        <i class="fas fa-user-circle text-indigo-500 text-lg"></i>
+                        <span id="userNameDisplay">Guest User</span>
+                    </div>
+
+                    <a href="index.html"
+                        class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-2 decoration-none">
+                        <i class="fas fa-home"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 bg-gray-50 p-2 rounded-lg border shadow-inner">
+                <button onclick="switchMode('MHPL')" id="btnMHPL"
+                    class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-mhpl group">
+                    <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
+                            class="fas fa-bone text-purple-600 group-[.active]:text-white"></i> MHPL</span>
+                    <span
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTHOPEDIC</span>
+                </button>
+                <button onclick="switchMode('MLSIPL')" id="btnMLSIPL"
+                    class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-mlsipl group">
+                    <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
+                            class="fas fa-crutch text-blue-600 group-[.active]:text-white"></i> MLSIPL</span>
+                    <span
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">ORTHOPEDIC</span>
+                </button>
+                <button onclick="switchMode('CARDIO')" id="btnCARDIO"
+                    class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-cardio group">
+                    <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
+                            class="fas fa-heartbeat text-red-600 group-[.active]:text-white"></i> CARDIO</span>
+                    <span
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">CARDIOLOGY</span>
+                </button>
+                <button onclick="switchMode('MDPL')" id="btnMDPL"
+                    class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-mdpl group">
+                    <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
+                            class="fas fa-microscope text-emerald-600 group-[.active]:text-white"></i> MDPL</span>
+                    <span
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">DIAGNOSTIC</span>
+                </button>
+                <button onclick="switchMode('TRAUMA')" id="btnTRAUMA"
+                    class="flex-1 sm:flex-none flex flex-col items-center justify-center px-4 py-1.5 rounded transition-all border bg-white text-gray-600 border-gray-300 hover:bg-gray-100 mode-trauma group">
+                    <span class="flex items-center gap-1.5 text-[13px] font-bold"><i
+                            class="fas fa-truck-medical text-orange-600 group-[.active]:text-white"></i> TRAUMA</span>
+                    <span
+                        class="text-[9px] font-bold uppercase tracking-wider opacity-60 mt-0.5 group-[.active]:opacity-90">TRAUMA
+                        CARE</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white p-5 rounded shadow relative border-t-4 border-indigo-500" id="inputCard">
+                <label class="font-bold text-gray-700 text-sm mb-2 block"><i class="fas fa-keyboard mr-2"></i>Raw
+                    Barcode Input <span class="text-[10px] font-normal text-gray-400 ml-2">(One per line)</span></label>
+                <textarea id="rawInput"
+                    class="w-full h-32 border rounded p-3 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white shadow-inner mb-3"
+                    placeholder="Paste single or bulk barcodes here..."></textarea>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="processTextarea()" id="btnExtract"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded font-bold shadow transition"><i
+                            class="fas fa-cog fa-spin-hover mr-2"></i>Extract Text</button>
+                    <button onclick="clearData()"
+                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-bold transition"><i
+                            class="fas fa-trash-alt mr-1"></i> Clear Selection</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded shadow relative border-t-4 border-green-500 flex flex-col" id="excelCard">
+                <label class="font-bold text-gray-700 text-sm mb-2 block"><i class="fas fa-file-excel mr-2"></i>Excel
+                    Bulk Extraction</label>
+                <div class="text-[11px] text-gray-600 mb-4 bg-green-50 p-3 rounded border border-green-100 flex-1">
+                    Upload an Excel file containing a column of raw barcodes. <br>
+                    The extractor will use the isolated rules engine for the currently selected Entity to map data.
+                </div>
+                <div class="flex gap-3 items-end">
+                    <div class="flex-1">
+                        <input type="file" id="bulkExcel" accept=".xlsx, .xls, .csv"
+                            class="w-full text-xs border p-2 rounded cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            class="bg-white p-3 rounded-t border-b flex flex-col md:flex-row justify-between md:items-center shadow-sm z-20 relative gap-3">
+            <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-2/3">
+                <div class="text-sm font-bold text-gray-700 whitespace-nowrap">
+                    <i class="fas fa-list-ul mr-2 text-indigo-500"></i>Results (<span id="resultCount">0</span>)
+                </div>
+                <div class="relative w-full max-w-sm">
+                    <i class="fas fa-search absolute left-3 top-2 text-gray-400 text-xs"></i>
+                    <input type="text" id="globalSearch" onkeyup="applyFiltersAndRender()"
+                        placeholder="Search anywhere..."
+                        class="w-full border rounded pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 shadow-inner bg-gray-50">
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="LayoutManager.open()"
+                    class="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
+                    <i class="fas fa-columns"></i> Layout
+                </button>
+                <button onclick="exportExcel()"
+                    class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1">
+                    <i class="fas fa-file-excel"></i> Export Data
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white shadow-sm border-x border-b rounded-b">
+            <div class="table-container">
+                <table id="resultsTable">
+                    <thead id="tblHead"></thead>
+                    <tbody id="tblBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminRegModal"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-fade-up">
+            <div class="bg-red-600 text-white p-4 font-bold flex justify-between items-center">
+                <span><i class="fas fa-exclamation-triangle mr-2"></i> Unrecognized Barcode Detected</span>
+                <button onclick="closeAdminModal()" class="text-white hover:text-red-200"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="flex border-b text-sm font-bold bg-gray-50">
+                <button id="tabBtnNew" onclick="switchAdminTab('new')"
+                    class="flex-1 py-3 text-red-600 border-b-2 border-red-600 bg-white"><i
+                        class="fas fa-plus-circle mr-2"></i>Register New Material</button>
+                <button id="tabBtnMap" onclick="switchAdminTab('map')"
+                    class="flex-1 py-3 text-gray-500 border-b-2 border-transparent hover:bg-gray-100"><i
+                        class="fas fa-link mr-2"></i>Map to Existing Code</button>
+            </div>
+            <div class="p-5">
+                <p class="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 border border-yellow-200 rounded">
+                    Scanned Code <strong id="lblScannedCode"
+                        class="text-red-600 font-mono bg-white px-1 border rounded"></strong> was not found in the
+                    Database. Choose an action below.
+                </p>
+                <div id="tabNewMaterial" class="block">
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Primary Data Code
+                            (GTIN/SAP)</label>
+                        <input type="text" id="regSapCode" placeholder="Enter corresponding SAP/GTIN Code"
+                            class="w-full border rounded p-2 text-sm mt-1 focus:outline-none focus:border-red-500 font-mono">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Description (Required)</label>
+                        <input type="text" id="regDesc" placeholder="Enter Material Description..."
+                            class="w-full border rounded p-2 text-sm mt-1 focus:outline-none focus:border-red-500">
+                    </div>
+                </div>
+                <div id="tabMapExisting" class="hidden">
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 uppercase">Search Existing Material</label>
+                        <select id="mapExistingDropdown"
+                            class="w-full border rounded p-2 text-sm mt-1 focus:outline-none focus:border-red-500 font-mono"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t bg-gray-50 flex justify-end gap-3">
+                <button onclick="closeAdminModal()"
+                    class="px-4 py-2 border rounded text-gray-600 hover:bg-gray-100 font-bold text-sm">Skip For
+                    Now</button>
+                <button id="btnAdminSave" onclick="submitAdminRegistration()"
+                    class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-bold text-sm shadow"><i
+                        class="fas fa-save mr-2"></i>Save Final</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="lmModal" class="modal-backdrop hidden">
+        <div class="lm-container">
+            <div class="lm-sidebar">
+                <div
+                    class="p-4 border-b border-gray-200 font-bold text-gray-700 text-xs uppercase tracking-wider flex justify-between items-center bg-gray-100">
+                    Saved Layouts</div>
+                <div id="lmSidebarList" class="lm-body"></div>
+                <button class="btn-create" onclick="LayoutManager.createNew()"><i class="fas fa-plus-circle"></i> Create
+                    New</button>
+            </div>
+            <div class="lm-content relative">
+                <div class="lm-header">
+                    <div class="flex items-center gap-2 w-2/3">
+                        <i class="fas fa-table text-gray-400"></i>
+                        <input type="text" id="lmLayoutName"
+                            class="border border-gray-300 rounded px-3 py-1.5 text-sm font-bold w-full focus:outline-none focus:border-indigo-500 placeholder-gray-400 text-gray-700"
+                            placeholder="Layout Name" oninput="LayoutManager.handleNameChange()">
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="btnLmDelete" class="btn-lm btn-lm-danger"
+                            onclick="LayoutManager.deleteCurrent()">Delete</button>
+                        <button id="btnLmSave" class="btn-lm btn-lm-save"
+                            onclick="LayoutManager.saveCurrent()">Save</button>
+                        <button class="text-gray-400 hover:text-gray-600 ml-3 transition-colors"
+                            onclick="LayoutManager.close()"><i class="fas fa-times text-xl"></i></button>
+                    </div>
+                </div>
+                <div
+                    class="bg-gray-50 border-b px-4 py-2 flex items-center text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                    <div class="w-10 text-center">Show</div>
+                    <div class="flex-1 pl-2">Column Data Field</div>
+                    <div class="w-1/3">Custom Header Label</div>
+                </div>
+                <div id="lmColList" class="lm-body select-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DUAL DATABASE STATE ---
+        let DB_CACHE = { 'MHPL': '', 'MLSIPL': '', 'CARDIO': '', 'MDPL': '', 'TRAUMA': '' };
+
+        let extractedDataStore = { 'MHPL': [], 'MLSIPL': [], 'CARDIO': [], 'MDPL': [], 'TRAUMA': [] };
+
+        let currentMode = 'MHPL';
+        let globalExtracted = extractedDataStore[currentMode];
+        let filteredExtracted = [];
+
+        let MASTER_HEADERS = [];
+        let MATERIAL_MASTER = {};
+        let ADVANCED_GS1_CONFIG = {};
+
+        let activeFilters = {};
+        let currentSort = { colId: null, asc: true };
+
+        let missingSapsQueue = [];
+        let isPromptingAdmin = false;
+
+        function formatGS1Date(dateStr) {
+            if (!dateStr || dateStr.length !== 6 || dateStr === "-") return dateStr || "-";
+            let yy = dateStr.substring(0, 2);
+            let mm = dateStr.substring(2, 4);
+            let dd = dateStr.substring(4, 6);
+            let year = parseInt(yy) >= 50 ? "19" + yy : "20" + yy;
+            if (dd === '00') { return `${mm}-${year}`; }
+            return `${dd}-${mm}-${year}`;
+        }
+
+        // --- SMART FUZZY MATCHER ---
+        function getDbRow(item) {
+            let code1 = (item.gtin || item.sapCode || "").toUpperCase().trim();
+            let code2 = (item.matCode || item.scanCode || "").toUpperCase().trim();
+
+            let keysToTry = [
+                code1,
+                code2,
+                code2.replace(/-/g, ''),
+                code1.replace(/^0+/, ''),
+                code2.replace(/^0+/, '')
+            ];
+
+            for (let k of keysToTry) {
+                if (k && MATERIAL_MASTER[k]) return MATERIAL_MASTER[k];
+            }
+            return null;
+        }
+
+        function getCellValue(item, colId) {
+            if (colId === 'col_idx') return "";
+            if (colId === 'col_status') return item.status || "";
+            if (colId === 'col_len') return item.raw ? String(item.raw.length) : "0";
+            if (colId === 'col_raw') return item.raw || "";
+
+            if (colId === 'col_primary') return (currentMode === 'MHPL') ? (item.gtin || "") : (item.sapCode || "");
+            if (colId === 'col_secondary') return (currentMode === 'MHPL') ? (item.matCode || "") : (item.scanCode || "");
+
+            if (colId === 'col_batch') return item.batch || "";
+            if (colId === 'col_exp') return item.exp || "";
+            if (colId === 'col_mfg') return item.mfg || "";
+            if (colId === 'col_serial') return item.serial || "";
+
+            if (colId.startsWith('col_m_')) {
+                let idx = parseInt(colId.replace('col_m_', ''));
+                let dbRow = getDbRow(item);
+                if (dbRow && MASTER_HEADERS[idx]) return String(dbRow[MASTER_HEADERS[idx]] || "");
+                return "";
+            }
+            return "";
+        }
+
+        // --- LAYOUT MANAGER LOGIC ---
+        const LayoutManager = {
+            layouts: [], activeLayoutId: 'std', editingLayout: null, baseColumns: [],
+
+            initColumns() {
+                let isMHPL = (currentMode === 'MHPL');
+                this.baseColumns = [
+                    { id: 'col_idx', label: '#', defLabel: '#' },
+                    { id: 'col_status', label: 'Status', defLabel: 'Status' },
+                    { id: 'col_len', label: 'Len', defLabel: 'Len' },
+                    { id: 'col_raw', label: 'Raw String', defLabel: 'Raw String' },
+                    { id: 'col_secondary', label: isMHPL ? 'Material Code' : 'Scan Code', defLabel: isMHPL ? 'Material Code' : 'Scan Code' },
+                    { id: 'col_batch', label: 'Batch', defLabel: 'Batch' },
+                    { id: 'col_mfg', label: 'Mfg Date', defLabel: 'Mfg Date' },
+                    { id: 'col_exp', label: 'Expiry Date', defLabel: 'Expiry Date' },
+                    { id: 'col_serial', label: 'Serial No', defLabel: 'Serial No' },
+                    { id: 'col_primary', label: isMHPL ? 'GTIN' : 'SAP Code', defLabel: isMHPL ? 'GTIN' : 'SAP Code' }
+                ];
+
+                if (typeof MASTER_HEADERS !== 'undefined') {
+                    MASTER_HEADERS.forEach((h, i) => {
+                        this.baseColumns.push({ id: `col_m_${i}`, label: h, defLabel: h, isMaster: true, masterIdx: i });
+                    });
+                }
+
+                const DEFAULT_LAYOUTS = [{ id: 'std', name: 'Standard View', cols: this.baseColumns.map(c => ({ id: c.id, visible: true, label: c.defLabel })) }];
+                const lsKey = `extractor_layouts_${currentMode}_v8`;
+                const saved = localStorage.getItem(lsKey);
+
+                if (saved) {
+                    this.layouts = JSON.parse(saved);
+                    this.layouts.forEach(l => {
+                        this.baseColumns.forEach(bc => { if (!l.cols.find(c => c.id === bc.id)) l.cols.push({ id: bc.id, visible: true, label: bc.defLabel }); });
+                        l.cols = l.cols.filter(c => this.baseColumns.find(bc => bc.id === c.id));
+
+                        l.cols.forEach(c => {
+                            let bc = this.baseColumns.find(x => x.id === c.id);
+                            if (bc && (c.id === 'col_primary' || c.id === 'col_secondary')) {
+                                c.defLabel = bc.defLabel;
+                                if (c.label === 'SAP Code' || c.label === 'GTIN' || c.label === 'Scan Code' || c.label === 'Material Code') c.label = bc.label;
+                            }
+                        });
+                    });
+                } else {
+                    this.layouts = JSON.parse(JSON.stringify(DEFAULT_LAYOUTS));
+                }
+
+                const lastActive = localStorage.getItem(`extractor_active_layout_${currentMode}_v8`);
+                if (lastActive && this.layouts.find(l => l.id === lastActive)) {
+                    this.activeLayoutId = lastActive;
+                } else {
+                    this.activeLayoutId = 'std';
+                }
+            },
+            getActiveCols() {
+                if (this.baseColumns.length === 0) this.initColumns();
+                const layout = this.layouts.find(l => l.id === this.activeLayoutId) || this.layouts[0];
+                return layout.cols.filter(c => c.visible);
+            },
+            open() {
+                this.initColumns(); document.getElementById('lmModal').classList.remove('hidden');
+                this.loadSidebar(); const active = this.layouts.find(l => l.id === this.activeLayoutId) || this.layouts[0];
+                this.editLayout(active.id);
+            },
+            close() { document.getElementById('lmModal').classList.add('hidden'); },
+            loadSidebar() {
+                const list = document.getElementById('lmSidebarList');
+                list.innerHTML = this.layouts.map(l => `
+                    <div class="lm-layout-item ${l.id === this.editingLayout?.id ? 'active' : ''}" onclick="LayoutManager.editLayout('${l.id}')">
+                        ${l.name} ${l.id === this.activeLayoutId ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded ml-2">Active</span>' : ''}
+                    </div>`).join('');
+            },
+            createNew() {
+                const newId = 'custom_' + Date.now();
+                this.layouts.push({ id: newId, name: 'New Layout', cols: JSON.parse(JSON.stringify(this.layouts[0].cols)) });
+                this.editLayout(newId); this.loadSidebar();
+            },
+            editLayout(id) {
+                const layout = this.layouts.find(l => l.id === id); if (!layout) return;
+                this.editingLayout = JSON.parse(JSON.stringify(layout));
+                document.getElementById('lmLayoutName').value = this.editingLayout.name;
+                const btnDel = document.getElementById('btnLmDelete');
+                btnDel.disabled = (id === 'std');
+                if (id === 'std') btnDel.classList.add('opacity-50', 'cursor-not-allowed'); else btnDel.classList.remove('opacity-50', 'cursor-not-allowed');
+                this.renderColList(); this.loadSidebar();
+            },
+            renderColList() {
+                const list = document.getElementById('lmColList');
+                list.innerHTML = this.editingLayout.cols.map((col) => {
+                    const def = this.baseColumns.find(d => d.id === col.id); if (!def) return '';
+                    return `<div class="lm-col-row ${!col.visible ? 'disabled' : ''}">
+                        <div class="w-10 text-center"><input type="checkbox" ${col.visible ? 'checked' : ''} onchange="LayoutManager.toggleCol('${col.id}', this.checked)" class="cursor-pointer border-gray-300 rounded text-indigo-600 focus:ring-indigo-500"></div>
+                        <div class="flex-1 pl-2 font-medium text-xs text-gray-700 font-mono">${def.defLabel}</div>
+                        <div class="w-1/3"><input type="text" value="${col.label}" onchange="LayoutManager.updateLabel('${col.id}', this.value)" class="border rounded px-2 py-1 text-xs w-full focus:border-indigo-500 outline-none"></div>
+                    </div>`}).join('');
+            },
+            toggleCol(id, val) { let c = this.editingLayout.cols.find(c => c.id === id); if (c) c.visible = val; this.renderColList(); },
+            updateLabel(id, val) { let c = this.editingLayout.cols.find(c => c.id === id); if (c) c.label = val; },
+            handleNameChange() { if (this.editingLayout) this.editingLayout.name = document.getElementById('lmLayoutName').value; },
+
+            saveCurrent() {
+                const idx = this.layouts.findIndex(l => l.id === this.editingLayout.id);
+                if (idx > -1) this.layouts[idx] = this.editingLayout;
+                localStorage.setItem(`extractor_layouts_${currentMode}_v8`, JSON.stringify(this.layouts));
+                this.activeLayoutId = this.editingLayout.id; this.applyActive(); this.loadSidebar();
+            },
+            deleteCurrent() {
+                if (!confirm("Delete this layout?")) return;
+                this.layouts = this.layouts.filter(l => l.id !== this.editingLayout.id);
+                localStorage.setItem(`extractor_layouts_${currentMode}_v8`, JSON.stringify(this.layouts));
+                this.activeLayoutId = 'std'; this.editLayout('std'); this.applyActive();
+            },
+            applyActive() {
+                localStorage.setItem(`extractor_active_layout_${currentMode}_v8`, this.activeLayoutId);
+                buildTableHeader(); applyFiltersAndRender();
+            }
+        };
+
+        // --- CORE INITIALIZATION ---
+        window.onload = async () => {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            try {
+                if (typeof requireAuth === 'function') await requireAuth();
+
+                if (window.currentUser) {
+                    let dispName = window.currentUser.name || window.currentUser.email || "Verified User";
+                    document.getElementById('userNameDisplay').innerText = dispName;
+                }
+
+                const fetchSettingsSafe = async (key, memKey) => {
+                    document.getElementById('loadingText').innerText = `Fetching ${memKey} Database...`;
+                    try {
+                        let conf = await initFeatureFlags(key);
+                        if (conf && conf.material_master_csv) DB_CACHE[memKey] = conf.material_master_csv;
+                        if (conf && conf.validatorSettings && conf.validatorSettings.ai) ADVANCED_GS1_CONFIG = conf.validatorSettings.ai;
+                    } catch (e) { }
+                };
+
+                await fetchSettingsSafe('mhpl_settings', 'MHPL');
+                await fetchSettingsSafe('mlsipl_settings', 'MLSIPL');
+                await fetchSettingsSafe('cardio_settings', 'CARDIO');
+                await fetchSettingsSafe('mdpl_settings', 'MDPL');
+                await fetchSettingsSafe('trauma_settings', 'TRAUMA');
+
+            } catch (err) {
+                console.error("Initialization Error:", err);
+                document.getElementById('dbStatusBadge').innerHTML = `<span class="text-red-500"><i class="fas fa-exclamation-triangle"></i> Init Failed</span>`;
+            }
+
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            switchMode('MHPL');
+
+            const fileInput = document.getElementById('bulkExcel');
+            if (fileInput) fileInput.addEventListener('change', handleExcelUpload);
+        };
+
+        function parseDBCSV(csvStr) {
+            MATERIAL_MASTER = {};
+            MASTER_HEADERS = [];
+
+            if (!csvStr || csvStr.trim().length === 0) return;
+            const lines = csvStr.split(/\r?\n/).filter(l => l.trim().length > 0);
+            if (lines.length === 0) return;
+
+            const parseCSVLine = (str) => {
+                let arr = [], quote = false, col = '';
+                for (let i = 0; i < str.length; i++) {
+                    let c = str[i];
+                    if (c === '"' && str[i + 1] === '"') { col += '"'; i++; }
+                    else if (c === '"') quote = !quote;
+                    else if (c === ',' && !quote) { arr.push(col.trim()); col = ''; }
+                    else col += c;
+                }
+                arr.push(col.trim());
+                return arr;
+            };
+
+            let firstRow = parseCSVLine(lines[0]);
+            let hasHeaders = false;
+
+            let headerCheckStr = lines[0].toLowerCase();
+            if (headerCheckStr.includes('sap code') || headerCheckStr.includes('scan code') || headerCheckStr.includes('material') || headerCheckStr.includes('desc') || headerCheckStr.includes('gtin')) {
+                hasHeaders = true; MASTER_HEADERS = firstRow;
+            } else {
+                if (firstRow.length >= 3) {
+                    MASTER_HEADERS = ["Scan Code", "SAP Code", "Description"];
+                    for (let k = 3; k < firstRow.length; k++) MASTER_HEADERS.push(`Column_${k + 1}`);
+                } else if (firstRow.length === 2) {
+                    MASTER_HEADERS = ["SAP Code", "Description"];
+                } else {
+                    MASTER_HEADERS = firstRow.map((_, i) => `Column_${i + 1}`);
+                }
+            }
+
+            let keyIndexes = [];
+            if (hasHeaders) {
+                for (let i = 0; i < MASTER_HEADERS.length; i++) {
+                    let hLower = MASTER_HEADERS[i].toLowerCase();
+                    if (hLower.includes('sap') || hLower.includes('material') || hLower.includes('scan') || hLower.includes('barcode') || hLower.includes('gtin') || hLower.includes('code')) {
+                        keyIndexes.push(i);
+                    }
+                }
+            }
+            if (keyIndexes.length === 0) {
+                keyIndexes.push(0);
+                if (firstRow.length >= 2) keyIndexes.push(1);
+            }
+
+            let startIndex = hasHeaders ? 1 : 0;
+
+            for (let i = startIndex; i < lines.length; i++) {
+                const line = lines[i]; if (!line) continue;
+                const rowArr = parseCSVLine(line);
+
+                let rowObj = {};
+                for (let j = 0; j < MASTER_HEADERS.length; j++) {
+                    rowObj[MASTER_HEADERS[j]] = rowArr[j] || '';
+                }
+
+                for (let idx of keyIndexes) {
+                    let keyVal = rowArr[idx] ? rowArr[idx].replace(/[\x00-\x1F\x7F]/g, '').trim().toUpperCase() : "";
+                    if (keyVal) {
+                        MATERIAL_MASTER[keyVal] = rowObj;
+                        if (keyVal.includes('-')) MATERIAL_MASTER[keyVal.replace(/-/g, '')] = rowObj;
+                        if (keyVal.startsWith('0')) MATERIAL_MASTER[keyVal.replace(/^0+/, '')] = rowObj;
+                    }
+                }
+            }
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            globalExtracted = extractedDataStore[mode];
+            activeFilters = {}; currentSort = { colId: null, asc: true };
+
+            document.getElementById('rawInput').value = '';
+            document.getElementById('bulkExcel').value = '';
+            document.getElementById('globalSearch').value = '';
+
+            const modes = ['MHPL', 'MLSIPL', 'CARDIO', 'MDPL', 'TRAUMA'];
+            modes.forEach(m => {
+                let btn = document.getElementById(`btn${m}`);
+                if (btn) btn.classList.remove('active');
+            });
+            let actBtn = document.getElementById(`btn${mode}`);
+            if (actBtn) actBtn.classList.add('active');
+
+            const hdr = document.getElementById('headerCard');
+            const btnExt = document.getElementById('btnExtract');
+
+            if (mode === 'MHPL') {
+                hdr.className = "bg-white border-l-8 border-purple-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
+                btnExt.className = "flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-bold shadow transition";
+            } else if (mode === 'MLSIPL') {
+                hdr.className = "bg-white border-l-8 border-blue-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
+                btnExt.className = "flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-bold shadow transition";
+            } else if (mode === 'CARDIO') {
+                hdr.className = "bg-white border-l-8 border-red-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
+                btnExt.className = "flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded font-bold shadow transition";
+            } else if (mode === 'MDPL') {
+                hdr.className = "bg-white border-l-8 border-emerald-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
+                btnExt.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded font-bold shadow transition";
+            } else if (mode === 'TRAUMA') {
+                hdr.className = "bg-white border-l-8 border-orange-600 rounded shadow-sm px-6 py-4 flex flex-col mb-6 gap-4 transition-colors";
+                btnExt.className = "flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 rounded font-bold shadow transition";
+            }
+
+            parseDBCSV(DB_CACHE[mode]);
+
+            let dbKeys = Object.keys(MATERIAL_MASTER).length;
+            if (dbKeys > 0) {
+                document.getElementById('dbStatusBadge').innerHTML = `<span class="text-green-600"><i class="fas fa-check-circle"></i> Synced: ${dbKeys} Codes (${mode})</span>`;
+                document.getElementById('dbStatusBadge').classList.remove('bg-red-100', 'text-red-800', 'border-red-200');
+                document.getElementById('dbStatusBadge').classList.add('bg-green-100', 'text-green-800', 'px-2', 'py-1', 'border-green-200', 'rounded', 'border', 'inline-block');
+            } else {
+                document.getElementById('dbStatusBadge').innerHTML = `<span class="text-red-500"><i class="fas fa-times-circle"></i> Missing ${mode} Master Data</span>`;
+                document.getElementById('dbStatusBadge').classList.remove('bg-green-100', 'text-green-800', 'border-green-200');
+                document.getElementById('dbStatusBadge').classList.add('bg-red-100', 'text-red-800', 'px-2', 'py-1', 'border-red-200', 'rounded', 'border', 'inline-block');
+            }
+
+            LayoutManager.initColumns();
+            applyFiltersAndRender();
+        }
+
+        function clearData() {
+            if (confirm(`Clear all extracted results for ${currentMode}?`)) {
+                extractedDataStore[currentMode] = [];
+                globalExtracted = extractedDataStore[currentMode];
+                activeFilters = {}; currentSort = { colId: null, asc: true };
+                document.getElementById('rawInput').value = '';
+                document.getElementById('bulkExcel').value = '';
+                document.getElementById('globalSearch').value = '';
+                applyFiltersAndRender();
+            }
+        }
+
+        function processTextarea() {
+            const raw = document.getElementById('rawInput').value.trim();
+            if (!raw) return alert("Please paste barcodes first.");
+            extractList(raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0));
+        }
+
+        function handleExcelUpload(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                let linesToExtract = [];
+                for (let r of rows) { if (r && r[0]) linesToExtract.push(String(r[0]).trim()); }
+                if (linesToExtract.length > 0) extractList(linesToExtract); else alert("No valid data found in Column A");
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function extractList(lines) {
+            for (let str of lines) {
+                if (!str) continue;
+                let res;
+
+                if (currentMode === 'MHPL') res = parseBarcodeMHPL(str);
+                else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(str);
+                else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(str);
+                else if (currentMode === 'MDPL') res = parseBarcodeMDPL(str);
+                else if (currentMode === 'TRAUMA') res = parseBarcodeTRAUMA(str);
+
+                res.raw = str;
+                extractedDataStore[currentMode].push(res);
+            }
+            globalExtracted = extractedDataStore[currentMode];
+            applyFiltersAndRender();
+            checkMissingSaps();
+        }
+
+        // --- ENGINES ---
+
+        // FIX: The regexes now use `([^()]+)` to safely match spaces, slashes, dashes etc.
+        function parseBarcodeMHPL(s) {
+            let info = { gtin: "", matCode: "", batch: "", exp: "", status: "Extracted", mfg: "", serial: "", raw: s };
+            let rawStr = String(s).trim().replace(/[\x00-\x1F\x7F]/g, '');
+
+            if (rawStr.includes('(')) {
+                // FIXED REGEX FOR BRACKETS
+                const regex = /\((01|10|17|21|240|11|30)\)([^()]+)/g;
+                let match, hasBrackets = false;
+                while ((match = regex.exec(rawStr)) !== null) {
+                    hasBrackets = true; const ai = match[1], val = match[2].trim();
+                    if (ai === "01") info.gtin = val;
+                    if (ai === "10") info.batch = val;
+                    if (ai === "17") info.exp = formatGS1Date(val);
+                    if (ai === "11") info.mfg = formatGS1Date(val);
+                    if (ai === "21") info.serial = val;
+                    if (ai === "240") info.matCode = val;
+                }
+                if (hasBrackets) {
+                    info.status = "Parsed Bracket GS1";
+                    return info;
+                }
+            }
+
+            // FIXED REGEXES FOR CONTINUOUS STRINGS
+            let match;
+            if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)240([A-Za-z0-9\-\/._\s]+?)21(.+)$/)) {
+                info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
+                info.batch = match[4]; info.matCode = match[5]; info.serial = match[6]; info.status = "Parsed Continuous 1";
+            }
+            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)21([A-Za-z0-9\-\/._\s]+?)240(.+)$/)) {
+                info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
+                info.batch = match[4]; info.serial = match[5]; info.matCode = match[6]; info.status = "Parsed Continuous 2";
+            }
+            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)240(.+)$/)) {
+                info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
+                info.batch = match[4]; info.matCode = match[5]; info.status = "Parsed Continuous 3";
+            }
+            else if (match = rawStr.match(/^01(\d{14})10([A-Za-z0-9\-\/._\s]+?)11(\d{6})17(\d{6})240(.+)$/)) {
+                info.gtin = match[1]; info.batch = match[2]; info.mfg = formatGS1Date(match[3]);
+                info.exp = formatGS1Date(match[4]); info.matCode = match[5]; info.status = "Parsed Continuous 4";
+            }
+            else if (match = rawStr.match(/^01(\d{14})10([A-Za-z0-9\-\/._\s]+?)11(\d{6})17(\d{6})21(.+)$/)) {
+                info.gtin = match[1]; info.batch = match[2]; info.mfg = formatGS1Date(match[3]);
+                info.exp = formatGS1Date(match[4]); info.serial = match[5]; info.status = "Parsed Continuous 5";
+            }
+            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)21(.+)$/)) {
+                info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
+                info.batch = match[4]; info.serial = match[5]; info.status = "Parsed Continuous 6";
+            }
+
+            if (!info.status.includes("Parsed") && rawStr.startsWith('01')) {
+                info.gtin = rawStr.substring(2, 16);
+                info.status = "Parsed Basic GTIN";
+            }
+
+            if (!info.gtin && !info.batch) info.status = "Fail: No AI pattern";
+
+            info.gtin = info.gtin ? info.gtin.replace(/[\x00-\x1F\x7F]/g, '').trim() : "";
+            info.matCode = info.matCode ? info.matCode.replace(/[\x00-\x1F\x7F]/g, '').trim() : "";
+            info.serial = info.serial ? info.serial.replace(/[\x00-\x1F\x7F]/g, '').trim() : "";
+
+            return info;
+        }
+
+        function parseBarcodeMLSIPL(rawStr) {
+            if (!globalParseRulesMLSIPL) {
+                globalParseRulesMLSIPL = {};
+                let rulesRaw = localStorage.getItem('mlsipl_rules_v72');
+                if (rulesRaw) {
+                    rulesRaw.split('\n').forEach(l => {
+                        if (l.startsWith('#') || l.trim() === '') return;
+                        let p = l.split(',').map(x => parseInt(x.trim()));
+                        if (p.length >= 5) {
+                            if (!globalParseRulesMLSIPL[p[0]]) globalParseRulesMLSIPL[p[0]] = [];
+                            globalParseRulesMLSIPL[p[0]].push({ mS: p[1], mL: p[2], bS: p[3], bL: p[4], mgS: p[5] || 0, mgL: p[6] || 0, exS: p[7] || 0, exL: p[8] || 0 });
+                        }
+                    });
+                } else {
+                    const fb = { 20: [[1, 11, 12, 9, 0, 0, 0, 0]], 55: [[38, 10, 28, 10, 20, 6, 10, 6]], 56: [[39, 10, 28, 11, 20, 6, 10, 6]], 57: [[47, 11, 19, 9, 30, 6, 38, 6]] };
+                    for (let len in fb) globalParseRulesMLSIPL[len] = fb[len].map(p => ({ mS: p[0], mL: p[1], bS: p[2], bL: p[3], mgS: p[4] || 0, mgL: p[5] || 0, exS: p[6] || 0, exL: p[7] || 0 }));
+                }
+            }
+
+            let s = String(rawStr).trim().replace(/[\[\]\{\}【】（）]/g, m => (m === '[' || m === '{' || m === '【' || m === '（') ? '(' : ')');
+            let info = { scanCode: "", batch: "", sapCode: "Unknown", mfg: "-", exp: "-", serial: "", status: "Extracted", raw: rawStr };
+
+            const gs1 = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})(240|21)(.+)$/);
+            if (gs1) {
+                info.batch = gs1[2].trim(); info.mfg = formatGS1Date(gs1[3]); info.exp = formatGS1Date(gs1[4]);
+                info.scanCode = gs1[6].trim(); info.status = "Parsed GS1 Regex";
+            } else if (s.includes('(')) {
+                // FIXED REGEX FOR BRACKETS
+                const regex = /\((01|10|17|21|240|11|30)\)([^()]+)/g;
+                let match, hasBrackets = false;
+                while ((match = regex.exec(s)) !== null) {
+                    hasBrackets = true; const ai = match[1], val = match[2].trim();
+                    if (ai === "240") info.scanCode = val;
+                    if (ai === "21") info.serial = val;
+                    if (ai === "10") info.batch = val;
+                    if (ai === "17") info.exp = formatGS1Date(val);
+                    if (ai === "11") info.mfg = formatGS1Date(val);
+                }
+                if (hasBrackets) {
+                    if (!info.scanCode) info.scanCode = s;
+                    info.status = "Parsed Bracket GS1";
+                }
+            } else if (globalParseRulesMLSIPL[s.length]) {
+                let rule = globalParseRulesMLSIPL[s.length][0];
+                for (let r of globalParseRulesMLSIPL[s.length]) {
+                    let tc = s.substring(r.mS, r.mS + r.mL).trim().toUpperCase();
+                    if (MATERIAL_MASTER[tc]) { rule = r; break; }
+                }
+                info.scanCode = s.substring(rule.mS, rule.mS + rule.mL); info.batch = s.substring(rule.bS, rule.bS + rule.bL);
+                if (rule.mgL) info.mfg = formatGS1Date(s.substring(rule.mgS, rule.mgS + rule.mgL));
+                if (rule.exL) info.exp = formatGS1Date(s.substring(rule.exS, rule.exS + rule.exL));
+                info.status = "Parsed Basic Mapping";
+            } else {
+                info.scanCode = s; info.batch = "Unknown"; info.status = `Fail: No AI pattern`;
+            }
+
+            info.scanCode = info.scanCode.replace(/[\x00-\x1F\x7F]/g, '').trim();
+            info.batch = info.batch.replace(/[\x00-\x1F\x7F]/g, '').trim();
+            let k = info.scanCode.toUpperCase();
+
+            if (MATERIAL_MASTER[k]) {
+                let dbRow = MATERIAL_MASTER[k];
+                let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap code') || key.toLowerCase() === 'material code');
+                info.sapCode = sapKey ? dbRow[sapKey] : k;
+            } else { info.sapCode = k; }
+            return info;
+        }
+
+        function parseBarcodeCARDIO(s) { return parseUniversalGS1(s, "CARDIO"); }
+        function parseBarcodeMDPL(s) { return parseUniversalGS1(s, "MDPL"); }
+        function parseBarcodeTRAUMA(s) { return parseUniversalGS1(s, "TRAUMA"); }
+
+        function parseUniversalGS1(rawStr, divisionName) {
+            let s = String(rawStr).trim().replace(/[\x00-\x1F\x7F]/g, '');
+            let info = { sapCode: "", batch: "", exp: "", status: "Extracted", mfg: "", scanCode: "", serial: "", raw: s };
+
+            const gs1Match = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})(240|21)(.+)$/);
+            if (gs1Match) {
+                info.sapCode = gs1Match[1]; info.batch = gs1Match[2].trim();
+                info.mfg = formatGS1Date(gs1Match[3]); info.exp = formatGS1Date(gs1Match[4]);
+                if (gs1Match[5] === "21") { info.serial = gs1Match[6].trim(); info.scanCode = info.sapCode; }
+                else { info.scanCode = gs1Match[6].trim(); }
+                info.status = "Parsed Universal GS1";
+                return mapToMaster(info);
+            }
+
+            // FIXED REGEX FOR BRACKETS
+            const regex = /\((01|10|17|21|240|11|30)\)([^()]+)/g;
+            let match, hasBrackets = false;
+            while ((match = regex.exec(s)) !== null) {
+                hasBrackets = true; const ai = match[1], val = match[2].trim();
+                if (ai === "01") info.sapCode = val; if (ai === "10") info.batch = val;
+                if (ai === "17") info.exp = formatGS1Date(val); if (ai === "11") info.mfg = formatGS1Date(val);
+                if (ai === "21") info.serial = val; if (ai === "240") info.scanCode = val;
+            }
+            if (hasBrackets) {
+                if (!info.scanCode) info.scanCode = info.sapCode;
+                info.status = "Parsed Bracketed GS1";
+                return mapToMaster(info);
+            }
+
+            info.scanCode = s; info.sapCode = s; info.status = "Fail: No AI pattern";
+            return mapToMaster(info);
+        }
+
+        function mapToMaster(info) {
+            let kScan = info.scanCode ? info.scanCode.toUpperCase() : "";
+            let kSap = info.sapCode ? info.sapCode.toUpperCase() : "";
+
+            if (MATERIAL_MASTER[kScan]) {
+                let dbRow = MATERIAL_MASTER[kScan];
+                let sapKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('sap code') || key.toLowerCase() === 'material code');
+                info.sapCode = sapKey ? dbRow[sapKey] : kScan;
+            } else if (MATERIAL_MASTER[kSap]) {
+                let dbRow = MATERIAL_MASTER[kSap];
+                let scanKey = Object.keys(dbRow).find(key => key.toLowerCase().includes('scan code') || key.toLowerCase().includes('barcode'));
+                info.scanCode = scanKey ? dbRow[scanKey] : kSap;
+            }
+            return info;
+        }
+
+        function applyFiltersAndRender() {
+            let searchTerm = document.getElementById('globalSearch').value.toLowerCase();
+
+            filteredExtracted = globalExtracted.filter(item => {
+                let itemText = Object.values(item).join(" ").toLowerCase();
+                let dbRow = getDbRow(item);
+                if (dbRow) itemText += " " + Object.values(dbRow).join(" ").toLowerCase();
+
+                if (searchTerm && !itemText.includes(searchTerm)) return false;
+
+                for (let colId in activeFilters) {
+                    if (activeFilters[colId].length === 0) continue;
+                    let cellVal = String(getCellValue(item, colId)).trim();
+                    if (!activeFilters[colId].includes(cellVal)) return false;
+                }
+                return true;
+            });
+
+            if (currentSort.colId && currentSort.colId !== 'col_idx') {
+                filteredExtracted.sort((a, b) => {
+                    let valA = String(getCellValue(a, currentSort.colId)).toLowerCase();
+                    let valB = String(getCellValue(b, currentSort.colId)).toLowerCase();
+                    if (valA < valB) return currentSort.asc ? -1 : 1;
+                    if (valA > valB) return currentSort.asc ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            renderTable();
+        }
+
+        function sortTable(colId) {
+            if (currentSort.colId === colId) { currentSort.asc = !currentSort.asc; }
+            else { currentSort.colId = colId; currentSort.asc = true; }
+            applyFiltersAndRender();
+        }
+
+        function openFilter(e, colId) {
+            e.stopPropagation();
+            document.querySelectorAll('.filter-menu').forEach(el => el.remove());
+
+            const menu = document.createElement('div');
+            menu.className = 'filter-menu';
+            menu.innerHTML = `
+                <input type="text" class="filter-search" placeholder="Search Filter..." onkeyup="filterMenuSearch(this)">
+                <div class="filter-list" id="filterList_${colId}"></div>
+                <div class="filter-actions">
+                    <button class="btn-lm btn-lm-danger" onclick="clearFilter('${colId}')">Clear</button>
+                    <button class="btn-lm btn-lm-save" onclick="applyColFilter('${colId}')">Apply</button>
+                </div>
+            `;
+
+            let uniqueVals = [...new Set(globalExtracted.map(r => String(getCellValue(r, colId)).trim()))].sort();
+            const list = menu.querySelector('.filter-list');
+
+            const allDiv = document.createElement('div');
+            allDiv.className = 'filter-item font-bold border-b pb-1 mb-1';
+            allDiv.innerHTML = `<input type="checkbox" id="chkAll_${colId}" checked onchange="toggleAllFilters(this, '${colId}')" class="mr-2"> (Select All)`;
+            list.appendChild(allDiv);
+
+            uniqueVals.forEach(v => {
+                const checked = !activeFilters[colId] || activeFilters[colId].includes(v);
+                if (!checked) allDiv.querySelector('input').checked = false;
+                const div = document.createElement('div');
+                div.className = 'filter-item py-0.5';
+                div.innerHTML = `<input type="checkbox" value="${v.replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} class="mr-2 cb-item-${colId}"> ${v || '(Blank)'}`;
+                list.appendChild(div);
+            });
+
+            let th = e.target.closest('th');
+            th.appendChild(menu);
+            menu.style.display = 'block';
+
+            document.addEventListener('click', closeFilterMenu, { once: true });
+            menu.addEventListener('click', ev => ev.stopPropagation());
+        }
+
+        function filterMenuSearch(inp) {
+            const term = inp.value.toLowerCase();
+            const list = inp.nextElementSibling;
+            Array.from(list.children).forEach(div => {
+                if (div.innerText.includes('Select All')) return;
+                div.style.display = div.innerText.toLowerCase().includes(term) ? 'flex' : 'none';
+            });
+        }
+
+        function toggleAllFilters(chk, colId) {
+            document.querySelectorAll(`.cb-item-${colId}`).forEach(c => {
+                if (c.closest('.filter-item').style.display !== 'none') c.checked = chk.checked;
+            });
+        }
+
+        function applyColFilter(colId) {
+            const checked = [];
+            const allCbs = document.querySelectorAll(`.cb-item-${colId}`);
+            allCbs.forEach(cb => { if (cb.checked) checked.push(cb.value); });
+            if (checked.length === allCbs.length) delete activeFilters[colId];
+            else activeFilters[colId] = checked;
+            closeFilterMenu(); applyFiltersAndRender();
+        }
+
+        function clearFilter(colId) { delete activeFilters[colId]; closeFilterMenu(); applyFiltersAndRender(); }
+        function closeFilterMenu() { document.querySelectorAll('.filter-menu').forEach(el => el.remove()); }
+
+        function buildTableHeader() {
+            const h = document.getElementById('tblHead');
+            LayoutManager.initColumns();
+            let cols = LayoutManager.getActiveCols();
+
+            let ht = `<tr>`;
+            for (let c of cols) {
+                let def = LayoutManager.baseColumns.find(bc => bc.id === c.id);
+                if (!def) continue;
+
+                let sortCls = (currentSort.colId === c.id) ? 'active' : '';
+                let filterCls = (activeFilters[c.id]) ? 'active' : '';
+
+                let controlsHtml = ``;
+                if (c.id !== 'col_idx') {
+                    controlsHtml = `
+                        <i class="fas fa-filter filter-icon ${filterCls}" onclick="openFilter(event, '${c.id}')" title="Filter"></i>
+                        <i class="fas fa-sort sort-icon ${sortCls}" onclick="sortTable('${c.id}')" title="Sort"></i>
+                    `;
+                }
+
+                if (def.isMaster) {
+                    ht += `<th class="master-col relative">
+                        <div class="flex items-center"><i class="fas fa-database mr-1 text-[9px] text-gray-400"></i> ${c.label} ${controlsHtml}</div>
+                    </th>`;
+                } else {
+                    let extraCls = (c.id === 'col_scan' || c.id === 'col_secondary') ? "text-indigo-700" : "";
+                    ht += `<th class="extracted-col ${extraCls} relative">
+                        <div class="flex items-center">${c.label} ${controlsHtml}</div>
+                    </th>`;
+                }
+            }
+            ht += `</tr>`;
+            h.innerHTML = ht;
+        }
+
+        function renderTable() {
+            buildTableHeader();
+            const b = document.getElementById('tblBody');
+            document.getElementById('resultCount').innerText = filteredExtracted.length;
+
+            let cols = LayoutManager.getActiveCols();
+            let html = '';
+
+            for (let i = 0; i < filteredExtracted.length; i++) {
+                const item = filteredExtracted[i];
+                let bCls = item.status.includes('Fail') ? 'badge-err' : 'badge-ok';
+                html += `<tr>`;
+
+                for (let c of cols) {
+                    let def = LayoutManager.baseColumns.find(bc => bc.id === c.id);
+                    if (!def) continue;
+
+                    if (def.id === 'col_idx') {
+                        html += `<td class="extracted-col text-center font-bold text-gray-500">${i + 1}</td>`;
+                    } else if (def.id === 'col_status') {
+                        html += `<td class="extracted-col"><span class="${bCls}">${item.status}</span></td>`;
+                    } else if (def.isMaster) {
+                        let val = getCellValue(item, def.id);
+                        if (!val) html += `<td class="master-col text-red-500 bg-red-50 font-bold border-l" title="Not Found">Not Found</td>`;
+                        else html += `<td class="master-col border-l pl-3" title="${val}"><div class="truncate max-w-[200px]">${val}</div></td>`;
+                    } else {
+                        let val = getCellValue(item, def.id);
+                        let extCss = (def.id === 'col_scan' || def.id === 'col_secondary') ? 'font-bold text-indigo-600' : (def.id === 'col_batch' ? 'font-bold' : '');
+                        if (def.id === 'col_raw') extCss += ' text-gray-400 max-w-[200px] truncate';
+                        html += `<td class="extracted-col ${extCss}" title="${val}">${val || '-'}</td>`;
+                    }
+                }
+                html += `</tr>`;
+            }
+            b.innerHTML = html;
+        }
+
+        function exportExcel() {
+            let exportArray = filteredExtracted.length > 0 ? filteredExtracted : globalExtracted;
+            if (exportArray.length === 0) return alert("No data to export!");
+
+            let exportData = [];
+            let cols = LayoutManager.getActiveCols();
+
+            const sanitizeForExcel = (val) => {
+                if (val === null || val === undefined) return "";
+                return String(val).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '').trim();
+            };
+
+            for (let i = 0; i < exportArray.length; i++) {
+                let item = exportArray[i];
+                let rowData = {};
+
+                for (let c of cols) {
+                    let def = LayoutManager.baseColumns.find(bc => bc.id === c.id);
+                    if (!def) continue;
+                    let headerLabel = sanitizeForExcel(c.label);
+                    let cellVal = def.id === 'col_idx' ? String(i + 1) : getCellValue(item, def.id);
+                    rowData[headerLabel] = sanitizeForExcel(cellVal || "-");
+                }
+                exportData.push(rowData);
+            }
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            const colWidths = [];
+            if (exportData.length > 0) {
+                const keys = Object.keys(exportData[0]);
+                keys.forEach((key, index) => {
+                    let max = key.length;
+                    exportData.forEach(row => {
+                        let cellLen = row[key] ? row[key].length : 0;
+                        if (cellLen > max) max = cellLen;
+                    });
+                    colWidths[index] = { wch: Math.min(max + 2, 40) };
+                });
+            }
+            ws['!cols'] = colWidths;
+
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cellAddress]) continue;
+
+                    let cellStyle = {
+                        border: {
+                            top: { style: "thin", color: { rgb: "E2E8F0" } },
+                            bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                            left: { style: "thin", color: { rgb: "E2E8F0" } },
+                            right: { style: "thin", color: { rgb: "E2E8F0" } }
+                        },
+                        alignment: { vertical: "center" }
+                    };
+
+                    if (R === 0) {
+                        cellStyle.font = { bold: true, color: { rgb: "FFFFFF" } };
+                        cellStyle.fill = { fgColor: { rgb: "4F46E5" } };
+                        cellStyle.alignment = { horizontal: "center", vertical: "center" };
+                    }
+                    else {
+                        const headerAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+                        const headerName = ws[headerAddress] ? ws[headerAddress].v : "";
+                        const cellVal = ws[cellAddress].v;
+
+                        if (headerName === "Status") {
+                            cellStyle.font = { bold: true };
+                            cellStyle.alignment = { horizontal: "center", vertical: "center" };
+                            if (String(cellVal).includes("Fail")) {
+                                cellStyle.font.color = { rgb: "991B1B" };
+                                cellStyle.fill = { fgColor: { rgb: "FEE2E2" } };
+                            } else {
+                                cellStyle.font.color = { rgb: "166534" };
+                                cellStyle.fill = { fgColor: { rgb: "DCFCE7" } };
+                            }
+                        }
+                    }
+                    ws[cellAddress].s = cellStyle;
+                }
+            }
+
+            XLSX.utils.book_append_sheet(wb, ws, `Extraction_Data`);
+
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            let dateStr = new Date().toISOString().slice(0, 10);
+            a.download = `${currentMode}_Extraction_${dateStr}.xlsx`;
+
+            document.body.appendChild(a);
+            a.click();
+
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 100);
+        }
+
+        function checkMissingSaps() {
+            if (!window.currentUser || window.currentUser.role !== 'admin') return;
+            if (isPromptingAdmin) return;
+            for (let item of globalExtracted) {
+                let pCode = (currentMode === 'MHPL') ? item.gtin : item.sapCode;
+                if (pCode && pCode.length > 4) {
+                    if (!getDbRow(item) && !missingSapsQueue.includes(pCode)) {
+                        missingSapsQueue.push(pCode);
+                    }
+                }
+            }
+            processModalQueue();
+        }
+
+        let activeAdminTab = 'new';
+        function switchAdminTab(tabId) {
+            activeAdminTab = tabId;
+            if (tabId === 'new') {
+                document.getElementById('tabNewMaterial').classList.remove('hidden'); document.getElementById('tabMapExisting').classList.add('hidden');
+                document.getElementById('tabBtnNew').className = "flex-1 py-3 text-red-600 border-b-2 border-red-600 bg-white";
+                document.getElementById('tabBtnMap').className = "flex-1 py-3 text-gray-500 border-b-2 border-transparent hover:bg-gray-100";
+            } else {
+                document.getElementById('tabNewMaterial').classList.add('hidden'); document.getElementById('tabMapExisting').classList.remove('hidden');
+                document.getElementById('tabBtnMap').className = "flex-1 py-3 text-red-600 border-b-2 border-red-600 bg-white";
+                document.getElementById('tabBtnNew').className = "flex-1 py-3 text-gray-500 border-b-2 border-transparent hover:bg-gray-100";
+            }
+        }
+
+        function populateMapDropdown() {
+            const select = document.getElementById('mapExistingDropdown');
+            select.innerHTML = '<option value="">-- Select Existing Data Code --</option>';
+            let uniqueSaps = new Set(), optionsHtml = '';
+            for (let key in MATERIAL_MASTER) {
+                let row = MATERIAL_MASTER[key];
+                let sapKey = Object.keys(row).find(k => k.toLowerCase().includes('sap code') || k.toLowerCase().includes('gtin') || k.toLowerCase() === 'material code');
+                let descKey = Object.keys(row).find(k => k.toLowerCase().includes('desc') || k.toLowerCase().includes('name'));
+                let actualSap = sapKey ? row[sapKey] : key, desc = descKey ? row[descKey] : 'No Description';
+                if (actualSap && !uniqueSaps.has(actualSap)) {
+                    uniqueSaps.add(actualSap); optionsHtml += `<option value="${actualSap}">[${actualSap}] ${desc.substring(0, 50)}</option>`;
+                }
+            }
+            select.innerHTML += optionsHtml;
+        }
+
+        function processModalQueue() {
+            if (missingSapsQueue.length === 0) { isPromptingAdmin = false; return; }
+            isPromptingAdmin = true;
+            let unrecognizedCode = missingSapsQueue[0];
+            document.getElementById('lblScannedCode').innerText = unrecognizedCode;
+            document.getElementById('regSapCode').value = unrecognizedCode;
+            document.getElementById('regDesc').value = '';
+            populateMapDropdown(); switchAdminTab('new');
+            document.getElementById('adminRegModal').classList.remove('hidden');
+        }
+
+        function closeAdminModal() { document.getElementById('adminRegModal').classList.add('hidden'); missingSapsQueue.shift(); processModalQueue(); }
+
+        async function submitAdminRegistration() {
+            let unrecognizedCode = document.getElementById('lblScannedCode').innerText;
+            const btn = document.getElementById('btnAdminSave');
+
+            if (activeAdminTab === 'new') {
+                let sap = document.getElementById('regSapCode').value.trim(), desc = document.getElementById('regDesc').value.trim();
+                if (!sap || !desc) return alert("Both Code and Description are required.");
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...'; btn.disabled = true;
+
+                try {
+                    const dbKey = `${currentMode.toLowerCase()}_settings`;
+                    let currentCsv = DB_CACHE[currentMode] || "";
+                    let newRowArr = [];
+
+                    for (let i = 0; i < MASTER_HEADERS.length; i++) {
+                        let hL = MASTER_HEADERS[i].toLowerCase();
+                        if (hL.includes('sap code') || hL === 'material code' || hL.includes('gtin') || hL === 'material') newRowArr.push(`"${sap}"`);
+                        else if (hL.includes('scan code') || hL.includes('barcode')) newRowArr.push(`"${unrecognizedCode}"`);
+                        else if (hL.includes('desc') || hL.includes('name')) newRowArr.push(`"${desc}"`);
+                        else newRowArr.push(`""`);
+                    }
+                    let finalCsv = currentCsv.trim() + "\n" + newRowArr.join(",");
+                    const result = await updateFeatureFlag(dbKey, { material_master_csv: finalCsv });
+
+                    if (result.success) {
+                        DB_CACHE[currentMode] = finalCsv;
+                        let newObj = {}; for (let i = 0; i < MASTER_HEADERS.length; i++) newObj[MASTER_HEADERS[i]] = newRowArr[i] ? newRowArr[i].replace(/"/g, '') : "";
+                        MATERIAL_MASTER[unrecognizedCode] = newObj; MATERIAL_MASTER[sap] = newObj;
+                        alert(`Success! Saved.`); applyFiltersAndRender(); closeAdminModal();
+                    } else alert("Error: " + result.error);
+                } catch (err) { alert("Failed to register."); }
+                btn.innerHTML = '<i class="fas fa-save mr-2"></i> Save Final'; btn.disabled = false;
+            } else {
+                let existingSap = document.getElementById('mapExistingDropdown').value;
+                if (!existingSap) return alert("Select an existing code.");
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Mapping...'; btn.disabled = true;
+
+                try {
+                    const dbKey = `${currentMode.toLowerCase()}_settings`;
+                    let currentCsv = DB_CACHE[currentMode] || "";
+                    let lines = currentCsv.split('\n');
+                    const parseCSVLine = (str) => {
+                        let arr = [], quote = false, col = '';
+                        for (let i = 0; i < str.length; i++) {
+                            let c = str[i];
+                            if (c === '"' && str[i + 1] === '"') { col += '"'; i++; }
+                            else if (c === '"') quote = !quote;
+                            else if (c === ',' && !quote) { arr.push(col.trim()); col = ''; }
+                            else col += c;
+                        }
+                        arr.push(col.trim()); return arr;
+                    };
+
+                    let wH = MASTER_HEADERS, sapIdx = -1, scanIdx = -1;
+                    for (let i = 0; i < wH.length; i++) {
+                        let hL = wH[i].toLowerCase();
+                        if (hL.includes('sap code') || hL === 'material code' || hL === 'material' || hL.includes('gtin')) sapIdx = i;
+                        if (hL.includes('scan code') || hL.includes('barcode')) scanIdx = i;
+                    }
+                    if (sapIdx === -1 && scanIdx !== -1) sapIdx = scanIdx; if (scanIdx === -1 && sapIdx !== -1) scanIdx = sapIdx;
+
+                    let modIdx = -1, tRow = null;
+                    for (let i = 0; i < lines.length; i++) {
+                        let rowArr = parseCSVLine(lines[i]);
+                        if (rowArr[sapIdx] && rowArr[sapIdx].trim().toUpperCase() === existingSap.toUpperCase()) {
+                            modIdx = i;
+                            if (scanIdx !== -1) rowArr[scanIdx] = unrecognizedCode; else rowArr.push(unrecognizedCode);
+                            lines[i] = rowArr.map(x => `"${x.replace(/"/g, '""')}"`).join(",");
+                            tRow = {}; for (let j = 0; j < wH.length; j++) tRow[wH[j]] = rowArr[j] || "";
+                            break;
+                        }
+                    }
+                    if (modIdx === -1) alert("Error mapping.");
+                    else {
+                        let finalCsv = lines.join('\n');
+                        const result = await updateFeatureFlag(dbKey, { material_master_csv: finalCsv });
+                        if (result.success) {
+                            DB_CACHE[currentMode] = finalCsv;
+                            MATERIAL_MASTER[unrecognizedCode] = tRow; MATERIAL_MASTER[existingSap] = tRow;
+                            alert(`Success! Mapped.`); applyFiltersAndRender(); closeAdminModal();
+                        } else alert("Error: " + result.error);
+                    }
+                } catch (err) { alert("Failed mapping."); }
+                btn.innerHTML = '<i class="fas fa-save mr-2"></i> Save Final'; btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -126,6 +126,11 @@
             background: linear-gradient(135deg, #f5f3ff, #ddd6fe);
             color: #7c3aed;
         }
+
+        .bg-barcode {
+            background: linear-gradient(135deg, #fff7ed, #fed7aa);
+            color: #c2410c;
+        }
     </style>
 </head>
 
@@ -149,7 +154,7 @@
         </div>
 
         <!-- Cards Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 px-4 pb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 px-4 pb-6">
 
             <!-- Card 1: MHPL Ortho -->
             <a href="MHPL-Validator.html" onclick="handleToolClick(event, 'mhpl_settings', 'MHPL-Validator.html')"
@@ -242,6 +247,30 @@
                     </div>
                     <div
                         class="mt-3 flex items-center text-green-600 text-xs font-bold group-hover:translate-x-1 transition-transform">
+                        Launch Tool <i class="fas fa-arrow-right ml-2"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card: Barcode Extractor -->
+            <a href="Barcode-Extractor.html" class="block text-left decoration-none animate-fade-up"
+                style="animation-delay: 0.6s;">
+                <div class="entity-card h-64 flex flex-col p-5 group cursor-pointer hover:bg-white/90">
+                    <div
+                        class="w-14 h-14 rounded-2xl bg-barcode flex items-center justify-center mb-4 shadow-sm icon-circle group-hover:shadow-md">
+                        <i class="fas fa-barcode text-xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h2 class="text-xl font-bold text-gray-800 mb-1 group-hover:text-orange-700 transition-colors">
+                            Barcode</h2>
+                        <h3 class="text-xs font-bold text-orange-600 uppercase tracking-wider mb-2">Extractor</h3>
+                        <p class="text-xs text-gray-500 leading-relaxed">
+                            Multi-Entity GS1 Barcode Parser. <br>
+                            Extract Material, Batch, Serial & Expiry from raw barcodes.
+                        </p>
+                    </div>
+                    <div
+                        class="mt-3 flex items-center text-orange-600 text-xs font-bold group-hover:translate-x-1 transition-transform">
                         Launch Tool <i class="fas fa-arrow-right ml-2"></i>
                     </div>
                 </div>
@@ -412,7 +441,7 @@
                 const { data, error } = await sbClient
                     .from('global_config')
                     .select('key, value')
-                    .in('key', ['mhpl_settings', 'mlsipl_settings', 'cardio_settings', 'mdpl_settings']);
+                    .in('key', ['mhpl_settings', 'mlsipl_settings', 'cardio_settings', 'mdpl_settings', 'barcode_extractor_settings']);
 
                 if (data) {
                     data.forEach(item => {

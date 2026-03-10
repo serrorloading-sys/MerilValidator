@@ -512,12 +512,14 @@ async function saveSettings() {
         chkIncompleteScan: document.getElementById('chkIncompleteScan').checked,
         chkExpiryMismatch: document.getElementById('chkExpiryMismatch').checked,
         chkQtyRecon: document.getElementById('chkQtyRecon').checked,
+        chkGroupSuggest: document.getElementById('chkGroupSuggest')?.checked ?? false,
         // --- [MATCHING LOGIC TOGGLES] ---
         chkPassConcat: document.getElementById('chkPassConcat').checked,
         chkPassBatch: document.getElementById('chkPassBatch').checked,
         chkPassMaterial: document.getElementById('chkPassMaterial').checked,
         chkTripleSort: document.getElementById('chkTripleSort').checked,
-        chkMultiRowConsume: document.getElementById('chkMultiRowConsume').checked
+        chkMultiRowConsume: document.getElementById('chkMultiRowConsume').checked,
+        _advLogicSaved: true  // Marker: Advanced Logic values were explicitly set by user
     };
     try {
         localStorage.setItem('sapVal_settings_v12', JSON.stringify(settings));
@@ -532,6 +534,19 @@ async function saveSettings() {
         console.warn("Storage quota exceeded or error", e);
     }
     await saveKpiSettings();
+}
+
+// Reset all Advanced Validation Logic toggles to their ON defaults and save to DB
+async function resetAdvLogicToDefaults() {
+    const ids = ['chkDupeScan', 'chkOverScan', 'chkPlantMismatch',
+        'chkIncompleteScan', 'chkExpiryMismatch', 'chkQtyRecon'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = true;
+    });
+    // GroupSuggest stays at user preference (don't force ON)
+    await saveSettings();
+    alert('✅ Advanced Logic defaults restored and saved to DB!');
 }
 
 function loadSettings() {
@@ -567,13 +582,27 @@ function loadSettings() {
         if (s.smartZero !== undefined) document.getElementById('smartZero').checked = s.smartZero;
         if (s.useScanQty !== undefined) document.getElementById('useScanQty').checked = s.useScanQty;
         if (s.autoSloc !== undefined) document.getElementById('autoSloc').checked = s.autoSloc;
-        // --- [ADVANCED LOGIC TOGGLES] (default ON if not saved yet) ---
-        document.getElementById('chkDupeScan').checked = s.chkDupeScan ?? true;
-        document.getElementById('chkOverScan').checked = s.chkOverScan ?? true;
-        document.getElementById('chkPlantMismatch').checked = s.chkPlantMismatch ?? true;
-        document.getElementById('chkIncompleteScan').checked = s.chkIncompleteScan ?? true;
-        document.getElementById('chkExpiryMismatch').checked = s.chkExpiryMismatch ?? true;
-        document.getElementById('chkQtyRecon').checked = s.chkQtyRecon ?? true;
+        // --- [ADVANCED LOGIC TOGGLES] ---
+        // Only apply `false` from DB if user explicitly saved them (marked by _advLogicSaved).
+        // Without this flag, old DB entries had all false — don't let them override defaults.
+        if (s._advLogicSaved === true) {
+            document.getElementById('chkDupeScan').checked = s.chkDupeScan ?? true;
+            document.getElementById('chkOverScan').checked = s.chkOverScan ?? true;
+            document.getElementById('chkPlantMismatch').checked = s.chkPlantMismatch ?? true;
+            document.getElementById('chkIncompleteScan').checked = s.chkIncompleteScan ?? true;
+            document.getElementById('chkExpiryMismatch').checked = s.chkExpiryMismatch ?? true;
+            document.getElementById('chkQtyRecon').checked = s.chkQtyRecon ?? true;
+        } else {
+            // Old/stale DB data — default all standard Advanced Logic to ON
+            document.getElementById('chkDupeScan').checked = true;
+            document.getElementById('chkOverScan').checked = true;
+            document.getElementById('chkPlantMismatch').checked = true;
+            document.getElementById('chkIncompleteScan').checked = true;
+            document.getElementById('chkExpiryMismatch').checked = true;
+            document.getElementById('chkQtyRecon').checked = true;
+        }
+        // Group Suggest: respect explicit saved value, default OFF
+        document.getElementById('chkGroupSuggest').checked = s.chkGroupSuggest ?? false;
 
         // Ensure Qty Recon is visible if enabled
         if (document.getElementById('chkQtyRecon').checked) {
@@ -2095,7 +2124,12 @@ async function actualValidation() {
             }
 
             // Metadata Lookup
-            let finalDesc = match ? (match.desc || scan.scanDesc || MATERIAL_MASTER[scan.p.mat] || "") : (scan.scanDesc || MATERIAL_MASTER[scan.p.mat] || "");
+            const masterObj = (window.MATERIAL_MASTER && typeof window.MATERIAL_MASTER[scan.p.mat] === 'object')
+                ? window.MATERIAL_MASTER[scan.p.mat]
+                : {};
+            // Get description: prefer SAP match desc, then scan desc, then master, then empty
+            const masterDesc = masterObj['Material Description'] || masterObj['description'] || masterObj['desc'] || '';
+            let finalDesc = match ? (match.desc || scan.scanDesc || masterDesc || "") : (scan.scanDesc || masterDesc || "");
             let finalCustCode = scan.scanCustCode || (match ? match.custCode : "") || "";
             let masterCustName = CUSTOMER_MASTER[finalCustCode];
             if (!masterCustName && !isNaN(parseFloat(finalCustCode))) {
@@ -2113,6 +2147,7 @@ async function actualValidation() {
                 mat: scan.p.mat,
                 gtin: scan.p.gtin || '',
                 desc: finalDesc,
+                masterObj: masterObj, // Full material master row object
                 cust: finalCust,
                 custCode: finalCustCode,
                 phyBatch: scan.p.batch, phySer: scan.p.ser,
@@ -2144,7 +2179,8 @@ async function actualValidation() {
             plantMismatch: document.getElementById('chkPlantMismatch')?.checked ?? true,
             incompleteScan: document.getElementById('chkIncompleteScan')?.checked ?? true,
             expiryMismatch: document.getElementById('chkExpiryMismatch')?.checked ?? true,
-            qtyRecon: document.getElementById('chkQtyRecon')?.checked ?? true
+            qtyRecon: document.getElementById('chkQtyRecon')?.checked ?? true,
+            groupSuggest: document.getElementById('chkGroupSuggest')?.checked ?? false
         };
 
         // --- LOGIC 1: Duplicate Scan Detection ---
@@ -2342,6 +2378,51 @@ async function actualValidation() {
         document.getElementById('kpi-short-expiry').innerText = stockStats.shortExpiry;
         document.getElementById('kpi-good-stock').innerText = stockStats.goodStock;
 
+        // --- LOGIC: Material Group Suggestion for Variance rows ---
+        // Source: SAP Stock Dump (inventoryMap).
+        // inventoryMap keys are 'MATERIAL|BATCH|SERIAL' compound strings.
+        // We use matKey format 'MAT||' to find unique materials in SAP.
+        if (advLogic.groupSuggest && window.MATERIAL_MASTER && inventoryMap.size > 0) {
+
+            // Pre-build: unique SAP material codes from matKey entries (key ends with '||')
+            const sapMaterials = new Set();
+            for (const key of inventoryMap.keys()) {
+                if (key.endsWith('||')) {
+                    const matCode = key.slice(0, -2); // remove trailing '||'
+                    sapMaterials.add(matCode);
+                }
+            }
+            console.log(`[GroupSuggest] Unique SAP materials found: ${sapMaterials.size}`);
+
+            globalData.forEach(r => {
+                if (!r.status.includes('Variance')) return;
+                const matGroup = (r.masterObj?.['Material Group'] || '').trim();
+                if (!matGroup) { r.groupSuggestion = null; return; }
+
+                const selfMat = (r.mat || '').toUpperCase();
+                const suggestions = [];
+
+                for (const sapCode of sapMaterials) {
+                    if (sapCode === selfMat) continue; // skip self
+                    const sapMasterObj = window.MATERIAL_MASTER[sapCode];
+                    if (!sapMasterObj) continue; // not in Material Master → skip
+                    const sapGroup = (sapMasterObj['Material Group'] || '').trim();
+                    if (sapGroup && sapGroup === matGroup) {
+                        const desc = sapMasterObj['Material Description'] || sapMasterObj['desc'] || '';
+                        // Get total available qty from inventoryMap matKey
+                        const sapRows = inventoryMap.get(sapCode + '||') || [];
+                        const totalQty = sapRows.reduce((sum, row) => sum + (Number(row.qty) || 0), 0);
+                        suggestions.push({ code: sapCode, desc, qty: totalQty });
+                        if (suggestions.length >= 5) break;
+                    }
+                }
+                r.groupSuggestion = suggestions.length > 0 ? suggestions : null;
+                if (suggestions.length > 0) {
+                    console.log(`[GroupSuggest] ${selfMat} → Group:${matGroup} → ${suggestions.map(s => s.code).join(', ')}`);
+                }
+            });
+        }
+
         displayedData = [...globalData];
         updateProgress(95, 'Rendering results table...');
         sortBy('statusPriority');
@@ -2410,6 +2491,20 @@ async function actualValidation() {
     }
 }
 
+// Helper: Get active master headers and generate dynamic column entries
+function getMasterColumns() {
+    const headers = window.MHPL_MASTER_HEADERS || [];
+    return headers.map(h => ({
+        key: 'mm_' + h.replace(/[^a-zA-Z0-9]/g, '_'),
+        label: h,
+        header: h,
+        _mmKey: h,   // original header key used to look up masterObj[key]
+        default: false,
+        width: 15,
+        _isMaster: true
+    }));
+}
+
 function renderTable(data) {
     // Use active layout if available, otherwise fall back to all columns
     const layout = layouts[activeLayoutId];
@@ -2418,19 +2513,23 @@ function renderTable(data) {
     const tbody = document.getElementById('tableBody');
     const thead = document.querySelector('thead tr');
 
+    // Build effective column list (layout + dynamic master columns if in 'allMaster' layout)
+    // For standard layouts, master columns are added only if explicitly added via Layout Manager
+    const effectiveCols = layout.columns;
+
     // 1. Dynamic Headers
     if (thead) {
-        thead.innerHTML = layout.columns.map(c => {
+        thead.innerHTML = effectiveCols.map(c => {
             const isFiltered = activeFilters && activeFilters[c.key];
             const iconClass = isFiltered
                 ? "fas fa-filter text-blue-600 bg-blue-50 ml-2 cursor-pointer p-1 rounded active-filter-icon shadow-sm border border-blue-200"
                 : "fas fa-filter text-gray-300 hover:text-blue-600 ml-2 cursor-pointer p-1 rounded hover:bg-gray-100 active-filter-icon";
 
             return `
-                    <th class="px-4 py-3 border-b relative ${c.key.includes('phy') ? 'th-phy border-l' : ''} ${c.key.includes('sys') && c.key !== 'sysPlant' ? 'th-sys' : ''}">
+                    <th class="px-4 py-3 border-b relative ${c.key.includes('phy') ? 'th-phy border-l' : ''} ${c.key.includes('sys') && c.key !== 'sysPlant' ? 'th-sys' : ''} ${c._isMaster ? 'bg-purple-50' : ''}">
                         <div class="flex items-center justify-between group">
                             <div class="flex items-center cursor-pointer flex-1 hover:text-blue-700" onclick="sortBy('${c.key}')">
-                                ${c.header} <i id="icon-${c.key}" class="fas fa-sort text-gray-400 ml-1 opacity-50 group-hover:opacity-100"></i>
+                                ${c._isMaster ? '<i class="fas fa-database text-purple-400 mr-1 text-[10px]"></i>' : ''}${c.header} <i id="icon-${c.key}" class="fas fa-sort text-gray-400 ml-1 opacity-50 group-hover:opacity-100"></i>
                             </div>
                             <i onclick="openSuperFilter('${c.key}', event)" class="${iconClass}" id="filter-icon-${c.key}" title="Filter ${c.header}"></i>
                         </div>
@@ -2443,10 +2542,18 @@ function renderTable(data) {
 
     // 2. Dynamic Rows
     tbody.innerHTML = data.map(r => {
-        let cells = layout.columns.map(col => {
+        let cells = effectiveCols.map(col => {
             let val = r[col.key] || '';
             let cellClass = 'px-4 py-3 text-xs';
             let content = '';
+
+            // Material Master dynamic columns (prefixed mm_)
+            if (col._isMaster) {
+                const mmVal = (r.masterObj && col._mmKey) ? (r.masterObj[col._mmKey] || '-') : '-';
+                cellClass += ' text-purple-800 bg-purple-50/40';
+                content = mmVal;
+                return `<td class="${cellClass}">${content}</td>`;
+            }
 
             // Special formatting for specific columns
             switch (col.key) {
@@ -2543,6 +2650,22 @@ function renderTable(data) {
                     content = r.detail;
                     break;
 
+                case 'groupSuggestion':
+                    if (r.groupSuggestion && Array.isArray(r.groupSuggestion) && r.groupSuggestion.length > 0) {
+                        cellClass += ' bg-teal-50/50';
+                        content = r.groupSuggestion.map(s =>
+                            `<span class="inline-flex items-center gap-1 mr-1 mb-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200"
+                                title="${s.desc || s.code}">
+                                ${s.code}
+                                ${s.qty > 0 ? `<span class="bg-teal-200 text-teal-900 px-1 rounded-full text-[9px]">${s.qty}</span>` : ''}
+                            </span>`
+                        ).join('');
+                    } else {
+                        cellClass += ' text-gray-300';
+                        content = '-';
+                    }
+                    break;
+
                 case 'raw':
                     cellClass += ' text-gray-400 font-mono truncate max-w-xs';
                     content = `<span title="${r.raw}">${r.raw}</span>`;
@@ -2582,8 +2705,18 @@ function openSuperFilter(key, event) {
     let isNumeric = true;
     let isDate = key.toLowerCase().includes('date') || key.toLowerCase().includes('expiry');
 
+    // For mm_ keys, look up value from masterObj
+    const layout = layouts[activeLayoutId];
+    const colDef = layout && layout.columns.find(c => c.key === key);
+    const isMasterCol = colDef && colDef._isMaster && colDef._mmKey;
+
     globalData.forEach(r => {
-        const v = r[key] || "(Blank)";
+        let v;
+        if (isMasterCol) {
+            v = (r.masterObj && r.masterObj[colDef._mmKey]) || "(Blank)";
+        } else {
+            v = r[key] || "(Blank)";
+        }
         counts[v] = (counts[v] || 0) + 1;
         // Check numeric
         if (isNumeric && v !== "(Blank)" && isNaN(parseFloat(v))) isNumeric = false;
@@ -2748,16 +2881,31 @@ function filterData() {
     const term = document.getElementById('searchBox').value.toLowerCase();
 
     displayedData = globalData.filter(r => {
-        // 1. Global Search
+        // 1. Global Search (also searches within masterObj fields)
         if (term) {
-            const matchGlobal = Object.values(r).some(v => String(v).toLowerCase().includes(term));
+            const rowValues = Object.entries(r)
+                .filter(([k]) => k !== 'masterObj')
+                .map(([, v]) => String(v));
+            if (r.masterObj) {
+                Object.values(r.masterObj).forEach(v => rowValues.push(String(v)));
+            }
+            const matchGlobal = rowValues.some(v => v.toLowerCase().includes(term));
             if (!matchGlobal) return false;
         }
 
         // 2. Super Filters
         for (const key in activeFilters) {
             const f = activeFilters[key];
-            let val = r[key];
+            // For mm_ keys, resolve from masterObj
+            let val;
+            if (key.startsWith('mm_') && r.masterObj) {
+                // Find the _mmKey from current layout columns
+                const layout = layouts[activeLayoutId];
+                const colDef = layout && layout.columns.find(c => c.key === key);
+                val = colDef && colDef._mmKey ? (r.masterObj[colDef._mmKey] || '') : '';
+            } else {
+                val = r[key];
+            }
 
             // A) List Filter (Set) - Only if values is NOT null
             if (f.values) {
@@ -2997,6 +3145,7 @@ const ALL_COLUMNS = [
     { key: 'sysAge', label: 'Ageing', default: true },
     { key: 'stockStatus', label: 'Stock Status', default: true },
     { key: 'detail', label: 'Comment', default: true },
+    { key: 'groupSuggestion', label: 'Group Suggestion', default: false },
     { key: 'raw', label: 'Scan String', default: false }
 ];
 
@@ -3046,36 +3195,201 @@ function loadLayoutToEditor(id) {
     const layout = layouts[id];
     document.getElementById('layoutNameInput').value = layout.name;
 
-    // Merge logic
+    // Build a quick lookup from ALL_COLUMNS key -> label
+    const labelMap = {};
+    ALL_COLUMNS.forEach(d => { labelMap[d.key] = d.label; });
+    getMasterColumns().forEach(d => { labelMap[d.key] = d._mmKey || d.key; });
+
     const enabledMap = new Map(layout.columns.map(c => [c.key, c]));
     editingLayout = [];
-    layout.columns.forEach(c => editingLayout.push({ ...c, enabled: true }));
+
+    // 1. Enabled columns (from saved layout)
+    // Build a mmKey reverse lookup from key -> original header name
+    const mmKeyMap = {};
+    getMasterColumns().forEach(d => { mmKeyMap[d.key] = d._mmKey; });
+
+    layout.columns.forEach(c => {
+        // Auto-restore _isMaster for mm_ columns saved before _isMaster was introduced
+        const isMasterCol = c._isMaster || c.key.startsWith('mm_');
+        const resolvedMmKey = c._mmKey || mmKeyMap[c.key] || null;
+        editingLayout.push({
+            ...c,
+            label: c.label || labelMap[c.key] || c.key,
+            _isMaster: isMasterCol,
+            _mmKey: resolvedMmKey,
+            enabled: true
+        });
+    });
+
+    // 2. Disabled static columns not in layout
     ALL_COLUMNS.forEach(def => {
         if (!enabledMap.has(def.key)) {
             editingLayout.push({ key: def.key, label: def.label, header: def.label, width: 15, enabled: false });
         }
     });
+
+    // 3. Dynamic Material Master columns
+    getMasterColumns().forEach(def => {
+        if (!enabledMap.has(def.key)) {
+            editingLayout.push({ ...def, label: '📊 ' + def._mmKey, enabled: false });
+        }
+    });
+
     renderColumnEditor();
 }
+
+let dragSrcIndex = null;
+
+// Field category badges for Layout Manager
+const FIELD_BADGE_MAP = {
+    // Validation
+    status: { label: 'VAL', cls: 'bg-green-100 text-green-700' },
+    logic: { label: 'VAL', cls: 'bg-green-100 text-green-700' },
+    detail: { label: 'VAL', cls: 'bg-green-100 text-green-700' },
+    groupSuggestion: { label: 'SUGG', cls: 'bg-teal-100 text-teal-700' },
+    // Material
+    mat: { label: 'MAT', cls: 'bg-blue-100 text-blue-700' },
+    desc: { label: 'MAT', cls: 'bg-blue-100 text-blue-700' },
+    gtin: { label: 'MAT', cls: 'bg-blue-100 text-blue-700' },
+    // Customer
+    cust: { label: 'CUST', cls: 'bg-orange-100 text-orange-700' },
+    custCode: { label: 'CUST', cls: 'bg-orange-100 text-orange-700' },
+    // Billing
+    billDoc: { label: 'BILL', cls: 'bg-indigo-100 text-indigo-700' },
+    billDate: { label: 'BILL', cls: 'bg-indigo-100 text-indigo-700' },
+    // Physical Scan
+    phyBatch: { label: 'PHY', cls: 'bg-cyan-100 text-cyan-700' },
+    phySer: { label: 'PHY', cls: 'bg-cyan-100 text-cyan-700' },
+    // SAP / System
+    sysBatch: { label: 'SAP', cls: 'bg-emerald-100 text-emerald-700' },
+    sysSer: { label: 'SAP', cls: 'bg-emerald-100 text-emerald-700' },
+    sysPlant: { label: 'SAP', cls: 'bg-emerald-100 text-emerald-700' },
+    sLoc: { label: 'SAP', cls: 'bg-emerald-100 text-emerald-700' },
+    sysSloc: { label: 'SAP', cls: 'bg-emerald-100 text-emerald-700' },
+    // Expiry / Stock
+    expiryDate: { label: 'EXP', cls: 'bg-amber-100 text-amber-700' },
+    sysExpiry: { label: 'EXP', cls: 'bg-amber-100 text-amber-700' },
+    sysAge: { label: 'EXP', cls: 'bg-amber-100 text-amber-700' },
+    condition: { label: 'EXP', cls: 'bg-amber-100 text-amber-700' },
+    stockStatus: { label: 'STOCK', cls: 'bg-yellow-100 text-yellow-700' },
+    daysLeft: { label: 'EXP', cls: 'bg-amber-100 text-amber-700' },
+    // Raw
+    raw: { label: 'RAW', cls: 'bg-gray-100 text-gray-500' },
+};
 
 function renderColumnEditor() {
     const list = document.getElementById('columnEditorList');
     list.innerHTML = '';
+
+    // --- Select All header row ---
+    const allEnabled = editingLayout.every(c => c.enabled);
+    const someEnabled = editingLayout.some(c => c.enabled);
+    const headerRow = document.createElement('div');
+    headerRow.className = 'grid grid-cols-12 gap-2 px-2 py-1 items-center border-b bg-gray-50 sticky top-0 z-10';
+    headerRow.innerHTML = `
+        <div class="col-span-1 text-center">
+            <input type="checkbox" id="selectAllCols"
+                ${allEnabled ? 'checked' : ''}
+                ${!allEnabled && someEnabled ? 'indeterminate' : ''}
+                onchange="toggleAllCols(this.checked)"
+                title="Select / Deselect All"
+                class="w-4 h-4 accent-blue-600 cursor-pointer">
+        </div>
+        <div class="col-span-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Field</div>
+        <div class="col-span-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Excel Header</div>
+        <div class="col-span-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Width</div>
+        <div class="col-span-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Order</div>
+    `;
+    // Set indeterminate state via JS (can't do in HTML)
+    const selectAllCb = headerRow.querySelector('#selectAllCols');
+    if (selectAllCb) selectAllCb.indeterminate = !allEnabled && someEnabled;
+    list.appendChild(headerRow);
+
+    // --- Column rows ---
     editingLayout.forEach((col, index) => {
         const div = document.createElement('div');
-        div.className = `grid grid-cols-12 gap-2 p-2 items-center border-b ${col.enabled ? 'bg-white' : 'bg-gray-100 opacity-60'}`;
+        div.className = `grid grid-cols-12 gap-2 p-2 items-center border-b cursor-grab select-none transition-all
+            ${col.enabled ? 'bg-white hover:bg-blue-50' : 'bg-gray-100 opacity-60'}
+            ${col._isMaster ? 'border-l-2 border-purple-300' : ''}`;
+        div.setAttribute('draggable', 'true');
+        div.dataset.index = index;
+
+        const labelDisplay = col.label || col.key;
+
+        // Badge: MM columns (purple), standard columns (category from FIELD_BADGE_MAP)
+        let badgeHtml = '';
+        if (col._isMaster || col.key.startsWith('mm_')) {
+            badgeHtml = `<span class="ml-1 text-[9px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-bold">MM</span>`;
+        } else {
+            const b = FIELD_BADGE_MAP[col.key];
+            if (b) badgeHtml = `<span class="ml-1 text-[9px] ${b.cls} px-1.5 py-0.5 rounded font-bold">${b.label}</span>`;
+        }
+
         div.innerHTML = `
-                    <div class="col-span-1 text-center"><input type="checkbox" onchange="toggleCol(${index})" ${col.enabled ? 'checked' : ''}></div>
-                    <div class="col-span-4 text-xs font-bold truncate">${col.label}</div>
-                    <div class="col-span-4"><input type="text" value="${col.header}" onchange="editCol(${index}, 'header', this.value)" class="border p-1 w-full text-xs" ${!col.enabled ? 'disabled' : ''}></div>
-                    <div class="col-span-1"><input type="number" value="${col.width}" onchange="editCol(${index}, 'width', this.value)" class="border p-1 w-full text-xs" ${!col.enabled ? 'disabled' : ''}></div>
-                    <div class="col-span-2 text-center">
-                        <button onclick="moveCol(${index}, -1)" class="text-blue-600 font-bold px-1">↑</button>
-                        <button onclick="moveCol(${index}, 1)" class="text-blue-600 font-bold px-1">↓</button>
-                    </div>
-                `;
+            <div class="col-span-1 text-center">
+                <input type="checkbox" onchange="toggleCol(${index})" ${col.enabled ? 'checked' : ''}
+                    class="w-4 h-4 accent-blue-600 cursor-pointer">
+            </div>
+            <div class="col-span-4 text-xs font-bold truncate flex items-center gap-1">
+                <i class="fas fa-grip-vertical text-gray-300 mr-1 text-[10px]"></i>
+                <span title="${labelDisplay}">${labelDisplay}</span>${badgeHtml}
+            </div>
+            <div class="col-span-4">
+                <input type="text" value="${col.header}" onchange="editCol(${index}, 'header', this.value)"
+                    class="border p-1 w-full text-xs rounded focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                    ${!col.enabled ? 'disabled' : ''}>
+            </div>
+            <div class="col-span-1">
+                <input type="number" value="${col.width}" onchange="editCol(${index}, 'width', this.value)"
+                    class="border p-1 w-full text-xs rounded focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                    ${!col.enabled ? 'disabled' : ''}>
+            </div>
+            <div class="col-span-2 text-center flex items-center justify-center gap-1">
+                <button onclick="moveCol(${index}, -1)"
+                    class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-1.5 rounded transition font-bold"
+                    ${index === 0 ? 'disabled' : ''}>↑</button>
+                <button onclick="moveCol(${index}, 1)"
+                    class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-1.5 rounded transition font-bold"
+                    ${index === editingLayout.length - 1 ? 'disabled' : ''}>↓</button>
+            </div>
+        `;
+
+        // Drag events
+        div.addEventListener('dragstart', e => {
+            dragSrcIndex = index;
+            e.dataTransfer.effectAllowed = 'move';
+            div.classList.add('opacity-40', 'ring-2', 'ring-blue-400');
+        });
+        div.addEventListener('dragend', () => {
+            div.classList.remove('opacity-40', 'ring-2', 'ring-blue-400');
+            document.querySelectorAll('[data-index]').forEach(el => el.classList.remove('ring-2', 'ring-blue-300', 'bg-blue-50'));
+        });
+        div.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            div.classList.add('ring-2', 'ring-blue-300', 'bg-blue-50');
+        });
+        div.addEventListener('dragleave', () => {
+            div.classList.remove('ring-2', 'ring-blue-300', 'bg-blue-50');
+        });
+        div.addEventListener('drop', e => {
+            e.preventDefault();
+            div.classList.remove('ring-2', 'ring-blue-300', 'bg-blue-50');
+            if (dragSrcIndex === null || dragSrcIndex === index) return;
+            // Swap
+            const moved = editingLayout.splice(dragSrcIndex, 1)[0];
+            editingLayout.splice(index, 0, moved);
+            dragSrcIndex = null;
+            renderColumnEditor();
+        });
+
         list.appendChild(div);
     });
+}
+
+function toggleAllCols(checked) {
+    editingLayout.forEach(c => c.enabled = checked);
+    renderColumnEditor();
 }
 
 function toggleCol(i) { editingLayout[i].enabled = !editingLayout[i].enabled; renderColumnEditor(); }
@@ -3097,7 +3411,15 @@ function createNewLayout() {
 function saveCurrentLayout() {
     const name = document.getElementById('layoutNameInput').value;
     if (!name) return alert("Name required");
-    const finalCols = editingLayout.filter(c => c.enabled).map(c => ({ key: c.key, label: c.label, header: c.header, width: c.width }));
+    // Preserve _mmKey and _isMaster for master columns so renderTable can handle them
+    const finalCols = editingLayout.filter(c => c.enabled).map(c => ({
+        key: c.key,
+        label: c.label,
+        header: c.header,
+        width: c.width,
+        _mmKey: c._mmKey || null,
+        _isMaster: c._isMaster || false
+    }));
     layouts[activeLayoutId] = { name: name, columns: finalCols };
     localStorage.setItem('sapVal_layouts_v3', JSON.stringify(layouts));
     renderSavedLayoutsList();
@@ -3455,12 +3777,15 @@ function validateLiveScan(barcode) {
 }
 
 // Input Listener
-document.getElementById('liveScanInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        const val = e.target.value;
-        if (val) validateLiveScan(val);
-    }
-});
+const _liveScanInputEl = document.getElementById('liveScanInput');
+if (_liveScanInputEl) {
+    _liveScanInputEl.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const val = e.target.value;
+            if (val) validateLiveScan(val);
+        }
+    });
+}
 
 function showLiveStatus(type, title, msg) {
     const el = document.getElementById('liveScanStatus');

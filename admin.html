@@ -1192,7 +1192,10 @@
             const textarea = div.querySelector('textarea');
             const fileInput = div.querySelector('input[type="file"]');
 
-            textarea.oninput = (e) => cb(e.target.value);
+            textarea.oninput = (e) => {
+                cb(e.target.value);
+                div.querySelector('.text-gray-400').innerText = `Current Data: ${e.target.value.split('\\n').length} rows`;
+            };
 
             fileInput.onchange = (e) => {
                 const file = e.target.files[0];
@@ -1212,21 +1215,82 @@
             return div;
         }
 
+        let activeEditorConfig = null;
+
         function updateJson(config) {
-            document.getElementById('json-editor').value = JSON.stringify(config, null, 2);
+            activeEditorConfig = config;
+            try {
+                // For massive files, don't update the raw JSON textarea to prevent browser freezing
+                const clone = { ...config };
+                if (clone.material_master_csv && clone.material_master_csv.length > 50000) {
+                    clone.material_master_csv = "[CSV Data Too Large For JSON Preview - Use Visual Editor]";
+                }
+                document.getElementById('json-editor').value = JSON.stringify(clone, null, 2);
+            } catch (e) { }
         }
 
         async function saveCurrentConfig() {
+            const btn = document.querySelector('button[onclick="saveCurrentConfig()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Saving...';
+            btn.disabled = true;
+
             const status = document.getElementById('save-status');
+            status.classList.add('hidden'); // Hide previous status
+
             try {
-                const json = JSON.parse(document.getElementById('json-editor').value);
+                if (!currentConfigKey) throw new Error("No tool selected to save.");
+
+                let finalObjectToSave = null;
+
+                // If we are in code view, try parsing the JSON
+                if (!document.getElementById('json-editor-container').classList.contains('hidden')) {
+                    const editorValue = document.getElementById('json-editor').value;
+                    if (!editorValue || editorValue.trim() === '') throw new Error("Configuration cannot be empty.");
+
+                    try {
+                        let parsed = JSON.parse(editorValue);
+                        // If user saved while the huge CSV preview text is shown, put the real CSV back
+                        if (parsed.material_master_csv === "[CSV Data Too Large For JSON Preview - Use Visual Editor]" && activeEditorConfig) {
+                            parsed.material_master_csv = activeEditorConfig.material_master_csv;
+                        }
+                        finalObjectToSave = parsed;
+                    } catch (parseError) {
+                        throw new Error("Invalid format. Please check the text input for errors.");
+                    }
+                } else {
+                    // We are in Visual format, use the active config object in memory
+                    finalObjectToSave = activeEditorConfig;
+
+                    if (!finalObjectToSave) {
+                        try {
+                            finalObjectToSave = JSON.parse(document.getElementById('json-editor').value);
+                        } catch (e) { throw new Error("Invalid JSON Data"); }
+                    }
+                }
+
+                if (!finalObjectToSave) throw new Error("No configuration to save.");
+
                 const { error } = await sbClient.from('global_config').upsert({
-                    key: currentConfigKey, value: json, updated_at: new Date(), updated_by: currentUser.id
+                    key: currentConfigKey, value: finalObjectToSave, updated_at: new Date(), updated_by: currentUser.id
                 });
+
                 if (error) throw error;
+
+                status.innerHTML = '<i class="fas fa-check-circle"></i> Saved Successfully';
+                status.className = "px-4 py-2 bg-green-50 text-green-700 text-sm font-bold rounded-lg items-center gap-2 animate-bounce";
                 status.classList.remove('hidden');
                 setTimeout(() => status.classList.add('hidden'), 3000);
-            } catch (e) { alert("Save Failed: " + e.message); }
+            } catch (e) {
+                console.error("Save Error:", e);
+                status.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Save Failed: ${e.message}`;
+                status.className = "px-4 py-2 bg-red-50 text-red-700 text-sm font-bold rounded-lg flex items-center gap-2";
+                status.classList.remove('hidden');
+                setTimeout(() => status.classList.add('hidden'), 5000);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
 
         async function handleLogout() {
