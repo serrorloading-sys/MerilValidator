@@ -1297,27 +1297,27 @@
 
             // FIXED REGEXES FOR CONTINUOUS STRINGS
             let match;
-            if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)240([A-Za-z0-9\-\/._\s]+?)21(.+)$/)) {
+            if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]{1,30}?)240([A-Za-z0-9\-\/._\s]{1,30}?)21(.+)$/)) {
                 info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
                 info.batch = match[4]; info.matCode = match[5]; info.serial = match[6]; info.status = "Parsed Continuous 1";
             }
-            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)21([A-Za-z0-9\-\/._\s]+?)240(.+)$/)) {
+            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]{1,30}?)21([A-Za-z0-9\-\/._\s]{1,30}?)240(.+)$/)) {
                 info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
                 info.batch = match[4]; info.serial = match[5]; info.matCode = match[6]; info.status = "Parsed Continuous 2";
             }
-            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)240(.+)$/)) {
+            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]{1,30}?)240(.+)$/)) {
                 info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
                 info.batch = match[4]; info.matCode = match[5]; info.status = "Parsed Continuous 3";
             }
-            else if (match = rawStr.match(/^01(\d{14})10([A-Za-z0-9\-\/._\s]+?)11(\d{6})17(\d{6})240(.+)$/)) {
+            else if (match = rawStr.match(/^01(\d{14})10([A-Za-z0-9\-\/._\s]{1,30}?)11(\d{6})17(\d{6})240(.+)$/)) {
                 info.gtin = match[1]; info.batch = match[2]; info.mfg = formatGS1Date(match[3]);
                 info.exp = formatGS1Date(match[4]); info.matCode = match[5]; info.status = "Parsed Continuous 4";
             }
-            else if (match = rawStr.match(/^01(\d{14})10([A-Za-z0-9\-\/._\s]+?)11(\d{6})17(\d{6})21(.+)$/)) {
+            else if (match = rawStr.match(/^01(\d{14})10([A-Za-z0-9\-\/._\s]{1,30}?)11(\d{6})17(\d{6})21(.+)$/)) {
                 info.gtin = match[1]; info.batch = match[2]; info.mfg = formatGS1Date(match[3]);
                 info.exp = formatGS1Date(match[4]); info.serial = match[5]; info.status = "Parsed Continuous 5";
             }
-            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]+?)21(.+)$/)) {
+            else if (match = rawStr.match(/^01(\d{14})11(\d{6})17(\d{6})10([A-Za-z0-9\-\/._\s]{1,30}?)21(.+)$/)) {
                 info.gtin = match[1]; info.mfg = formatGS1Date(match[2]); info.exp = formatGS1Date(match[3]);
                 info.batch = match[4]; info.serial = match[5]; info.status = "Parsed Continuous 6";
             }
@@ -1396,31 +1396,31 @@
 
             // â”€â”€ PATH 2: CONTINUOUS GS1 REGEX PATTERNS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // P1: 01â†’10â†’11â†’17â†’240
-            if (m = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})240(.+)$/)) {
+            if (m = s.match(/^01(\d{14})10(.{1,30}?)11(\d{6})17(\d{6})240(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.mfg = formatGS1Date(m[3]); info.exp = formatGS1Date(m[4]); info.scanCode = m[5].trim(); info.status = "Parsed GS1-P1";
             }
             // P2: 01â†’10â†’11â†’17â†’21
-            else if (m = s.match(/^01(\d{14})10(.+?)11(\d{6})17(\d{6})21(.+)$/)) {
+            else if (m = s.match(/^01(\d{14})10(.{1,30}?)11(\d{6})17(\d{6})21(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.mfg = formatGS1Date(m[3]); info.exp = formatGS1Date(m[4]); info.serial = m[5].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P2";
             }
             // P3: 01â†’10â†’17â†’240 (no mfg)
-            else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})240(.+)$/)) {
+            else if (m = s.match(/^01(\d{14})10(.{1,30}?)17(\d{6})240(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.scanCode = m[4].trim(); info.status = "Parsed GS1-P3";
             }
             // P4: 01â†’10â†’17â†’21 (no mfg, serial)
-            else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})21(.+)$/)) {
+            else if (m = s.match(/^01(\d{14})10(.{1,30}?)17(\d{6})21(.+)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.serial = m[4].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P4";
             }
             // P5: 01â†’11â†’17â†’10â†’240 (mfg first)
-            else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)240(.+)$/)) {
+            else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.{1,30}?)240(.+)$/)) {
                 info.sapCode = m[1]; info.mfg = formatGS1Date(m[2]); info.exp = formatGS1Date(m[3]); info.batch = m[4].trim(); info.scanCode = m[5].trim(); info.status = "Parsed GS1-P5";
             }
             // P6: 01â†’11â†’17â†’10â†’21 (mfg first, serial)
-            else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.+?)21(.+)$/)) {
+            else if (m = s.match(/^01(\d{14})11(\d{6})17(\d{6})10(.{1,30}?)21(.+)$/)) {
                 info.sapCode = m[1]; info.mfg = formatGS1Date(m[2]); info.exp = formatGS1Date(m[3]); info.batch = m[4].trim(); info.serial = m[5].trim(); info.scanCode = m[1]; info.status = "Parsed GS1-P6";
             }
             // P7: 01â†’10â†’17 (bare minimum)
-            else if (m = s.match(/^01(\d{14})10(.+?)17(\d{6})(.*)$/)) {
+            else if (m = s.match(/^01(\d{14})10(.{1,30}?)17(\d{6})(.*)$/)) {
                 info.sapCode = m[1]; info.batch = m[2].trim(); info.exp = formatGS1Date(m[3]); info.scanCode = m[4].trim() || m[1]; info.status = "Parsed GS1-P7";
             }
 
