@@ -2579,7 +2579,7 @@
             }
         }
 
-        // Handle paste — batch process all lines, render ONCE at the end
+        // Handle paste — chunk process to prevent hanging
         function handleLiveScanPaste(event) {
             if (liveScanPaused) return;
             event.preventDefault();
@@ -2590,20 +2590,39 @@
             if (lines.length === 0) return;
 
             const statusEl = document.getElementById('lsStatus');
-            if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-yellow-400 mr-1"></i>Processing ' + lines.length + ' barcodes...';
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-yellow-500 mr-1 fa-pulse"></i>Processing ' + lines.length + ' barcodes...';
 
-            // Process all lines without rendering each time
-            lines.forEach(raw => _processSingleScan(raw));
+            // Process lines in chunks of 50 to avoid hanging main thread
+            let i = 0;
+            const CHUNK_SIZE = 50;
+            
+            function processChunk() {
+                const end = Math.min(i + CHUNK_SIZE, lines.length);
+                for (; i < end; i++) {
+                    _processSingleScan(lines[i]);
+                }
+                
+                if (statusEl) {
+                    statusEl.innerHTML = `<i class="fas fa-circle text-yellow-500 mr-1 fa-pulse"></i>Processing ${i} / ${lines.length}...`;
+                }
 
-            // Single render after all lines processed
-            renderLiveScanTable();
-            updateLiveScanStats();
-            playBeep('ok');
+                if (i < lines.length) {
+                    requestAnimationFrame(processChunk); // Yield to browser paint
+                } else {
+                    // All done
+                    renderLiveScanTable();
+                    updateLiveScanStats();
+                    playBeep('ok');
 
-            if (statusEl) {
-                statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>' + lines.length + ' barcodes added';
-                setTimeout(() => { if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 2000);
+                    if (statusEl) {
+                        statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>' + lines.length + ' barcodes added';
+                        setTimeout(() => { if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 2000);
+                    }
+                }
             }
+            
+            // Start processing loop
+            requestAnimationFrame(processChunk);
         }
 
         const LIVE_RENDER_LIMIT = 200; // Only render latest N rows to avoid DOM overload
