@@ -1046,6 +1046,11 @@
                     document.getElementById('userNameDisplay').innerText = dispName;
                     applyAdminUI(); // Show/hide admin-only elements based on role
                     showRefreshBtn();
+                    // Isolate session: reset extracted data for new user login
+                    Object.keys(extractedDataStore).forEach(k => extractedDataStore[k] = []);
+                    globalExtracted = extractedDataStore[currentMode];
+                    liveScanRows = [];
+                    liveScanSeenKeys = {};
                 }
 
                 const fetchSettingsSafe = async (key, memKey) => {
@@ -2482,6 +2487,44 @@
             }
         });
 
+
+        // ====== Scan Sound (Web Audio API — no external file) ======
+        let _audioCtx = null;
+        function playBeep(type) {
+            try {
+                if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = _audioCtx.createOscillator();
+                const gain = _audioCtx.createGain();
+                osc.connect(gain); gain.connect(_audioCtx.destination);
+                if (type === 'dup') {
+                    // Double low beep for duplicates
+                    osc.frequency.setValueAtTime(300, _audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(250, _audioCtx.currentTime + 0.15);
+                    osc.type = 'square';
+                    gain.gain.setValueAtTime(0.3, _audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + 0.35);
+                    osc.start(_audioCtx.currentTime);
+                    osc.stop(_audioCtx.currentTime + 0.35);
+                } else if (type === 'error') {
+                    // Low buzz for not found
+                    osc.frequency.value = 200;
+                    osc.type = 'sawtooth';
+                    gain.gain.setValueAtTime(0.2, _audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + 0.3);
+                    osc.start(_audioCtx.currentTime);
+                    osc.stop(_audioCtx.currentTime + 0.3);
+                } else {
+                    // Short high beep for success
+                    osc.frequency.value = 1000;
+                    osc.type = 'sine';
+                    gain.gain.setValueAtTime(0.3, _audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + 0.15);
+                    osc.start(_audioCtx.currentTime);
+                    osc.stop(_audioCtx.currentTime + 0.15);
+                }
+            } catch(e) {}
+        }
+
         // ====================================================================
         // ===== FEATURE: Live Scan Tab =======================================
         // ====================================================================
@@ -2510,8 +2553,9 @@
 
             const dbRow = getDbRow(res);
             const key = res.gtin || res.sapCode || res.matCode || res.scanCode || raw;
-            const isDup = !!liveScanSeenKeys[key];
-            if (key) liveScanSeenKeys[key] = true;
+            // Duplicate = exact same raw barcode string scanned again
+            const isDup = !!liveScanSeenKeys[raw];
+            liveScanSeenKeys[raw] = true;
             res._dbFound = !!dbRow;
             res._isDup = isDup;
 
@@ -2521,6 +2565,11 @@
 
             // Flash feedback
             const statusEl = document.getElementById('lsStatus');
+            // Play scan sound
+            if (isDup) playBeep('dup');
+            else if (dbRow) playBeep('ok');
+            else playBeep('error');
+
             if (statusEl) {
                 if (isDup) { statusEl.innerHTML = '<i class="fas fa-circle text-orange-400 mr-1"></i>Duplicate!'; }
                 else if (dbRow) { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Found \u2713'; }
@@ -2535,7 +2584,7 @@
             if (!thead || !tbody) return;
 
             // Build headers from current mode
-            const cols = ['#', 'Time', 'Raw', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Status', 'DB Match'];
+            const cols = ['#', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Status', 'DB Match'];
             thead.innerHTML = '<tr>' + cols.map(h =>
                 `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase bg-cyan-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
             ).join('') + '</tr>';
@@ -2555,14 +2604,15 @@
                 return `<tr class="${rowCls} border-b hover:brightness-95 text-xs">
                     <td class="px-2 py-1 text-gray-400">${liveScanRows.length - i}</td>
                     <td class="px-2 py-1 text-gray-500 whitespace-nowrap">${r._scanTime || ''}</td>
-                    <td class="px-2 py-1 font-mono text-gray-700 max-w-[200px] truncate" title="${r.raw || ''}">${r.raw || ''}</td>
                     <td class="px-2 py-1 font-mono">${r.gtin || r.sapCode || '-'}</td>
                     <td class="px-2 py-1 font-mono">${r.matCode || r.scanCode || '-'}</td>
                     <td class="px-2 py-1">${r.batch || '-'}</td>
                     <td class="px-2 py-1">${r.exp || '-'}</td>
                     <td class="px-2 py-1">${r.mfg || '-'}</td>
+                    <td class="px-2 py-1 font-mono text-purple-700 font-bold">${r.serial || '-'}</td>
+                    <td class="px-2 py-1 text-gray-400">${(r.raw||'').length}</td>
                     <td class="px-2 py-1">${statusBadge}</td>
-                    <td class="px-2 py-1 text-gray-600 max-w-[200px] truncate" title="${desc}">${desc}</td>
+                    <td class="px-2 py-1 text-gray-600 max-w-[180px] truncate" title="${desc}">${desc}</td>
                 </tr>`;
             }).join('');
         }
