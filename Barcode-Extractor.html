@@ -1210,6 +1210,14 @@
 
             LayoutManager.initColumns();
             applyFiltersAndRender();
+            // [LIVE SCAN] Isolate data per mode by clearing the live scan session
+            if (typeof liveScanRows !== 'undefined') {
+                liveScanRows = [];
+                liveScanSeenKeys = {};
+                loadLiveScanSession(); // Attempt to load autosaved session
+                renderLiveScanTable();
+                updateLiveScanStats();
+            }
 
             // Refresh Material Master tab for this mode (for ALL entities)
             refreshMasterCount();
@@ -2527,10 +2535,245 @@
 
         // ====================================================================
         // ===== FEATURE: Live Scan Tab =======================================
-        // ====================================================================
+        
+        // === FINISH SCAN & HISTORY (Supabase) ===
+        // We will create a new table 'scan_history' or use a generic JSON RPC if needed. 
+        // Since we cannot guarantee table creation, we use Supabase table 'activity_logs' or 'validator_logs' if present, 
+        // but it's safer to just store as a file in a storage bucket OR if 'scan_history' doesn't exist, use localStorage fallback for now.
+        // Assuming we fallback to localStorage if Supabase table fails.
+
+        async function finishLiveScan() {
+            if (liveScanRows.length === 0) {
+                alert("Nothing to save. Table is empty.");
+                return;
+            }
+            if (!confirm("Are you sure you want to Finish and Save this session?\nThis will move the scanned data to History and clear the current view.")) return;
+
+            const btn = document.querySelector('button[onclick="finishLiveScan()"]');
+            const origHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
+
+            const sessionData = {
+                id: 'scan_' + Date.now(),
+                timestamp: new Date().toISOString(),
+                user: currentUser ? currentUser.username : 'guest',
+                mode: currentMode,
+                total: liveScanRows.length,
+                data: liveScanRows
+            };
+
+            try {
+                // Try Supabase first
+                const { error } = await supabaseClient.from('scan_history').insert([sessionData]);
+                if (error) {
+                    console.warn("Supabase scan_history table might not exist:", error.message);
+                    throw new Error("DB saving failed");
+                }
+            } catch(dbErr) {
+                // Fallback to local storage history
+                let hist = JSON.parse(localStorage.getItem('ls_history') || '[]');
+                hist.push(sessionData);
+                // Keep only 7 days
+                const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                hist = hist.filter(h => new Date(h.timestamp).getTime() > sevenDaysAgo);
+                try {
+                    localStorage.setItem('ls_history', JSON.stringify(hist));
+                } catch(quotaErr) {
+                    alert("Local storage is full. Cannot save session history.");
+                }
+            }
+
+            // Clear current live scan session
+            liveScanRows = [];
+            liveScanSeenKeys = {};
+            saveLiveScanSession(); // Clear autosave
+            renderLiveScanTable();
+            updateLiveScanStats();
+            
+            btn.innerHTML = origHTML;
+            btn.disabled = false;
+            
+            playBeep('ok');
+            const statusEl = document.getElementById('lsStatus');
+            if(statusEl) statusEl.innerHTML = '<i class="fas fa-check-double text-blue-500 mr-1"></i>Session Saved!';
+            setTimeout(() => { if(statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 3000);
+        }
+
+        async function openScanHistory() {
+            document.getElementById('scanHistoryModal').classList.remove('hidden');
+            const tbody = document.getElementById('historyTbody');
+            const empty = document.getElementById('historyEmpty');
+            const loading = document.getElementById('historyLoading');
+            const table = document.getElementById('historyTableContainer');
+            
+            tbody.innerHTML = '';
+            table.classList.add('hidden');
+            empty.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            let sessions = [];
+            try {
+                // Supabase pull
+                let query = supabaseClient.from('scan_history').select('*').order('timestamp', { ascending: false });
+                
+                // If not admin, only show own records
+                if (!window.isAdminRole) {
+                    query = query.eq('user', currentUser ? currentUser.username : 'guest');
+                }
+
+                // Only last 7 days
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                query = query.gte('timestamp', d.toISOString());
+
+                const { data, error } = await query;
+                if (error) throw error;
+                sessions = data || [];
+            } catch(e) {
+                // Fallback to local storage
+                let hist = JSON.parse(localStorage.getItem('ls_history') || '[]');
+                const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                hist = hist.filter(h => new Date(h.timestamp).getTime() > sevenDaysAgo);
+                
+                if (!window.isAdminRole) {
+                    hist = hist.filter(h => h.user === (currentUser ? currentUser.username : 'guest'));
+                }
+                sessions = hist.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            }
+
+            loading.classList.add('hidden');
+
+            if (sessions.length === 0) {
+                empty.classList.remove('hidden');
+            } else {
+                window._loadedHistory = sessions; // store in memory for export
+                table.classList.remove('hidden');
+                sessions.forEach((s, i) => {
+                    const dt = new Date(s.timestamp).toLocaleString('en-GB');
+                    const tr = document.createElement('tr');
+                    tr.className = "border-b hover:bg-indigo-50 transition";
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 text-gray-700 font-semibold">${dt}</td>
+                        <td class="py-3 px-4 text-gray-600">${s.user}</td>
+                        <td class="py-3 px-4"><span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold border border-gray-200">${s.mode}</span></td>
+                        <td class="py-3 px-4"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold border border-blue-200">${s.total}</span></td>
+                        <td class="py-3 px-4 text-right">
+                            <button onclick="downloadHistorySession(${i})" class="text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-2 py-1 rounded transition mr-2" title="Download Excel">
+                                <i class="fas fa-file-excel"></i>
+                            </button>
+                            ${window.isAdminRole ? `<button onclick="deleteHistorySession('${s.id}')" class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition" title="Delete Session">
+                                <i class="fas fa-trash"></i>
+                            </button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        function downloadHistorySession(index) {
+            if (!window._loadedHistory || !window._loadedHistory[index]) return;
+            const session = window._loadedHistory[index];
+            const dataToExport = session.data;
+            
+            // Build workbook
+            const wb = XLSX.utils.book_new();
+            
+            // Map data
+            const mapped = dataToExport.map(r => ({
+                "Date": r._scanDate || '',
+                "Time": r._scanTime || '',
+                "GTIN / SAP Code": r.gtin || r.sapCode || '',
+                "Material Code": r.matCode || r.scanCode || '',
+                "Batch Number": r.batch || '',
+                "Expiry Date": r.exp || '',
+                "Mfg Date": r.mfg || '',
+                "Serial Number": r.serial || '',
+                "Status": r._isDup ? "Duplicate" : (r._dbFound ? "Found" : "Not Found"),
+                "Raw Barcode": r.raw || ''
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(mapped);
+            XLSX.utils.book_append_sheet(wb, ws, "Session Data");
+            
+            const ts = new Date(session.timestamp).getTime();
+            XLSX.writeFile(wb, `LiveScan_History_${session.mode}_${session.user}_${ts}.xlsx`);
+        }
+
+        async function deleteHistorySession(id) {
+            if (!confirm("Delete this session record permanently?")) return;
+            
+            try {
+                // Try DB delete first
+                const { error } = await supabaseClient.from('scan_history').delete().eq('id', id);
+                if (error) throw error;
+            } catch(e) {
+                // Fallback delete
+                let hist = JSON.parse(localStorage.getItem('ls_history') || '[]');
+                hist = hist.filter(h => h.id !== id);
+                localStorage.setItem('ls_history', JSON.stringify(hist));
+            }
+            openScanHistory(); // refresh
+        }
+
+// ====================================================================
         let liveScanRows = [];
         let liveScanPaused = false;
         let liveScanSeenKeys = {};
+
+        // === LIVE SCAN AUTOSAVE ===
+        function getLiveScanSaveKey() {
+            const uname = (typeof currentUser !== 'undefined' && currentUser ? currentUser.username : 'guest');
+            return `ls_autosave_${currentMode}_${uname}`;
+        }
+
+        function saveLiveScanSession() {
+            const key = getLiveScanSaveKey();
+            if (liveScanRows.length === 0) {
+                localStorage.removeItem(key);
+                return;
+            }
+            try {
+                // save minimalist version to avoid huge quota usage
+                const min = liveScanRows.map(r => ({
+                    raw: r.raw, 
+                    _scanTime: r._scanTime, 
+                    _scanDate: r._scanDate, 
+                    _isDup: r._isDup, 
+                    _dbFound: r._dbFound,
+                    gtin: r.gtin,
+                    sapCode: r.sapCode,
+                    matCode: r.matCode,
+                    scanCode: r.scanCode,
+                    batch: r.batch,
+                    exp: r.exp,
+                    mfg: r.mfg,
+                    serial: r.serial
+                }));
+                localStorage.setItem(key, JSON.stringify(min));
+            } catch(e) { console.error('Autosave failed', e); }
+        }
+
+        function loadLiveScanSession() {
+            const key = getLiveScanSaveKey();
+            try {
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    liveScanRows = JSON.parse(stored);
+                    // rebuild seen keys
+                    liveScanSeenKeys = {};
+                    liveScanRows.forEach(r => { if(r.raw) liveScanSeenKeys[r.raw] = true; });
+                    return true;
+                }
+            } catch(e) { console.error('Load session failed', e); }
+            liveScanRows = [];
+            liveScanSeenKeys = {};
+            return false;
+        }
+
+        // ===================================
+
 
         // Parse and record one raw barcode string for Live Scan
         function _processSingleScan(raw) {
@@ -2542,7 +2785,10 @@
             else if (currentMode === 'MDPL') res = parseBarcodeMDPL(raw);
             else res = parseBarcodeMHPL(raw);
             res.raw = raw;
-            res._scanTime = new Date().toLocaleTimeString();
+            
+            const d = new Date();
+            res._scanTime = d.toLocaleTimeString();
+            res._scanDate = d.toLocaleDateString('en-GB'); // DD/MM/YYYY
             const dbRow = getDbRow(res);
             res._dbFound = !!dbRow;
             res._isDup = !!liveScanSeenKeys[raw];
@@ -2580,7 +2826,77 @@
         }
 
         // Handle paste — chunk process to prevent hanging
-        function handleLiveScanPaste(event) {
+        
+        function undoLastLiveScan() {
+            if (liveScanRows.length === 0) return;
+            const last = liveScanRows.shift(); // remove newest (index 0)
+            if (last.raw) delete liveScanSeenKeys[last.raw];
+            
+            saveLiveScanSession();
+            renderLiveScanTable();
+            updateLiveScanStats();
+            
+            const statusEl = document.getElementById('lsStatus');
+            if (statusEl) {
+                statusEl.innerHTML = '<i class="fas fa-undo text-yellow-500 mr-1"></i>Undo Successful';
+                setTimeout(() => { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
+            }
+        }
+
+        function submitManualEntry() {
+            const gtin = document.getElementById('manGtin').value.trim();
+            const batch = document.getElementById('manBatch').value.trim();
+            const serial = document.getElementById('manSerial').value.trim();
+            
+            if (!gtin || !batch) {
+                alert("GTIN/SAP and Batch are required for manual entry.");
+                return;
+            }
+
+            // Construct a fake GS1 raw string to act as the unique key
+            const fakeRaw = `MANUAL_01${gtin.padStart(14,'0')}10${batch}${serial ? '21'+serial : ''}`;
+            
+            const d = new Date();
+            let res = {
+                raw: fakeRaw,
+                gtin: gtin,
+                sapCode: gtin,
+                scanCode: gtin,
+                batch: batch,
+                serial: serial,
+                exp: '-', mfg: '-', matCode: '',
+                status: 'Manual Entry',
+                _scanTime: d.toLocaleTimeString(),
+                _scanDate: d.toLocaleDateString('en-GB')
+            };
+
+            const dbRow = getDbRow(res);
+            res._dbFound = !!dbRow;
+            res._isDup = !!liveScanSeenKeys[fakeRaw];
+            
+            liveScanSeenKeys[fakeRaw] = true;
+            liveScanRows.unshift(res);
+
+            // Clean form
+            document.getElementById('manGtin').value = '';
+            document.getElementById('manBatch').value = '';
+            document.getElementById('manSerial').value = '';
+            document.getElementById('liveScanInput').focus();
+
+            renderLiveScanTable();
+            updateLiveScanStats();
+            
+            if (res._isDup) playBeep('dup');
+            else if (res._dbFound) playBeep('ok');
+            else playBeep('error');
+            
+            const statusEl = document.getElementById('lsStatus');
+            if (statusEl) {
+                statusEl.innerHTML = '<i class="fas fa-pen text-cyan-600 mr-1"></i>Manual Added';
+                setTimeout(() => { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
+            }
+        }
+function handleLiveScanPaste(event) {
             if (liveScanPaused) return;
             event.preventDefault();
             const pastedText = (event.clipboardData || window.clipboardData).getData('text');
@@ -2627,15 +2943,28 @@
 
         const LIVE_RENDER_LIMIT = 200; // Only render latest N rows to avoid DOM overload
 
-        function renderLiveScanTable() {
+        
+        let currentLiveFilter = null;
+        function filterLiveScan(type) {
+            currentLiveFilter = currentLiveFilter === type ? null : type;
+            renderLiveScanTable();
+        }
+
+function renderLiveScanTable() {
             const thead = document.getElementById('liveScanThead');
             const tbody = document.getElementById('liveScanTbody');
             if (!thead || !tbody) return;
 
-            const displayRows = liveScanRows.slice(0, LIVE_RENDER_LIMIT); // show latest rows only
+            
+            let displayRows = liveScanRows;
+            if (currentLiveFilter === 'notfound') displayRows = displayRows.filter(r => !r._dbFound);
+            else if (currentLiveFilter === 'dup') displayRows = displayRows.filter(r => r._isDup);
+            displayRows = displayRows.slice(0, LIVE_RENDER_LIMIT);
 
             // Build headers from current mode
-            const cols = ['#', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Status', 'DB Match'];
+            const cols = currentMode === 'MHPL' 
+                ? ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Status', 'DB Match']
+                : ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Len', 'Status', 'DB Match'];
             thead.innerHTML = '<tr>' + cols.map(h =>
                 `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase bg-cyan-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
             ).join('') + '</tr>';
@@ -2652,15 +2981,17 @@
                     ? '<span class="text-orange-600 font-bold">DUP</span>'
                     : (r._dbFound ? '<span class="text-green-600 font-bold">FOUND</span>' : '<span class="text-red-600 font-bold">NOT FOUND</span>');
 
+                const serialTd = currentMode === 'MHPL' ? `<td class="px-2 py-1 font-mono text-purple-700 font-bold">${r.serial || '-'}</td>` : '';
                 return `<tr class="${rowCls} border-b hover:brightness-95 text-xs">
                     <td class="px-2 py-1 text-gray-400">${liveScanRows.length - i}</td>
+                    <td class="px-2 py-1 text-gray-500 whitespace-nowrap">${r._scanDate || ''}</td>
                     <td class="px-2 py-1 text-gray-500 whitespace-nowrap">${r._scanTime || ''}</td>
                     <td class="px-2 py-1 font-mono">${r.gtin || r.sapCode || '-'}</td>
                     <td class="px-2 py-1 font-mono">${r.matCode || r.scanCode || '-'}</td>
                     <td class="px-2 py-1">${r.batch || '-'}</td>
                     <td class="px-2 py-1">${r.exp || '-'}</td>
                     <td class="px-2 py-1">${r.mfg || '-'}</td>
-                    <td class="px-2 py-1 font-mono text-purple-700 font-bold">${r.serial || '-'}</td>
+                    ${serialTd}
                     <td class="px-2 py-1 text-gray-400">${(r.raw||'').length}</td>
                     <td class="px-2 py-1">${statusBadge}</td>
                     <td class="px-2 py-1 text-gray-600 max-w-[180px] truncate" title="${desc}">${desc}</td>
@@ -2669,6 +3000,7 @@
         }
 
         function updateLiveScanStats() {
+            saveLiveScanSession(); // Autosave
             const total = liveScanRows.length;
             const found = liveScanRows.filter(r => r._dbFound && !r._isDup).length;
             const notFound = liveScanRows.filter(r => !r._dbFound).length;
@@ -2724,6 +3056,48 @@
         }
 
     </script>
+
+<!-- ===== SCAN HISTORY MODAL ===== -->
+<div id="scanHistoryModal" class="modal-backdrop hidden">
+    <div class="lm-container flex flex-col relative" style="width: 800px;">
+        <!-- Header -->
+        <div class="bg-indigo-700 text-white px-6 py-4 rounded-t-lg flex justify-between items-center shadow-md">
+            <h2 class="text-xl font-bold flex items-center"><i class="fas fa-history mr-2"></i> Live Scan History (7 Days)</h2>
+            <button onclick="document.getElementById('scanHistoryModal').classList.add('hidden')" class="text-white hover:text-indigo-200 focus:outline-none transition">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- Content -->
+        <div class="p-6 flex-1 overflow-y-auto bg-gray-50">
+            <div id="historyLoading" class="text-center py-10 hidden">
+                <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-500 mb-4"></i>
+                <p class="text-gray-600 font-semibold">Loading history from database...</p>
+            </div>
+            <div id="historyEmpty" class="text-center py-10 hidden">
+                <i class="fas fa-folder-open text-4xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500">No scan sessions found in the last 7 days.</p>
+            </div>
+            
+            <div class="w-full">
+                <table class="w-full text-left border-collapse bg-white shadow-sm rounded overflow-hidden hidden" id="historyTableContainer">
+                    <thead class="bg-indigo-50 border-b-2 border-indigo-100">
+                        <tr>
+                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Date & Time</th>
+                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">User</th>
+                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Mode</th>
+                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Total Scans</th>
+                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTbody" class="text-sm">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 
 </html>
