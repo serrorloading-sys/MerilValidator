@@ -697,7 +697,7 @@
                         </label>
                         <input type="text" id="liveScanInput" placeholder="Scan or type a barcode and press Enter..."
                             class="w-full border-2 border-cyan-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 shadow-inner"
-                            onkeydown="handleLiveScanKey(event)">
+                            onkeydown="handleLiveScanKey(event)" onpaste="handleLiveScanPaste(event)">
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="toggleLiveScanPause()" id="btnLivePause"
@@ -2532,6 +2532,26 @@
         let liveScanPaused = false;
         let liveScanSeenKeys = {};
 
+        // Parse and record one raw barcode string for Live Scan
+        function _processSingleScan(raw) {
+            if (!raw || liveScanPaused) return null;
+            let res;
+            if (currentMode === 'MHPL') res = parseBarcodeMHPL(raw);
+            else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(raw);
+            else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(raw);
+            else if (currentMode === 'MDPL') res = parseBarcodeMDPL(raw);
+            else res = parseBarcodeMHPL(raw);
+            res.raw = raw;
+            res._scanTime = new Date().toLocaleTimeString();
+            const dbRow = getDbRow(res);
+            res._dbFound = !!dbRow;
+            res._isDup = !!liveScanSeenKeys[raw];
+            liveScanSeenKeys[raw] = true;
+            liveScanRows.unshift(res);
+            return res;
+        }
+
+        // Handle Enter key — single scan
         function handleLiveScanKey(event) {
             if (event.key !== 'Enter') return;
             if (liveScanPaused) return;
@@ -2541,47 +2561,59 @@
             if (!raw) return;
             input.value = '';
 
-            // Parse the barcode using current mode
-            let res;
-            if (currentMode === 'MHPL') res = parseBarcodeMHPL(raw);
-            else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(raw);
-            else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(raw);
-            else if (currentMode === 'MDPL') res = parseBarcodeMDPL(raw);
-            else res = parseBarcodeMHPL(raw);
-            res.raw = raw;
-            res._scanTime = new Date().toLocaleTimeString();
-
-            const dbRow = getDbRow(res);
-            const key = res.gtin || res.sapCode || res.matCode || res.scanCode || raw;
-            // Duplicate = exact same raw barcode string scanned again
-            const isDup = !!liveScanSeenKeys[raw];
-            liveScanSeenKeys[raw] = true;
-            res._dbFound = !!dbRow;
-            res._isDup = isDup;
-
-            liveScanRows.unshift(res); // newest on top
+            const res = _processSingleScan(raw);
+            if (!res) return;
             renderLiveScanTable();
             updateLiveScanStats();
 
-            // Flash feedback
             const statusEl = document.getElementById('lsStatus');
-            // Play scan sound
-            if (isDup) playBeep('dup');
-            else if (dbRow) playBeep('ok');
+            if (res._isDup) playBeep('dup');
+            else if (res._dbFound) playBeep('ok');
             else playBeep('error');
 
             if (statusEl) {
-                if (isDup) { statusEl.innerHTML = '<i class="fas fa-circle text-orange-400 mr-1"></i>Duplicate!'; }
-                else if (dbRow) { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Found \u2713'; }
-                else { statusEl.innerHTML = '<i class="fas fa-circle text-red-400 mr-1"></i>Not Found'; }
-                setTimeout(() => { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
+                if (res._isDup) statusEl.innerHTML = '<i class="fas fa-circle text-orange-400 mr-1"></i>Duplicate!';
+                else if (res._dbFound) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Found &#10003;';
+                else statusEl.innerHTML = '<i class="fas fa-circle text-red-400 mr-1"></i>Not Found';
+                setTimeout(() => { if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
             }
         }
+
+        // Handle paste — batch process all lines, render ONCE at the end
+        function handleLiveScanPaste(event) {
+            if (liveScanPaused) return;
+            event.preventDefault();
+            const pastedText = (event.clipboardData || window.clipboardData).getData('text');
+            if (!pastedText) return;
+
+            const lines = pastedText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length === 0) return;
+
+            const statusEl = document.getElementById('lsStatus');
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-yellow-400 mr-1"></i>Processing ' + lines.length + ' barcodes...';
+
+            // Process all lines without rendering each time
+            lines.forEach(raw => _processSingleScan(raw));
+
+            // Single render after all lines processed
+            renderLiveScanTable();
+            updateLiveScanStats();
+            playBeep('ok');
+
+            if (statusEl) {
+                statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>' + lines.length + ' barcodes added';
+                setTimeout(() => { if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 2000);
+            }
+        }
+
+        const LIVE_RENDER_LIMIT = 200; // Only render latest N rows to avoid DOM overload
 
         function renderLiveScanTable() {
             const thead = document.getElementById('liveScanThead');
             const tbody = document.getElementById('liveScanTbody');
             if (!thead || !tbody) return;
+
+            const displayRows = liveScanRows.slice(0, LIVE_RENDER_LIMIT); // show latest rows only
 
             // Build headers from current mode
             const cols = ['#', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Status', 'DB Match'];
@@ -2589,7 +2621,7 @@
                 `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase bg-cyan-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
             ).join('') + '</tr>';
 
-            tbody.innerHTML = liveScanRows.map((r, i) => {
+            tbody.innerHTML = displayRows.map((r, i) => {
                 const dbRow = getDbRow(r);
                 const desc = dbRow ? (Object.values(dbRow)[2] || '') : '-';
                 let rowCls = '';
