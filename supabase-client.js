@@ -179,7 +179,7 @@ window.showWhatsNewModal = showWhatsNewModal;
 
 function injectHeaderInfo(name, role) {
     const startBtn = document.querySelector('button[onclick="location.reload()"]');
-    const headerContainer = startBtn ? startBtn.parentNode : document.querySelector('.flex.items-center.gap-2');
+    const headerContainer = startBtn ? startBtn.parentNode : (document.getElementById('header-auth-container') || document.querySelector('.flex.items-center.gap-2'));
 
     if (headerContainer && !document.getElementById('btnLogout')) {
         const userSpan = document.createElement('span');
