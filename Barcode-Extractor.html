@@ -2570,7 +2570,7 @@
             const sessionData = {
                 id: 'scan_' + Date.now(),
                 timestamp: new Date().toISOString(),
-                user: currentUser ? currentUser.username : 'guest',
+                user: window.currentUser ? window.currentUser.username : 'guest',
                 mode: currentMode,
                 total: liveScanRows.length,
                 data: liveScanRows
@@ -2631,8 +2631,9 @@
                 let query = supabaseClient.from('scan_history').select('*').order('timestamp', { ascending: false });
                 
                 // If not admin, only show own records
-                if (!window.isAdminRole) {
-                    query = query.eq('user', currentUser ? currentUser.username : 'guest');
+                const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+                if (!isAdmin) {
+                    query = query.eq('user', window.currentUser ? window.currentUser.username : 'guest');
                 }
 
                 // Only last 7 days
@@ -2649,8 +2650,9 @@
                 const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
                 hist = hist.filter(h => new Date(h.timestamp).getTime() > sevenDaysAgo);
                 
-                if (!window.isAdminRole) {
-                    hist = hist.filter(h => h.user === (currentUser ? currentUser.username : 'guest'));
+                const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+                if (!isAdmin) {
+                    hist = hist.filter(h => h.user === (window.currentUser ? window.currentUser.username : 'guest'));
                 }
                 sessions = hist.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
             }
@@ -2675,7 +2677,7 @@
                             <button onclick="downloadHistorySession(${i})" class="text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-2 py-1 rounded transition mr-2" title="Download Excel">
                                 <i class="fas fa-file-excel"></i>
                             </button>
-                            ${window.isAdminRole ? `<button onclick="deleteHistorySession('${s.id}')" class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition" title="Delete Session">
+                            ${(window.currentUser && window.currentUser.role === 'admin') ? `<button onclick="deleteHistorySession('${s.id}')" class="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition" title="Delete Session">
                                 <i class="fas fa-trash"></i>
                             </button>` : ''}
                         </td>
@@ -2737,7 +2739,7 @@
 
         // === LIVE SCAN AUTOSAVE ===
         function getLiveScanSaveKey() {
-            const uname = (typeof currentUser !== 'undefined' && currentUser ? currentUser.username : 'guest');
+            const uname = (window.currentUser ? window.currentUser.username : 'guest');
             return `ls_autosave_${currentMode}_${uname}`;
         }
 
