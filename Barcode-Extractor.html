@@ -951,10 +951,12 @@
                     { id: 'col_secondary', label: isMHPL ? 'Material Code' : 'Scan Code', defLabel: isMHPL ? 'Material Code' : 'Scan Code' },
                     { id: 'col_batch', label: 'Batch', defLabel: 'Batch' },
                     { id: 'col_mfg', label: 'Mfg Date', defLabel: 'Mfg Date' },
-                    { id: 'col_exp', label: 'Expiry Date', defLabel: 'Expiry Date' },
-                    { id: 'col_serial', label: 'Serial No', defLabel: 'Serial No' },
-                    { id: 'col_primary', label: isMHPL ? 'GTIN' : 'SAP Code', defLabel: isMHPL ? 'GTIN' : 'SAP Code' }
+                    { id: 'col_exp', label: 'Expiry Date', defLabel: 'Expiry Date' }
                 ];
+                if (isMHPL) {
+                    this.baseColumns.push({ id: 'col_serial', label: 'Serial No', defLabel: 'Serial No' });
+                }
+                this.baseColumns.push({ id: 'col_primary', label: isMHPL ? 'GTIN' : 'SAP Code', defLabel: isMHPL ? 'GTIN' : 'SAP Code' });
 
                 if (typeof MASTER_HEADERS !== 'undefined') {
                     MASTER_HEADERS.forEach((h, i) => {
@@ -2577,7 +2579,7 @@
             const sessionData = {
                 id: 'scan_' + Date.now(),
                 timestamp: new Date().toISOString(),
-                user: window.currentUser ? window.currentUser.username : 'guest',
+                user: window.currentUser ? (window.currentUser.email || window.currentUser.display_name || window.currentUser.id || 'guest') : 'guest',
                 mode: currentMode,
                 total: liveScanRows.length,
                 data: liveScanRows
@@ -2640,7 +2642,8 @@
                 // If not admin, only show own records
                 const isAdmin = window.currentUser && window.currentUser.role === 'admin';
                 if (!isAdmin) {
-                    query = query.eq('user', window.currentUser ? window.currentUser.username : 'guest');
+                    const uIdentifier = window.currentUser ? (window.currentUser.email || window.currentUser.display_name || window.currentUser.id || 'guest') : 'guest';
+                    query = query.eq('user', uIdentifier);
                 }
 
                 // Only last 7 days
@@ -2747,7 +2750,7 @@
 
         // === LIVE SCAN AUTOSAVE ===
         function getLiveScanSaveKey() {
-            const uname = (window.currentUser ? window.currentUser.username : 'guest');
+            const uname = window.currentUser ? (window.currentUser.id || window.currentUser.email || 'guest') : 'guest';
             return `ls_autosave_${currentMode}_${uname}`;
         }
 
