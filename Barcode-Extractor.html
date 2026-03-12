@@ -695,6 +695,17 @@
                             <i class="fas fa-wifi mr-2 text-cyan-600"></i>Live Scan
                             <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan to extract instantly</span>
                         </label>
+                        
+                        <div class="flex justify-center mb-3">
+                            <div class="inline-flex bg-gray-100 rounded-lg p-1 border shadow-sm">
+                                <button id="condGood" onclick="setLiveCondition('Good')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2">
+                                    <i class="fas fa-check-circle"></i> Good Condition
+                                </button>
+                                <button id="condDamage" onclick="setLiveCondition('Damage')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                                    <i class="fas fa-exclamation-triangle"></i> Damage Box
+                                </button>
+                            </div>
+                        </div>
                         <input type="text" id="liveScanInput" placeholder="Scan or type a barcode and press Enter..."
                             class="w-full border-2 border-cyan-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 shadow-inner"
                             onkeydown="handleLiveScanKey(event)" onpaste="handleLiveScanPaste(event)">
@@ -2705,6 +2716,7 @@
                 "Expiry Date": r.exp || '',
                 "Mfg Date": r.mfg || '',
                 "Serial Number": r.serial || '',
+                "Condition": r.condition || 'Good',
                 "Status": r._isDup ? "Duplicate" : (r._dbFound ? "Found" : "Not Found"),
                 "Raw Barcode": r.raw || ''
             }));
@@ -2764,7 +2776,8 @@
                     batch: r.batch,
                     exp: r.exp,
                     mfg: r.mfg,
-                    serial: r.serial
+                    serial: r.serial,
+                    condition: r.condition
                 }));
                 localStorage.setItem(key, JSON.stringify(min));
             } catch(e) { console.error('Autosave failed', e); }
@@ -2959,7 +2972,25 @@ function handleLiveScanPaste(event) {
         const LIVE_RENDER_LIMIT = 200; // Only render latest N rows to avoid DOM overload
 
         
-        let currentLiveFilter = null;
+        
+        let currentLiveCondition = 'Good';
+
+        function setLiveCondition(cond) {
+            currentLiveCondition = cond;
+            const btnGood = document.getElementById('condGood');
+            const btnDamage = document.getElementById('condDamage');
+            
+            if (cond === 'Good') {
+                btnGood.className = "px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2";
+                btnDamage.className = "px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2";
+            } else {
+                btnGood.className = "px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2";
+                btnDamage.className = "px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-red-500 text-white flex items-center gap-2";
+            }
+            document.getElementById('liveScanInput').focus();
+        }
+
+let currentLiveFilter = null;
         function filterLiveScan(type) {
             currentLiveFilter = currentLiveFilter === type ? null : type;
             renderLiveScanTable();
@@ -2978,8 +3009,8 @@ function renderLiveScanTable() {
 
             // Build headers from current mode
             const cols = currentMode === 'MHPL' 
-                ? ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Status', 'DB Match']
-                : ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Len', 'Status', 'DB Match'];
+                ? ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Cond', 'Status', 'DB Match']
+                : ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Len', 'Cond', 'Status', 'DB Match'];
             thead.innerHTML = '<tr>' + cols.map(h =>
                 `<th class="px-3 py-2 text-left text-[10px] font-bold uppercase bg-cyan-50 border-r border-gray-200 whitespace-nowrap">${h}</th>`
             ).join('') + '</tr>';
@@ -2997,6 +3028,9 @@ function renderLiveScanTable() {
                     : (r._dbFound ? '<span class="text-green-600 font-bold">FOUND</span>' : '<span class="text-red-600 font-bold">NOT FOUND</span>');
 
                 const serialTd = currentMode === 'MHPL' ? `<td class="px-2 py-1 font-mono text-purple-700 font-bold">${r.serial || '-'}</td>` : '';
+                const condBadge = r.condition === 'Damage' 
+                    ? '<span class="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold border border-red-200">DAMAGE</span>' 
+                    : '<span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold border border-green-200">GOOD</span>';
                 return `<tr class="${rowCls} border-b hover:brightness-95 text-xs">
                     <td class="px-2 py-1 text-gray-400">${liveScanRows.length - i}</td>
                     <td class="px-2 py-1 text-gray-500 whitespace-nowrap">${r._scanDate || ''}</td>
@@ -3007,6 +3041,7 @@ function renderLiveScanTable() {
                     <td class="px-2 py-1">${r.exp || '-'}</td>
                     <td class="px-2 py-1">${r.mfg || '-'}</td>
                     ${serialTd}
+                    <td class="px-2 py-1">${condBadge}</td>
                     <td class="px-2 py-1 text-gray-400">${(r.raw||'').length}</td>
                     <td class="px-2 py-1">${statusBadge}</td>
                     <td class="px-2 py-1 text-gray-600 max-w-[180px] truncate" title="${desc}">${desc}</td>

@@ -1,4 +1,4 @@
-﻿
+
 // --- SUPABASE CLIENT CONFIGURATION ---
 const SUPABASE_URL = 'https://etdqyrkihsbritcikpbi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0ZHF5cmtpaHNicml0Y2lrcGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA0NTMxNzksImV4cCI6MjA4NjAyOTE3OX0.gNVhroMQpc_2Yl3p8UyjdalTqzeUHvLgjcu-XxBWI1I';
@@ -1034,6 +1034,11 @@ window.RTC_CONFIG = {
 };
 
 function injectZohoUI() {
+    if (window.location.pathname.includes('Barcode-Extractor') || document.title.includes('Barcode Extractor') || window.location.href.includes('Barcode-Extractor')) {
+        console.log('Chat widget disabled on Extractor tool.');
+        return;
+    }
+
     if (document.getElementById('zoho-container')) return;
 
     const container = document.createElement('div');
