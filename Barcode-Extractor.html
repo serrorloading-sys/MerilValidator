@@ -1418,7 +1418,8 @@
                     if (ai === '240' || ai === '241') info.scanCode = v;
                 }
                 if (hasBrk) {
-                    if (!info.scanCode) info.scanCode = info.sapCode || s;
+                    // Don't fall back to raw string — only use extracted codes
+                    if (!info.scanCode && info.sapCode) info.scanCode = info.sapCode;
                     info.status = "Parsed Bracket GS1";
                     return mapToMaster(info);
                 }
@@ -1506,15 +1507,19 @@
                     info.exp = walked['17'] ? formatGS1Date(walked['17']) : '';
                     info.mfg = walked['11'] ? formatGS1Date(walked['11']) : '';
                     info.serial = walked['21'] || walked['30'] || '';
-                    info.scanCode = walked['240'] || walked['241'] || walked['01'] || s;
+                    // Don't fall back to raw string — only use extracted AIs
+                    info.scanCode = walked['240'] || walked['241'] || walked['01'] || '';
                     info.status = "Parsed GS1 Walker (len=" + rawStr.length + ")";
                     return mapToMaster(info);
                 }
             }
 
             // â”€â”€ PATH 4: SAFE FALLBACK â€” always return something â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            info.scanCode = s;
-            info.sapCode = s;
+            // Only use as lookup key if it is short enough to be a standalone code
+            if (s.length <= 30) {
+                info.scanCode = s;
+                info.sapCode = s;
+            }
             info.status = "Extracted (len=" + s.length + ", no GS1 pattern)";
             return mapToMaster(info);
         }
