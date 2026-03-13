@@ -843,6 +843,7 @@
                             class="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
                             <i class="fas fa-pause"></i> Pause
                         </button>
+                        <button onclick="openLVLayoutModal()" title="Configure Table Columns" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1"><i class="fas fa-cog"></i> Layout</button>
                         <button onclick="exportLiveValidate()"
                             class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
                             <i class="fas fa-file-excel"></i> Export
@@ -870,21 +871,7 @@
             <div class="bg-white shadow-sm border rounded">
                 <div class="table-container" style="height: calc(100vh - 450px);">
                     <table id="lvValidateTable" style="width: max-content; min-width: 100%;">
-                        <thead>
-                            <tr class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold sticky top-0 z-10">
-                                <th class="px-3 py-2 text-center w-10">#</th>
-                                <th class="px-3 py-2">Scan Code</th>
-                                <th class="px-3 py-2">Batch</th>
-                                <th class="px-3 py-2">Mfg</th>
-                                <th class="px-3 py-2">Exp</th>
-                                <th class="px-3 py-2">Condition</th>
-                                <th class="px-3 py-2 text-center">Dump Qty</th>
-                                <th class="px-3 py-2 text-center">Remaining</th>
-                                <th class="px-3 py-2 w-36">Status</th>
-                                <th class="px-3 py-2">Raw String</th>
-                                <th class="px-3 py-2">Time</th>
-                            </tr>
-                        </thead>
+                        <thead id="lvValidateThead" class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold sticky top-0 z-10"></thead>
                         <tbody id="lvValidateTbody"></tbody>
                     </table>
                 </div>
@@ -1402,6 +1389,24 @@
                 renderLiveScanTable();
                 updateLiveScanStats();
             }
+
+            // [LIVE VALIDATE] Refresh UI to show isolating data for the new mode
+            if (typeof LV_ROWS !== 'undefined') {
+                renderLVTable();
+                updateLVStats();
+                const statusEl = document.getElementById('lvDumpStatus');
+                if (statusEl) {
+                    const dumpMap = LV_DUMP_MAPS[currentMode] || {};
+                    let totalRows = 0;
+                    Object.values(dumpMap).forEach(arr => totalRows += arr.length);
+                    if (totalRows > 0) {
+                        statusEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i><span class="text-green-700 font-bold">${totalRows.toLocaleString()} rows loaded · ${currentMode} mode</span>`;
+                    } else {
+                        statusEl.innerHTML = `<i class="fas fa-database text-gray-300 mr-1"></i> No dump loaded for ${currentMode}`;
+                    }
+                }
+            }
+
 
             // Refresh Material Master tab for this mode (for ALL entities)
             refreshMasterCount();
@@ -3534,6 +3539,82 @@
             requestAnimationFrame(chunk);
         }
 
+        // ---- Layout Config (Master DB & Dump Columns) -------------------
+        function lvGetLayoutKey() { return `lv_layout_${currentMode}`; }
+        function lvLoadLayoutSettings() {
+            try { return JSON.parse(localStorage.getItem(lvGetLayoutKey())) || { enableSerial: true, masterCols: [], dumpCols: [] }; } 
+            catch { return { enableSerial: true, masterCols: [], dumpCols: [] }; }
+        }
+        function lvSaveLayoutSettings(cfg) { localStorage.setItem(lvGetLayoutKey(), JSON.stringify(cfg)); }
+
+        function openLVLayoutModal() {
+            const modal = document.getElementById('lvLayoutModal');
+            if (!modal) return;
+            const cfg = lvLoadLayoutSettings();
+            
+            // Build Master DB checkboxes
+            const masterKeys = Object.keys(MATERIAL_MASTER) || [];
+            let masterFields = [];
+            if (masterKeys.length > 0) {
+                masterFields = Object.keys(MATERIAL_MASTER[masterKeys[0]] || {}).filter(k => k !== 'raw');
+            } else {
+                masterFields = ['Description', 'UnitPrice', 'Tax'];
+            }
+            
+            const mcHtml = masterFields.map(f => `
+                <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors">
+                    <input type="checkbox" value="${f}" class="lv-master-cb w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500" ${cfg.masterCols.includes(f) ? 'checked' : ''}>
+                    <span class="text-gray-700 truncate" title="${f}">${f}</span>
+                </label>
+            `).join('');
+            document.getElementById('lvLayoutMasterCols').innerHTML = mcHtml || '<div class="text-xs text-gray-400 italic">No master data available</div>';
+
+            // Build Dump Map checkboxes
+            const dumpMap = LV_DUMP_MAPS[currentMode] || {};
+            const dumpKeys = Object.keys(dumpMap);
+            let dumpFields = [];
+            if (dumpKeys.length > 0) {
+                const sampleRow = dumpMap[dumpKeys[0]][0] || {};
+                dumpFields = Object.keys(sampleRow.raw || {});
+            }
+
+            const dcHtml = dumpFields.map(f => `
+                <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors">
+                    <input type="checkbox" value="${f}" class="lv-dump-cb w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500" ${cfg.dumpCols.includes(f) ? 'checked' : ''}>
+                    <span class="text-gray-700 truncate" title="${f}">${f}</span>
+                </label>
+            `).join('');
+            
+            const dcContainer = document.getElementById('lvLayoutDumpCols');
+            const dcMsg = document.getElementById('lvLayoutDumpEmptyMsg');
+            if (dumpFields.length > 0) {
+                dcContainer.innerHTML = dcHtml;
+                dcContainer.classList.remove('hidden');
+                dcMsg.classList.add('hidden');
+            } else {
+                dcContainer.innerHTML = '';
+                dcContainer.classList.add('hidden');
+                dcMsg.classList.remove('hidden');
+            }
+
+            // Serial setting
+            const rSer = document.getElementById('lvLayoutEnableSerial');
+            if (rSer) rSer.checked = !!cfg.enableSerial;
+
+            modal.classList.remove('hidden');
+        }
+
+        function saveLVLayout() {
+            const masterCols = Array.from(document.querySelectorAll('.lv-master-cb:checked')).map(cb => cb.value);
+            const dumpCols = Array.from(document.querySelectorAll('.lv-dump-cb:checked')).map(cb => cb.value);
+            const enableSerial = document.getElementById('lvLayoutEnableSerial') ? document.getElementById('lvLayoutEnableSerial').checked : true;
+            
+            lvSaveLayoutSettings({ enableSerial, masterCols, dumpCols });
+            document.getElementById('lvLayoutModal').classList.add('hidden');
+            
+            renderLVTable();
+        }
+
         function _processLVScan(raw, batchMode) {
             if (!raw) return;
             // Parse with current mode's parser (reuse existing parsers)
@@ -3602,7 +3683,37 @@
 
         const LV_RENDER_LIMIT = 200;
 
+        function renderLVThead() {
+            const thead = document.getElementById('lvValidateThead');
+            if (!thead) return;
+            const cfg = lvLoadLayoutSettings();
+            let html = `
+                <tr class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold sticky top-0 z-10">
+                    <th class="px-3 py-2 text-center w-10">#</th>
+                    <th class="px-3 py-2">Scan Code</th>
+            `;
+            if (cfg.enableSerial) html += `<th class="px-3 py-2">Serial</th>`;
+            html += `
+                    <th class="px-3 py-2">Batch</th>
+                    <th class="px-3 py-2">Mfg</th>
+                    <th class="px-3 py-2">Exp</th>
+                    <th class="px-3 py-2">Condition</th>
+                    <th class="px-3 py-2 text-center">Dump Qty</th>
+                    <th class="px-3 py-2 text-center">Remaining</th>
+                    <th class="px-3 py-2 w-36">Status</th>
+            `;
+            cfg.masterCols.forEach(c => html += `<th class="px-3 py-2 text-indigo-700 bg-indigo-50 border-l border-indigo-100" title="Master DB Field">${c}</th>`);
+            cfg.dumpCols.forEach(c => html += `<th class="px-3 py-2 text-orange-700 bg-orange-50 border-l border-orange-100" title="System Dump Field">${c}</th>`);
+            html += `
+                    <th class="px-3 py-2">Raw String</th>
+                    <th class="px-3 py-2">Time</th>
+                </tr>
+            `;
+            thead.innerHTML = html;
+        }
+
         function renderLVTable() {
+            renderLVThead();
             const tbody = document.getElementById('lvValidateTbody');
             if (!tbody) return;
             const rows = LV_ROWS[currentMode] || [];
@@ -3613,14 +3724,22 @@
             if (lvCurrentFilter === 'dup')      display = rows.filter(r => r._isDup);
             display = display.slice(0, LV_RENDER_LIMIT);
 
+            const cfg = lvLoadLayoutSettings();
+            const dumpMap = LV_DUMP_MAPS[currentMode] || {};
             const statusIcons = { 'Match': '✅', 'Batch Mismatch': '⚠️', 'Not in Dump': '❌', 'No Dump Loaded': '⬜' };
+
             tbody.innerHTML = display.map((r, i) => {
                 const matCode = r.matCode || r.scanCode || '';
                 const ico = statusIcons[r._lvStatus] || '❓';
                 const dupBadge = r._isDup ? '<span class="ml-1 text-[9px] bg-orange-100 text-orange-700 border border-orange-300 px-1 rounded font-bold">DUP</span>' : '';
-                return `<tr class="border-b hover:bg-gray-50 transition-colors ${r._isDup ? 'opacity-70' : ''}">
+                
+                let trHtml = `<tr class="border-b hover:bg-gray-50 transition-colors ${r._isDup ? 'opacity-70' : ''}">
                     <td class="px-3 py-1.5 text-center text-gray-400 text-xs">${rows.length - i}</td>
-                    <td class="px-3 py-1.5 font-mono text-xs font-bold text-gray-800">${matCode}${dupBadge}</td>
+                    <td class="px-3 py-1.5 font-mono text-xs font-bold text-gray-800">${matCode}${dupBadge}</td>`;
+                
+                if (cfg.enableSerial) trHtml += `<td class="px-3 py-1.5 font-mono text-xs text-purple-700">${r.serial || '—'}</td>`;
+
+                trHtml += `
                     <td class="px-3 py-1.5 text-xs text-gray-700">${r.batch || '—'}</td>
                     <td class="px-3 py-1.5 text-xs text-gray-500">${r.mfg || '—'}</td>
                     <td class="px-3 py-1.5 text-xs text-gray-500">${r.exp || '—'}</td>
@@ -3628,12 +3747,34 @@
                     <td class="px-3 py-1.5 text-xs text-center font-bold text-gray-700">${r._lvDumpQty}</td>
                     <td class="px-3 py-1.5 text-xs text-center font-bold ${r._lvRemQty !== '—' && parseInt(r._lvRemQty) === 0 ? 'text-red-600' : 'text-blue-700'}">${r._lvRemQty}</td>
                     <td class="px-3 py-1.5"><span class="text-xs font-bold px-1.5 py-0.5 rounded border ${r._lvStatusCls}">${ico} ${r._lvStatus}</span></td>
+                `;
+
+                // Layout Master DB Columns
+                if (cfg.masterCols.length > 0) {
+                    const dbRow = getDbRow(r) || {};
+                    cfg.masterCols.forEach(c => {
+                        trHtml += `<td class="px-3 py-1.5 text-xs text-gray-600 bg-indigo-50/30 border-l border-indigo-50">${dbRow[c] || '—'}</td>`;
+                    });
+                }
+
+                // Layout Dump Columns
+                if (cfg.dumpCols.length > 0) {
+                    const dRows = dumpMap[matCode.toUpperCase()] || dumpMap[matCode.replace(/^0+/, '').toUpperCase()] || [];
+                    const batchMatch = (r.batch || '').trim().toUpperCase();
+                    let matchRow = dRows.find(dr => dr.batch === batchMatch) || dRows[0];
+                    const rawDump = matchRow ? matchRow.raw : {};
+                    cfg.dumpCols.forEach(c => {
+                        trHtml += `<td class="px-3 py-1.5 text-xs text-gray-600 bg-orange-50/30 border-l border-orange-50">${rawDump[c] || '—'}</td>`;
+                    });
+                }
+
+                trHtml += `
                     <td class="px-3 py-1.5 text-[10px] text-gray-400 font-mono max-w-[180px] truncate" title="${r.raw}">${r.raw}</td>
                     <td class="px-3 py-1.5 text-[10px] text-gray-400">${r._scanTime}</td>
                 </tr>`;
+                return trHtml;
             }).join('');
         }
-
         function updateLVStats() {
             const rows = LV_ROWS[currentMode] || [];
             const match    = rows.filter(r => r._lvStatus === 'Match').length;
@@ -3709,27 +3850,57 @@
         function exportLiveValidate() {
             const rows = LV_ROWS[currentMode] || [];
             if (!rows.length) { alert('No data to export.'); return; }
+            const dumpMap = LV_DUMP_MAPS[currentMode] || {};
+            const cfg = lvLoadLayoutSettings();
+            
             const wb = XLSX.utils.book_new();
-            const wsData = [['#', 'Scan Code', 'Batch', 'Mfg Date', 'Exp Date', 'Condition', 'Dump Qty', 'Remaining Qty', 'Status', 'Duplicate', 'Scan Time', 'Raw String']];
-            rows.forEach((r, i) => wsData.push([
-                rows.length - i,
-                r.matCode || r.scanCode || '',
-                r.batch || '',
-                r.mfg || '',
-                r.exp || '',
-                r.condition,
-                r._lvDumpQty,
-                r._lvRemQty,
-                r._lvStatus,
-                r._isDup ? 'Yes' : 'No',
-                r._scanTime,
-                r.raw
-            ]));
+            
+            // Build Headers
+            let headersList = ['#', 'Scan Code'];
+            if (cfg.enableSerial) headersList.push('Serial Number');
+            headersList.push('Batch', 'Mfg Date', 'Exp Date', 'Condition', 'Dump Qty', 'Remaining Qty', 'Status');
+            cfg.masterCols.forEach(c => headersList.push(`[DB] ${c}`));
+            cfg.dumpCols.forEach(c => headersList.push(`[Dump] ${c}`));
+            headersList.push('Duplicate', 'Scan Time', 'Raw String');
+            
+            const wsData = [headersList];
+            
+            rows.forEach((r, i) => {
+                let rowData = [
+                    rows.length - i,
+                    r.matCode || r.scanCode || ''
+                ];
+                if (cfg.enableSerial) rowData.push(r.serial || '');
+                rowData.push(
+                    r.batch || '', r.mfg || '', r.exp || '', r.condition,
+                    r._lvDumpQty, r._lvRemQty, r._lvStatus
+                );
+
+                if (cfg.masterCols.length > 0) {
+                    const dbRow = getDbRow(r) || {};
+                    cfg.masterCols.forEach(c => rowData.push(dbRow[c] || ''));
+                }
+
+                if (cfg.dumpCols.length > 0) {
+                    const dRows = dumpMap[(r.matCode||r.scanCode||'').toUpperCase()] || [];
+                    const batchMatch = (r.batch || '').trim().toUpperCase();
+                    let matchRow = dRows.find(dr => dr.batch === batchMatch) || dRows[0];
+                    const rawDump = matchRow ? matchRow.raw : {};
+                    cfg.dumpCols.forEach(c => rowData.push(rawDump[c] || ''));
+                }
+                
+                rowData.push(
+                    r._isDup ? 'Yes' : 'No',
+                    r._scanTime,
+                    r.raw
+                );
+                wsData.push(rowData);
+            });
+
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, 'Live Validate');
             XLSX.writeFile(wb, `LiveValidate_${currentMode}_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
-
         function clearLiveValidate() {
             if (!confirm('Clear all Live Validate results for ' + currentMode + '?')) return;
             LV_ROWS[currentMode] = [];
@@ -3745,6 +3916,53 @@
 
     </script>
 
+        <!-- ===== LIVE VALIDATE: Layout Modal ===== -->
+        <div id="lvLayoutModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-[500px] max-w-full flex flex-col" style="max-height: 90vh;">
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-cogs text-purple-600 text-xl bg-purple-100 p-2 rounded-lg"></i>
+                        <div>
+                            <div class="font-bold text-gray-800 text-lg">Table Layout Settings</div>
+                            <div class="text-xs text-gray-500">Select which extra columns to show. Saved per-tool.</div>
+                        </div>
+                    </div>
+                    <button onclick="document.getElementById('lvLayoutModal').classList.add('hidden')" class="text-gray-400 hover:text-red-500 transition-colors">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="overflow-y-auto pr-2 flex-1" style="max-height: 60vh;">
+                    <div class="mb-4">
+                        <h4 class="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1 flex items-center mb-3 border-l-4 border-indigo-400">
+                            <i class="fas fa-database mr-2 text-indigo-500"></i>Master DB Columns
+                        </h4>
+                        <div id="lvLayoutMasterCols" class="grid grid-cols-2 gap-2 text-sm pl-2"></div>
+                    </div>
+                    <div class="mb-2">
+                        <h4 class="text-xs font-bold text-orange-700 bg-orange-50 px-2 py-1 flex items-center mb-3 border-l-4 border-orange-400">
+                            <i class="fas fa-cloud-upload-alt mr-2 text-orange-500"></i>Dump File Columns
+                        </h4>
+                        <div id="lvLayoutDumpCols" class="grid grid-cols-2 gap-2 text-sm pl-2 text-gray-700"></div>
+                        <div id="lvLayoutDumpEmptyMsg" class="text-xs text-gray-400 italic hidden">No dump loaded yet. Load a dump to select columns.</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                         <h4 class="text-xs font-bold text-green-700 bg-green-50 px-2 py-1 flex items-center mb-3 border-l-4 border-green-400">
+                           <i class="fas fa-barcode mr-2 text-green-500"></i> Extracted Info
+                         </h4>
+                         <div class="text-sm pl-2">
+                            <label class="flex items-center space-x-2 p-1.5 hover:bg-gray-50 rounded cursor-pointer border border-transparent hover:border-gray-200 transition-colors">
+                               <input type="checkbox" id="lvLayoutEnableSerial" class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500">
+                               <span class="text-gray-700 font-medium">Show Serial Number <span class="text-[10px] text-gray-400 ml-1">(if present)</span></span>
+                            </label>
+                         </div>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t flex gap-3 justify-end items-center bg-gray-50 -mx-6 -mb-6 px-6 py-4 rounded-b-xl border border-gray-100">
+                    <button onclick="document.getElementById('lvLayoutModal').classList.add('hidden')" class="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-600 hover:bg-white hover:shadow-sm transition-all focus:outline-none">Cancel</button>
+                    <button onclick="saveLVLayout()" class="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center focus:outline-none"><i class="fas fa-save mr-2"></i> Save Layout</button>
+                </div>
+            </div>
+        </div>
     <!-- ===== SCAN HISTORY MODAL ===== -->
     <div id="scanHistoryModal" class="modal-backdrop hidden">
         <div class="lm-container flex flex-col relative" style="width: 800px;">
