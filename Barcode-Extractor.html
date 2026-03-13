@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1426,6 +1426,28 @@
                     // Don't fall back to raw string — only use extracted codes
                     if (!info.scanCode && info.sapCode) info.scanCode = info.sapCode;
                     info.status = "Parsed Bracket GS1";
+                    return mapToMaster(info);
+                }
+            }
+
+            // -- PATH 1.5: MHPL/TRAUMA PROPRIETARY FORMAT (no GS1 indicators) --
+            // Format: {ScanCode}{Batch:K+digits}{MfgDate:YYYY-MM-DD}{ExpDate:YYYY-MM-DD}
+            // Example: MT-PT6803051RUK24100732024-11-082029-11-07
+            if (!s.startsWith('01') && /\d{4}-\d{2}-\d{2}/.test(s)) {
+                // Variant A: has Batch starting with K followed by 5-12 digits
+                const pmA = s.match(/^(.+?)(K\d{5,12})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
+                if (pmA) {
+                    info.scanCode = pmA[1].trim(); info.sapCode = pmA[1].trim();
+                    info.batch = pmA[2].trim(); info.mfg = pmA[3]; info.exp = pmA[4];
+                    info.status = "Parsed MHPL Proprietary";
+                    return mapToMaster(info);
+                }
+                // Variant B: no batch -- ScanCode + two YYYY-MM-DD dates directly
+                const pmB = s.match(/^(.{4,25})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
+                if (pmB) {
+                    info.scanCode = pmB[1].trim(); info.sapCode = pmB[1].trim();
+                    info.mfg = pmB[2]; info.exp = pmB[3];
+                    info.status = "Parsed MHPL Proprietary (no-batch)";
                     return mapToMaster(info);
                 }
             }
