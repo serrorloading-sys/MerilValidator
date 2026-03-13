@@ -418,11 +418,13 @@
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold text-gray-800" id="headerTitle">Advanced Barcode Extractor</h1>
-                        <p class="text-xs text-gray-500 mt-1 font-mono flex items-center gap-2 flex-wrap" id="dbStatusBadge">âšª Initializing...
+                        <p class="text-xs text-gray-500 mt-1 font-mono flex items-center gap-2 flex-wrap"
+                            id="dbStatusBadge">âšª Initializing...
                             <button onclick="refreshDB()" id="btnRefreshDB" title="Reload Database for current mode"
                                 class="px-2 py-0.5 text-[10px] bg-gray-100 hover:bg-blue-100 hover:text-blue-700 border border-gray-300 rounded font-bold transition hidden">
                                 <i class="fas fa-sync-alt"></i> Refresh DB
-                            </button></p>
+                            </button>
+                        </p>
                     </div>
                 </div>
 
@@ -532,10 +534,14 @@
                 class="bg-indigo-50 border border-indigo-100 rounded px-4 py-2 mb-3 flex flex-wrap gap-4 text-xs font-bold items-center">
                 <span class="text-gray-500"><i class="fas fa-chart-bar mr-1"></i>Session:</span>
                 <span id="statTotal" class="text-gray-700">Total: 0</span>
-                <span id="statFound" class="text-green-700 cursor-pointer hover:underline" onclick="filterByStatus('found')" title="Click to filter">&#10003; Found: 0</span>
-                <span id="statNotFound" class="text-red-600 cursor-pointer hover:underline" onclick="filterByStatus('notfound')" title="Click to filter">&#10007; Not Found: 0</span>
-                <span id="statDup" class="text-orange-600 cursor-pointer hover:underline" onclick="filterByStatus('dup')" title="Click to filter">&#9888; Duplicates: 0</span>
-                <button onclick="clearStatsFilter()" class="ml-auto text-[10px] text-gray-400 hover:text-gray-600">Clear Filter</button>
+                <span id="statFound" class="text-green-700 cursor-pointer hover:underline"
+                    onclick="filterByStatus('found')" title="Click to filter">&#10003; Found: 0</span>
+                <span id="statNotFound" class="text-red-600 cursor-pointer hover:underline"
+                    onclick="filterByStatus('notfound')" title="Click to filter">&#10007; Not Found: 0</span>
+                <span id="statDup" class="text-orange-600 cursor-pointer hover:underline"
+                    onclick="filterByStatus('dup')" title="Click to filter">&#9888; Duplicates: 0</span>
+                <button onclick="clearStatsFilter()" class="ml-auto text-[10px] text-gray-400 hover:text-gray-600">Clear
+                    Filter</button>
             </div>
 
             <div
@@ -557,7 +563,8 @@
                         <i class="fas fa-columns"></i> Layout
                     </button>
                     <button onclick="exportNotFound()"
-                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1" title="Export rows not found in DB">
+                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow transition flex items-center gap-1"
+                        title="Export rows not found in DB">
                         <i class="fas fa-exclamation-circle"></i> Not Found
                     </button>
                     <button onclick="exportExcel()"
@@ -691,15 +698,18 @@
                     <div class="flex-1">
                         <label class="font-bold text-gray-700 text-sm mb-2 block">
                             <i class="fas fa-wifi mr-2 text-cyan-600"></i>Live Scan
-                            <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan to extract instantly</span>
+                            <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan to
+                                extract instantly</span>
                         </label>
-                        
+
                         <div class="flex justify-center mb-3">
                             <div class="inline-flex bg-gray-100 rounded-lg p-1 border shadow-sm">
-                                <button id="condGood" onclick="setLiveCondition('Good')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2">
+                                <button id="condGood" onclick="setLiveCondition('Good')"
+                                    class="px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2">
                                     <i class="fas fa-check-circle"></i> Good Condition
                                 </button>
-                                <button id="condDamage" onclick="setLiveCondition('Damage')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                                <button id="condDamage" onclick="setLiveCondition('Damage')"
+                                    class="px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2">
                                     <i class="fas fa-exclamation-triangle"></i> Damage Box
                                 </button>
                             </div>
@@ -738,13 +748,22 @@
                 </div>
 
                 <!-- Live Stats -->
-                <div class="flex flex-wrap items-center gap-6 text-lg font-bold bg-cyan-50 border-2 border-cyan-200 shadow-inner rounded px-4 py-3">
-                    <span class="text-gray-500 text-sm hidden md:inline"><i class="fas fa-chart-bar mr-1"></i> Stats:</span>
+                <div
+                    class="flex flex-wrap items-center gap-6 text-lg font-bold bg-cyan-50 border-2 border-cyan-200 shadow-inner rounded px-4 py-3">
+                    <span class="text-gray-500 text-sm hidden md:inline"><i class="fas fa-chart-bar mr-1"></i>
+                        Stats:</span>
                     <span class="text-gray-700">Total: <span id="lsTotal" class="text-2xl text-gray-900">0</span></span>
-                    <span class="text-green-700">Found: <span id="lsFound" class="text-2xl text-green-600">0</span></span>
-                    <span class="text-red-600 cursor-pointer hover:underline" onclick="filterLiveScan('notfound')" title="Click to filter by Not Found">Not Found: <span id="lsNotFound" class="text-2xl bg-red-100 px-2 py-0.5 rounded shadow-sm">0</span></span>
-                    <span class="text-orange-600 cursor-pointer hover:underline" onclick="filterLiveScan('dup')" title="Click to filter by Duplicate">Duplicates: <span id="lsDup" class="text-2xl bg-orange-100 px-2 py-0.5 rounded shadow-sm">0</span></span>
-                    <span id="lsStatus" class="ml-auto text-cyan-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-cyan-100 shadow-sm"><i class="fas fa-circle text-green-400 mr-1"></i>Ready</span>
+                    <span class="text-green-700">Found: <span id="lsFound"
+                            class="text-2xl text-green-600">0</span></span>
+                    <span class="text-red-600 cursor-pointer hover:underline" onclick="filterLiveScan('notfound')"
+                        title="Click to filter by Not Found">Not Found: <span id="lsNotFound"
+                            class="text-2xl bg-red-100 px-2 py-0.5 rounded shadow-sm">0</span></span>
+                    <span class="text-orange-600 cursor-pointer hover:underline" onclick="filterLiveScan('dup')"
+                        title="Click to filter by Duplicate">Duplicates: <span id="lsDup"
+                            class="text-2xl bg-orange-100 px-2 py-0.5 rounded shadow-sm">0</span></span>
+                    <span id="lsStatus"
+                        class="ml-auto text-cyan-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-cyan-100 shadow-sm"><i
+                            class="fas fa-circle text-green-400 mr-1"></i>Ready</span>
                 </div>
             </div>
 
@@ -761,6 +780,8 @@
 
 
         <!-- ===== TAB: LIVE VALIDATE ===== -->
+
+        <!-- ===== TAB: LIVE VALIDATE ===== -->
         <div id="tabLiveValidate" class="hidden">
             <!-- Upload Section -->
             <div class="bg-white rounded shadow border-t-4 border-orange-500 p-5 mb-4">
@@ -768,14 +789,19 @@
                     <i class="fas fa-cloud-upload-alt text-orange-500 text-xl"></i>
                     <div>
                         <div class="font-bold text-gray-700 text-sm">Upload System Dump</div>
-                        <div class="text-[10px] text-gray-400">Upload Excel/CSV with Material Code, Batch, Qty columns</div>
+                        <div class="text-[10px] text-gray-400">Excel/CSV — columns auto-mapped after first upload per tool</div>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-3 items-center">
                     <input type="file" id="lvDumpFile" accept=".xlsx,.csv"
                         class="text-xs border border-gray-300 rounded px-2 py-1.5 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer">
-                    <button onclick="loadLiveValidateDump()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow flex items-center gap-2">
+                    <button onclick="loadLiveValidateDump()"
+                        class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow flex items-center gap-2">
                         <i class="fas fa-play"></i> Load Dump
+                    </button>
+                    <button onclick="openLVHeaderMapper(lvPendingHeaders.length?lvPendingHeaders:[], lvPendingRows)" title="Re-map columns"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded text-xs font-bold shadow flex items-center gap-1">
+                        <i class="fas fa-columns"></i> Re-map Columns
                     </button>
                     <div id="lvDumpStatus" class="text-xs font-bold text-gray-400 flex items-center gap-2">
                         <i class="fas fa-database text-gray-300"></i> No dump loaded
@@ -789,58 +815,74 @@
                     <div class="flex-1">
                         <label class="font-bold text-gray-700 text-sm mb-2 block">
                             <i class="fas fa-clipboard-check mr-2 text-green-600"></i>Live Validate
-                            <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan</span>
+                            <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan · supports paste</span>
                         </label>
                         <div class="flex justify-center mb-3">
                             <div class="inline-flex bg-gray-100 rounded-lg p-1 border shadow-sm">
-                                <button id="lvCondGood" onclick="setLVCondition('Good')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2">
+                                <button id="lvCondGood" onclick="setLVCondition('Good')"
+                                    class="px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2">
                                     <i class="fas fa-check-circle"></i> Good Condition
                                 </button>
-                                <button id="lvCondDamage" onclick="setLVCondition('Damage')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                                <button id="lvCondDamage" onclick="setLVCondition('Damage')"
+                                    class="px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2">
                                     <i class="fas fa-exclamation-triangle"></i> Damage Box
                                 </button>
                             </div>
                         </div>
-                        <input type="text" id="lvScanInput" placeholder="Scan barcode or paste string and press Enter..."
+                        <input type="text" id="lvScanInput"
+                            placeholder="Scan barcode or paste strings and press Enter..."
                             class="w-full border-2 border-green-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 shadow-inner"
-                            onkeydown="handleLVScanKey(event)">
+                            onkeydown="handleLVScanKey(event)" onpaste="handleLVPaste(event)">
                     </div>
                     <div class="flex gap-2 flex-wrap">
-                        <button onclick="exportLiveValidate()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                        <button onclick="undoLVScan()" title="Undo Last Scan"
+                            class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-undo"></i> Undo
+                        </button>
+                        <button onclick="toggleLVPause()" id="btnLVPause" title="Pause / Resume"
+                            class="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-pause"></i> Pause
+                        </button>
+                        <button onclick="exportLiveValidate()"
+                            class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
                             <i class="fas fa-file-excel"></i> Export
                         </button>
-                        <button onclick="clearLiveValidate()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                        <button onclick="clearLiveValidate()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
                             <i class="fas fa-trash-alt"></i> Clear
                         </button>
                     </div>
                 </div>
 
                 <!-- Stats Row -->
-                <div class="flex flex-wrap items-center gap-6 text-lg font-bold bg-green-50 border-2 border-green-200 shadow-inner rounded px-4 py-3 mt-4">
+                <div class="flex flex-wrap items-center gap-5 text-lg font-bold bg-green-50 border-2 border-green-200 shadow-inner rounded px-4 py-3 mt-4">
                     <span class="text-gray-500 text-sm"><i class="fas fa-chart-bar mr-1"></i> Stats:</span>
                     <span class="text-gray-700">Total: <span id="lvTotal" class="text-2xl text-gray-900">0</span></span>
-                    <span class="text-green-700">Match: <span id="lvMatch" class="text-2xl text-green-600">0</span></span>
-                    <span class="text-yellow-600">Mismatch: <span id="lvMismatch" class="text-2xl text-yellow-600">0</span></span>
-                    <span class="text-red-600">Not Found: <span id="lvNotFound" class="text-2xl text-red-600">0</span></span>
+                    <span class="text-green-700 cursor-pointer hover:underline" onclick="filterLVTable('match')" title="Filter Match">Match: <span id="lvMatch" class="text-2xl text-green-600 bg-green-100 px-2 rounded shadow-sm">0</span></span>
+                    <span class="text-yellow-600 cursor-pointer hover:underline" onclick="filterLVTable('mismatch')" title="Filter Mismatch">Mismatch: <span id="lvMismatch" class="text-2xl text-yellow-600 bg-yellow-100 px-2 rounded shadow-sm">0</span></span>
+                    <span class="text-red-600 cursor-pointer hover:underline" onclick="filterLVTable('notfound')" title="Filter Not Found">Not in Dump: <span id="lvNotFound" class="text-2xl text-red-600 bg-red-100 px-2 rounded shadow-sm">0</span></span>
+                    <span class="text-orange-600 cursor-pointer hover:underline" onclick="filterLVTable('dup')" title="Filter Duplicates">Duplicates: <span id="lvDup" class="text-2xl text-orange-600 bg-orange-100 px-2 rounded shadow-sm">0</span></span>
                     <span id="lvScanStatus" class="ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm"><i class="fas fa-circle text-green-400 mr-1"></i>Ready</span>
                 </div>
             </div>
 
             <!-- Results Table -->
             <div class="bg-white shadow-sm border rounded">
-                <div class="table-container" style="height: calc(100vh - 430px);">
+                <div class="table-container" style="height: calc(100vh - 450px);">
                     <table id="lvValidateTable" style="width: max-content; min-width: 100%;">
                         <thead>
-                            <tr class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold">
+                            <tr class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold sticky top-0 z-10">
                                 <th class="px-3 py-2 text-center w-10">#</th>
-                                <th class="px-3 py-2">Scan Code / Material</th>
+                                <th class="px-3 py-2">Scan Code</th>
                                 <th class="px-3 py-2">Batch</th>
-                                <th class="px-3 py-2">Mfg Date</th>
-                                <th class="px-3 py-2">Exp Date</th>
+                                <th class="px-3 py-2">Mfg</th>
+                                <th class="px-3 py-2">Exp</th>
                                 <th class="px-3 py-2">Condition</th>
-                                <th class="px-3 py-2">Dump Qty</th>
-                                <th class="px-3 py-2 w-32">Status</th>
+                                <th class="px-3 py-2 text-center">Dump Qty</th>
+                                <th class="px-3 py-2 text-center">Remaining</th>
+                                <th class="px-3 py-2 w-36">Status</th>
                                 <th class="px-3 py-2">Raw String</th>
+                                <th class="px-3 py-2">Time</th>
                             </tr>
                         </thead>
                         <tbody id="lvValidateTbody"></tbody>
@@ -848,6 +890,28 @@
                 </div>
             </div>
         </div><!-- end tabLiveValidate -->
+
+        <!-- ===== LIVE VALIDATE: Header Mapper Modal ===== -->
+        <div id="lvHeaderMapModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-[420px] max-w-full">
+                <div class="flex items-center gap-3 mb-4">
+                    <i class="fas fa-columns text-orange-500 text-xl"></i>
+                    <div>
+                        <div class="font-bold text-gray-800">Map Dump Columns</div>
+                        <div class="text-xs text-gray-400">Select which column matches each field. Saved per tool.</div>
+                    </div>
+                </div>
+                <div id="lvMapBody" class="mb-4"></div>
+                <div class="flex gap-3 justify-end">
+                    <button onclick="document.getElementById('lvHeaderMapModal').classList.add('hidden')"
+                        class="px-4 py-1.5 rounded border text-xs font-bold text-gray-600 hover:bg-gray-100">Cancel</button>
+                    <button onclick="confirmLVHeaderMap()"
+                        class="px-5 py-1.5 rounded bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow">
+                        <i class="fas fa-check mr-1"></i> Confirm &amp; Load
+                    </button>
+                </div>
+            </div>
+        </div>
 
 
     </div>
@@ -974,7 +1038,7 @@
                 el.classList.toggle('hidden', !isAdmin);
             });
             const badge = document.getElementById('adminBadge');
-            if(badge) badge.classList.toggle('hidden', !isAdmin);
+            if (badge) badge.classList.toggle('hidden', !isAdmin);
         }
 
         function formatGS1Date(dateStr) {
@@ -1410,7 +1474,7 @@
             }
             processChunk();
         }
-        }
+
 
         // --- ENGINES ---
 
@@ -1749,8 +1813,8 @@
                 else if (statsStatusFilter === 'notfound') filteredExtracted = filteredExtracted.filter(r => !getDbRow(r));
                 else if (statsStatusFilter === 'dup') {
                     const _seen = {}; const _dupKeys = new Set();
-                    filteredExtracted.forEach(r => { const k = r.gtin||r.sapCode||r.matCode||r.scanCode||''; if(k && _seen[k]) _dupKeys.add(k); else if(k) _seen[k]=true; });
-                    filteredExtracted = filteredExtracted.filter(r => _dupKeys.has(r.gtin||r.sapCode||r.matCode||r.scanCode||''));
+                    filteredExtracted.forEach(r => { const k = r.gtin || r.sapCode || r.matCode || r.scanCode || ''; if (k && _seen[k]) _dupKeys.add(k); else if (k) _seen[k] = true; });
+                    filteredExtracted = filteredExtracted.filter(r => _dupKeys.has(r.gtin || r.sapCode || r.matCode || r.scanCode || ''));
                 }
             }
         }
@@ -2632,7 +2696,7 @@
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, 'Not Found');
-            XLSX.writeFile(wb, 'NotFound_' + currentMode + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
+            XLSX.writeFile(wb, 'NotFound_' + currentMode + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
         }
 
         // ====================================================================
@@ -2654,7 +2718,7 @@
                     }
                 }
                 if (badge) badge.childNodes[0].textContent = '\u26ab DB Loaded (' + currentMode + ') \u2713';
-            } catch(e) {
+            } catch (e) {
                 if (badge) badge.childNodes[0].textContent = '\u26a0 Refresh Failed';
             }
             if (btn) { btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh DB'; btn.disabled = false; }
@@ -2669,7 +2733,7 @@
         // ====================================================================
         // ===== FEATURE: Keyboard Shortcuts ==================================
         // ====================================================================
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             // Ctrl+Enter → Extract (when rawInput has focus or Ctrl pressed)
             if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
@@ -2686,7 +2750,7 @@
         });
 
         // Add hint text under rawInput (runs once DOM is ready)
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const btn = document.getElementById('btnExtract');
             if (btn) {
                 const hint = document.createElement('p');
@@ -2731,12 +2795,12 @@
                     osc.start(_audioCtx.currentTime);
                     osc.stop(_audioCtx.currentTime + 0.15);
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
 
         // ====================================================================
         // ===== FEATURE: Live Scan Tab =======================================
-        
+
         // === FINISH SCAN & HISTORY (Supabase) ===
         // We will create a new table 'scan_history' or use a generic JSON RPC if needed. 
         // Since we cannot guarantee table creation, we use Supabase table 'activity_logs' or 'validator_logs' if present, 
@@ -2771,7 +2835,7 @@
                     console.warn("Supabase scan_history table might not exist:", error.message);
                     throw new Error("DB saving failed");
                 }
-            } catch(dbErr) {
+            } catch (dbErr) {
                 // Fallback to local storage history
                 let hist = JSON.parse(localStorage.getItem('ls_history') || '[]');
                 hist.push(sessionData);
@@ -2780,7 +2844,7 @@
                 hist = hist.filter(h => new Date(h.timestamp).getTime() > sevenDaysAgo);
                 try {
                     localStorage.setItem('ls_history', JSON.stringify(hist));
-                } catch(quotaErr) {
+                } catch (quotaErr) {
                     alert("Local storage is full. Cannot save session history.");
                 }
             }
@@ -2791,14 +2855,14 @@
             saveLiveScanSession(); // Clear autosave
             renderLiveScanTable();
             updateLiveScanStats();
-            
+
             btn.innerHTML = origHTML;
             btn.disabled = false;
-            
+
             playBeep('ok');
             const statusEl = document.getElementById('lsStatus');
-            if(statusEl) statusEl.innerHTML = '<i class="fas fa-check-double text-blue-500 mr-1"></i>Session Saved!';
-            setTimeout(() => { if(statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 3000);
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-double text-blue-500 mr-1"></i>Session Saved!';
+            setTimeout(() => { if (statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 3000);
         }
 
         async function openScanHistory() {
@@ -2807,7 +2871,7 @@
             const empty = document.getElementById('historyEmpty');
             const loading = document.getElementById('historyLoading');
             const table = document.getElementById('historyTableContainer');
-            
+
             tbody.innerHTML = '';
             table.classList.add('hidden');
             empty.classList.add('hidden');
@@ -2817,7 +2881,7 @@
             try {
                 // Supabase pull
                 let query = supabaseClient.from('scan_history').select('*').order('timestamp', { ascending: false });
-                
+
                 // If not admin, only show own records
                 const isAdmin = window.currentUser && window.currentUser.role === 'admin';
                 if (!isAdmin) {
@@ -2833,17 +2897,17 @@
                 const { data, error } = await query;
                 if (error) throw error;
                 sessions = data || [];
-            } catch(e) {
+            } catch (e) {
                 // Fallback to local storage
                 let hist = JSON.parse(localStorage.getItem('ls_history') || '[]');
                 const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
                 hist = hist.filter(h => new Date(h.timestamp).getTime() > sevenDaysAgo);
-                
+
                 const isAdmin = window.currentUser && window.currentUser.role === 'admin';
                 if (!isAdmin) {
                     hist = hist.filter(h => h.user === (window.currentUser ? window.currentUser.username : 'guest'));
                 }
-                sessions = hist.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                sessions = hist.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             }
 
             loading.classList.add('hidden');
@@ -2880,10 +2944,10 @@
             if (!window._loadedHistory || !window._loadedHistory[index]) return;
             const session = window._loadedHistory[index];
             const dataToExport = session.data;
-            
+
             // Build workbook
             const wb = XLSX.utils.book_new();
-            
+
             // Map data
             const mapped = dataToExport.map(r => ({
                 "Date": r._scanDate || '',
@@ -2901,19 +2965,19 @@
 
             const ws = XLSX.utils.json_to_sheet(mapped);
             XLSX.utils.book_append_sheet(wb, ws, "Session Data");
-            
+
             const ts = new Date(session.timestamp).getTime();
             XLSX.writeFile(wb, `LiveScan_History_${session.mode}_${session.user}_${ts}.xlsx`);
         }
 
         async function deleteHistorySession(id) {
             if (!confirm("Delete this session record permanently?")) return;
-            
+
             try {
                 // Try DB delete first
                 const { error } = await supabaseClient.from('scan_history').delete().eq('id', id);
                 if (error) throw error;
-            } catch(e) {
+            } catch (e) {
                 // Fallback delete
                 let hist = JSON.parse(localStorage.getItem('ls_history') || '[]');
                 hist = hist.filter(h => h.id !== id);
@@ -2922,7 +2986,7 @@
             openScanHistory(); // refresh
         }
 
-// ====================================================================
+        // ====================================================================
         let liveScanRows = [];
         let liveScanPaused = false;
         let liveScanSeenKeys = {};
@@ -2942,10 +3006,10 @@
             try {
                 // save minimalist version to avoid huge quota usage
                 const min = liveScanRows.map(r => ({
-                    raw: r.raw, 
-                    _scanTime: r._scanTime, 
-                    _scanDate: r._scanDate, 
-                    _isDup: r._isDup, 
+                    raw: r.raw,
+                    _scanTime: r._scanTime,
+                    _scanDate: r._scanDate,
+                    _isDup: r._isDup,
                     _dbFound: r._dbFound,
                     gtin: r.gtin,
                     sapCode: r.sapCode,
@@ -2958,7 +3022,7 @@
                     condition: r.condition
                 }));
                 localStorage.setItem(key, JSON.stringify(min));
-            } catch(e) { console.error('Autosave failed', e); }
+            } catch (e) { console.error('Autosave failed', e); }
         }
 
         function loadLiveScanSession() {
@@ -2969,10 +3033,10 @@
                     liveScanRows = JSON.parse(stored);
                     // rebuild seen keys
                     liveScanSeenKeys = {};
-                    liveScanRows.forEach(r => { if(r.raw) liveScanSeenKeys[r.raw] = true; });
+                    liveScanRows.forEach(r => { if (r.raw) liveScanSeenKeys[r.raw] = true; });
                     return true;
                 }
-            } catch(e) { console.error('Load session failed', e); }
+            } catch (e) { console.error('Load session failed', e); }
             liveScanRows = [];
             liveScanSeenKeys = {};
             return false;
@@ -3032,16 +3096,16 @@
         }
 
         // Handle paste — chunk process to prevent hanging
-        
+
         function undoLastLiveScan() {
             if (liveScanRows.length === 0) return;
             const last = liveScanRows.shift(); // remove newest (index 0)
             if (last.raw) delete liveScanSeenKeys[last.raw];
-            
+
             saveLiveScanSession();
             renderLiveScanTable();
             updateLiveScanStats();
-            
+
             const statusEl = document.getElementById('lsStatus');
             if (statusEl) {
                 statusEl.innerHTML = '<i class="fas fa-undo text-yellow-500 mr-1"></i>Undo Successful';
@@ -3053,15 +3117,15 @@
             const gtin = document.getElementById('manGtin').value.trim();
             const batch = document.getElementById('manBatch').value.trim();
             const serial = document.getElementById('manSerial').value.trim();
-            
+
             if (!gtin || !batch) {
                 alert("GTIN/SAP and Batch are required for manual entry.");
                 return;
             }
 
             // Construct a fake GS1 raw string to act as the unique key
-            const fakeRaw = `MANUAL_01${gtin.padStart(14,'0')}10${batch}${serial ? '21'+serial : ''}`;
-            
+            const fakeRaw = `MANUAL_01${gtin.padStart(14, '0')}10${batch}${serial ? '21' + serial : ''}`;
+
             const d = new Date();
             let res = {
                 raw: fakeRaw,
@@ -3080,7 +3144,7 @@
             const dbRow = getDbRow(res);
             res._dbFound = !!dbRow;
             res._isDup = !!liveScanSeenKeys[fakeRaw];
-            
+
             liveScanSeenKeys[fakeRaw] = true;
             liveScanRows.unshift(res);
 
@@ -3092,18 +3156,18 @@
 
             renderLiveScanTable();
             updateLiveScanStats();
-            
+
             if (res._isDup) playBeep('dup');
             else if (res._dbFound) playBeep('ok');
             else playBeep('error');
-            
+
             const statusEl = document.getElementById('lsStatus');
             if (statusEl) {
                 statusEl.innerHTML = '<i class="fas fa-pen text-cyan-600 mr-1"></i>Manual Added';
                 setTimeout(() => { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
             }
         }
-function handleLiveScanPaste(event) {
+        function handleLiveScanPaste(event) {
             if (liveScanPaused) return;
             event.preventDefault();
             const pastedText = (event.clipboardData || window.clipboardData).getData('text');
@@ -3118,13 +3182,13 @@ function handleLiveScanPaste(event) {
             // Process lines in chunks of 50 to avoid hanging main thread
             let i = 0;
             const CHUNK_SIZE = 50;
-            
+
             function processChunk() {
                 const end = Math.min(i + CHUNK_SIZE, lines.length);
                 for (; i < end; i++) {
                     _processSingleScan(lines[i]);
                 }
-                
+
                 if (statusEl) {
                     statusEl.innerHTML = `<i class="fas fa-circle text-yellow-500 mr-1 fa-pulse"></i>Processing ${i} / ${lines.length}...`;
                 }
@@ -3143,22 +3207,22 @@ function handleLiveScanPaste(event) {
                     }
                 }
             }
-            
+
             // Start processing loop
             requestAnimationFrame(processChunk);
         }
 
         const LIVE_RENDER_LIMIT = 200; // Only render latest N rows to avoid DOM overload
 
-        
-        
+
+
         let currentLiveCondition = 'Good';
 
         function setLiveCondition(cond) {
             currentLiveCondition = cond;
             const btnGood = document.getElementById('condGood');
             const btnDamage = document.getElementById('condDamage');
-            
+
             if (cond === 'Good') {
                 btnGood.className = "px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2";
                 btnDamage.className = "px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2";
@@ -3169,25 +3233,25 @@ function handleLiveScanPaste(event) {
             document.getElementById('liveScanInput').focus();
         }
 
-let currentLiveFilter = null;
+        let currentLiveFilter = null;
         function filterLiveScan(type) {
             currentLiveFilter = currentLiveFilter === type ? null : type;
             renderLiveScanTable();
         }
 
-function renderLiveScanTable() {
+        function renderLiveScanTable() {
             const thead = document.getElementById('liveScanThead');
             const tbody = document.getElementById('liveScanTbody');
             if (!thead || !tbody) return;
 
-            
+
             let displayRows = liveScanRows;
             if (currentLiveFilter === 'notfound') displayRows = displayRows.filter(r => !r._dbFound);
             else if (currentLiveFilter === 'dup') displayRows = displayRows.filter(r => r._isDup);
             displayRows = displayRows.slice(0, LIVE_RENDER_LIMIT);
 
             // Build headers from current mode
-            const cols = currentMode === 'MHPL' 
+            const cols = currentMode === 'MHPL'
                 ? ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Serial', 'Len', 'Cond', 'Status', 'DB Match']
                 : ['#', 'Date', 'Time', 'GTIN/SAP', 'Mat Code', 'Batch', 'Exp', 'Mfg', 'Len', 'Cond', 'Status', 'DB Match'];
             thead.innerHTML = '<tr>' + cols.map(h =>
@@ -3208,8 +3272,8 @@ function renderLiveScanTable() {
 
                 const serialTd = currentMode === 'MHPL' ? `<td class="px-2 py-1 font-mono text-purple-700 font-bold">${r.serial || '-'}</td>` : '';
                 const condStr = (r.condition || 'Good').toLowerCase();
-                const condBadge = condStr === 'damage' 
-                    ? '<span class="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold border border-red-200">DAMAGE</span>' 
+                const condBadge = condStr === 'damage'
+                    ? '<span class="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold border border-red-200">DAMAGE</span>'
                     : '<span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-bold border border-green-200">GOOD</span>';
                 return `<tr class="${rowCls} border-b hover:brightness-95 text-xs">
                     <td class="px-2 py-1 text-gray-400">${liveScanRows.length - i}</td>
@@ -3222,7 +3286,7 @@ function renderLiveScanTable() {
                     <td class="px-2 py-1">${r.mfg || '-'}</td>
                     ${serialTd}
                     <td class="px-2 py-1">${condBadge}</td>
-                    <td class="px-2 py-1 text-gray-400">${(r.raw||'').length}</td>
+                    <td class="px-2 py-1 text-gray-400">${(r.raw || '').length}</td>
                     <td class="px-2 py-1">${statusBadge}</td>
                     <td class="px-2 py-1 text-gray-600 max-w-[180px] truncate" title="${desc}">${desc}</td>
                 </tr>`;
@@ -3271,63 +3335,125 @@ function renderLiveScanTable() {
 
         function exportLiveScan() {
             if (liveScanRows.length === 0) { alert('No scanned data to export!'); return; }
-            const headers = ['#','Time','Raw Barcode','GTIN/SAP','Mat Code','Batch','Expiry','Mfg','Status','DB Description'];
+            const headers = ['#', 'Time', 'Raw Barcode', 'GTIN/SAP', 'Mat Code', 'Batch', 'Expiry', 'Mfg', 'Status', 'DB Description'];
             const wsData = [headers, ...liveScanRows.map((r, i) => {
                 const dbRow = getDbRow(r);
                 const desc = dbRow ? (Object.values(dbRow)[2] || '') : '';
                 const status = r._isDup ? 'DUPLICATE' : (r._dbFound ? 'FOUND' : 'NOT FOUND');
-                return [i+1, r._scanTime||'', r.raw||'', r.gtin||r.sapCode||'', r.matCode||r.scanCode||'',
-                        r.batch||'', r.exp||'', r.mfg||'', status, desc];
+                return [i + 1, r._scanTime || '', r.raw || '', r.gtin || r.sapCode || '', r.matCode || r.scanCode || '',
+                r.batch || '', r.exp || '', r.mfg || '', status, desc];
             })];
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, 'LiveScan');
-            XLSX.writeFile(wb, 'LiveScan_' + currentMode + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
+            XLSX.writeFile(wb, 'LiveScan_' + currentMode + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
         }
 
-
         // ====================================================================
-        // ===== FEATURE: Live Validate Tab ===================================
+        // ===== FEATURE: Live Validate Tab (Full Rewrite) ====================
         // ====================================================================
-        let lvDumpMap = {};          // { matCodeUpper: [{batch, qty, ...}] }
-        let lvValidateRows = [];     // accumulated scan results
-        let lvCondition = 'Good';   // Good | Damage
-        let lvStats = { total: 0, match: 0, mismatch: 0, notfound: 0 };
+        // Per-tool dump maps — isolated so MHPL dump never mixes with MLSIPL
+        const LV_DUMP_MAPS = { MHPL: {}, MLSIPL: {}, CARDIO: {}, MDPL: {} };
+        // Per-tool scan rows + seen-keys (per user session)
+        const LV_ROWS = { MHPL: [], MLSIPL: [], CARDIO: {}, MDPL: [] };
+        const LV_SEEN = { MHPL: {}, MLSIPL: {}, CARDIO: {}, MDPL: {} };
 
-        function setLVCondition(cond) {
-            lvCondition = cond;
-            const g = document.getElementById('lvCondGood');
-            const d = document.getElementById('lvCondDamage');
-            if (!g || !d) return;
-            if (cond === 'Good') {
-                g.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2';
-                d.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2';
-            } else {
-                d.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-red-500 text-white flex items-center gap-2';
-                g.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2';
-            }
+        let lvPaused = false;
+        let lvCurrentCondition = 'Good';
+        let lvCurrentFilter = null; // 'match'|'mismatch'|'notfound'|null
+
+        // ---- Column Header Mapper ----------------------------------------
+        // Saved per-tool in localStorage so user never remaps again
+        function lvGetColMapKey() { return `lv_colmap_${currentMode}`; }
+        function lvSaveColMap(map) { localStorage.setItem(lvGetColMapKey(), JSON.stringify(map)); }
+        function lvLoadColMap() {
+            try { return JSON.parse(localStorage.getItem(lvGetColMapKey()) || 'null'); } catch { return null; }
+        }
+
+        let lvPendingHeaders = []; // headers from last uploaded file before mapping confirmed
+        let lvPendingRows = [];    // raw row objects from last uploaded file
+
+        function openLVHeaderMapper(headers, rawRows) {
+            lvPendingHeaders = headers;
+            lvPendingRows = rawRows;
+            const modal = document.getElementById('lvHeaderMapModal');
+            if (!modal) return;
+
+            // Try to load saved mapping and pre-fill
+            const saved = lvLoadColMap();
+            const opts = ['— not used —', ...headers].map((h, i) => `<option value="${h === '— not used —' ? '' : h}">${h}</option>`).join('');
+
+            const selFor = (field, label) => {
+                const savedVal = saved ? (saved[field] || '') : '';
+                const optsWithSel = ['— not used —', ...headers].map(h => {
+                    const v = h === '— not used —' ? '' : h;
+                    return `<option value="${v}" ${v === savedVal ? 'selected' : ''}>${h}</option>`;
+                }).join('');
+                return `<div class="mb-3">
+                    <label class="text-xs font-bold text-gray-600 block mb-1">${label}</label>
+                    <select id="lvMap_${field}" class="border rounded px-2 py-1.5 text-sm w-full">${optsWithSel}</select>
+                </div>`;
+            };
+
+            document.getElementById('lvMapBody').innerHTML = `
+                ${selFor('matCode',  '📦 Material / Scan Code Column <span class="text-red-500">*</span>')}
+                ${selFor('batch',    '🔖 Batch Number Column')}
+                ${selFor('qty',      '📊 Quantity Column')}
+                ${selFor('expDate',  '📅 Expiry Date Column')}
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function confirmLVHeaderMap() {
+            const get = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+            const map = {
+                matCode: get('lvMap_matCode'),
+                batch:   get('lvMap_batch'),
+                qty:     get('lvMap_qty'),
+                expDate: get('lvMap_expDate')
+            };
+            if (!map.matCode) { alert('Please select the Material/Scan Code column.'); return; }
+            lvSaveColMap(map);
+            document.getElementById('lvHeaderMapModal').classList.add('hidden');
+            lvBuildDumpFromRows(lvPendingRows, map);
+        }
+
+        function lvBuildDumpFromRows(rawRows, map) {
+            const dumpMap = {};
+            let count = 0;
+            rawRows.forEach(row => {
+                const matCode = String(row[map.matCode] || '').trim().toUpperCase();
+                if (!matCode) return;
+                if (!dumpMap[matCode]) dumpMap[matCode] = [];
+                dumpMap[matCode].push({
+                    matCode,
+                    batch:   map.batch   ? String(row[map.batch]   || '').trim().toUpperCase() : '',
+                    qty:     map.qty     ? parseFloat(String(row[map.qty]   || '0').replace(/,/g,'')) || 0 : 0,
+                    expDate: map.expDate ? String(row[map.expDate]  || '').trim() : '',
+                    _consumed: 0  // track consumption
+                });
+                count++;
+            });
+            LV_DUMP_MAPS[currentMode] = dumpMap;
+            const statusEl = document.getElementById('lvDumpStatus');
+            if (statusEl) statusEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i><span class="text-green-700 font-bold">${count.toLocaleString()} rows loaded · ${currentMode} mode</span>`;
         }
 
         function loadLiveValidateDump() {
-            const fileInput = document.getElementById('lvDumpFile');
-            if (!fileInput || !fileInput.files[0]) {
-                alert('Please choose an Excel or CSV file first.');
-                return;
-            }
-            const file = fileInput.files[0];
+            const fi = document.getElementById('lvDumpFile');
+            if (!fi || !fi.files[0]) { alert('Please choose an Excel or CSV file first.'); return; }
+            const file = fi.files[0];
             const statusEl = document.getElementById('lvDumpStatus');
             if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1 text-orange-400"></i> Loading...';
 
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    let rows = [];
-                    const name = file.name.toLowerCase();
-                    if (name.endsWith('.csv')) {
-                        // CSV parsing
+                    let rows = [], headers = [];
+                    if (file.name.toLowerCase().endsWith('.csv')) {
                         const text = e.target.result;
                         const csvLines = text.split(/\r?\n/).filter(l => l.trim());
-                        const headers = csvLines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+                        headers = csvLines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
                         for (let i = 1; i < csvLines.length; i++) {
                             const cols = csvLines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
                             let obj = {};
@@ -3335,224 +3461,335 @@ function renderLiveScanTable() {
                             rows.push(obj);
                         }
                     } else {
-                        // Excel parsing
                         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
                         rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+                        headers = Object.keys(rows[0] || {});
                     }
-
-                    // Build dump map: key = matCode (uppercase), value = array of rows
-                    lvDumpMap = {};
-                    let count = 0;
-                    rows.forEach(row => {
-                        // Try common column names for material and batch
-                        const matKey = Object.keys(row).find(k => /mat.*code|material|scan.*code|scancode|article/i.test(k));
-                        const batchKey = Object.keys(row).find(k => /batch/i.test(k));
-                        const qtyKey = Object.keys(row).find(k => /qty|quantity|stock|count/i.test(k));
-                        if (!matKey) return;
-                        const matCode = String(row[matKey] || '').trim().toUpperCase();
-                        if (!matCode) return;
-                        if (!lvDumpMap[matCode]) lvDumpMap[matCode] = [];
-                        lvDumpMap[matCode].push({
-                            matCode,
-                            batch: batchKey ? String(row[batchKey] || '').trim().toUpperCase() : '',
-                            qty: qtyKey ? String(row[qtyKey] || '').trim() : '-',
-                            raw: row
-                        });
-                        count++;
-                    });
-
-                    if (statusEl) statusEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> <span class="text-green-700 font-bold">${count.toLocaleString()} rows loaded from dump</span>`;
+                    // Check if we have a saved column map for this mode
+                    const saved = lvLoadColMap();
+                    if (saved && saved.matCode && headers.includes(saved.matCode)) {
+                        // Auto-apply saved map
+                        lvBuildDumpFromRows(rows, saved);
+                    } else {
+                        // Show header mapper modal
+                        openLVHeaderMapper(headers, rows);
+                    }
                 } catch(err) {
-                    if (statusEl) statusEl.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-1"></i> <span class="text-red-600">Error: ${err.message}</span>`;
+                    if (statusEl) statusEl.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-1"></i><span class="text-red-600">Error: ${err.message}</span>`;
                 }
             };
-            if (file.name.toLowerCase().endsWith('.csv')) { reader.readAsText(file); }
-            else { reader.readAsArrayBuffer(file); }
+            if (file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file);
+            else reader.readAsArrayBuffer(file);
+        }
+
+        // ---- Scan Handler -----------------------------------------------
+        function setLVCondition(cond) {
+            lvCurrentCondition = cond;
+            const g = document.getElementById('lvCondGood');
+            const d = document.getElementById('lvCondDamage');
+            if (!g || !d) return;
+            g.className = cond === 'Good'
+                ? 'px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2'
+                : 'px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2';
+            d.className = cond === 'Damage'
+                ? 'px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-red-500 text-white flex items-center gap-2'
+                : 'px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2';
+            document.getElementById('lvScanInput').focus();
         }
 
         function handleLVScanKey(e) {
             if (e.key !== 'Enter') return;
+            if (lvPaused) return;
             e.preventDefault();
             const input = document.getElementById('lvScanInput');
-            if (!input) return;
-            const raw = input.value.trim();
+            const raw = (input.value || '').trim();
             if (!raw) return;
             input.value = '';
+            _processLVScan(raw);
+        }
 
-            // Parse the barcode using the current mode's parser
+        function handleLVPaste(e) {
+            if (lvPaused) return;
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            const lines = (text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            if (!lines.length) return;
+            const statusEl = document.getElementById('lvScanStatus');
+            if (statusEl) statusEl.innerHTML = `<i class="fas fa-circle text-yellow-500 mr-1 fa-pulse"></i>Processing ${lines.length} barcodes...`;
+            let i = 0;
+            function chunk() {
+                const end = Math.min(i + 50, lines.length);
+                for (; i < end; i++) _processLVScan(lines[i], true);
+                if (i < lines.length) { requestAnimationFrame(chunk); }
+                else {
+                    renderLVTable();
+                    updateLVStats();
+                    playBeep('ok');
+                    if (statusEl) {
+                        statusEl.innerHTML = `<i class="fas fa-circle text-green-400 mr-1"></i>${lines.length} barcodes added`;
+                        setTimeout(() => { if(statusEl) statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 2000);
+                    }
+                }
+            }
+            requestAnimationFrame(chunk);
+        }
+
+        function _processLVScan(raw, batchMode) {
+            if (!raw) return;
+            // Parse with current mode's parser (reuse existing parsers)
             let parsed;
             if (currentMode === 'MHPL') parsed = parseBarcodeMHPL(raw);
             else if (currentMode === 'MLSIPL') parsed = parseBarcodeMLSIPL(raw);
             else if (currentMode === 'CARDIO') parsed = parseBarcodeCARDIO(raw);
             else if (currentMode === 'MDPL') parsed = parseBarcodeMDPL(raw);
-            else parsed = { matCode: raw, batch: '', status: 'Raw', mfg: '', exp: '' };
+            else parsed = parseBarcodeMHPL(raw);
+            parsed.raw = raw;
 
-            // Match against dump
-            const matchResult = lvMatchBarcode(parsed);
+            const d = new Date();
+            parsed._scanTime = d.toLocaleTimeString();
+            parsed._scanDate = d.toLocaleDateString('en-GB');
+            parsed.condition = lvCurrentCondition;
 
-            // Build row object
-            const row = {
-                idx: lvValidateRows.length + 1,
-                raw,
-                matCode: parsed.matCode || parsed.scanCode || '',
-                batch: parsed.batch || '',
-                mfg: parsed.mfg || '',
-                exp: parsed.exp || '',
-                condition: lvCondition,
-                dumpQty: matchResult.qty,
-                status: matchResult.status,
-                statusClass: matchResult.cls
-            };
+            // Per-user dedup using per-tool seenKeys
+            const seen = LV_SEEN[currentMode] || {};
+            parsed._isDup = !!seen[raw];
+            seen[raw] = true;
+            LV_SEEN[currentMode] = seen;
 
-            lvValidateRows.unshift(row); // newest first
-            lvStats.total++;
-            if (matchResult.status === 'Match') lvStats.match++;
-            else if (matchResult.status === 'Batch Mismatch') lvStats.mismatch++;
-            else lvStats.notfound++;
+            // Validate against dump + consume qty
+            const matchResult = _lvMatchAndConsume(parsed);
+            parsed._lvStatus   = matchResult.status;
+            parsed._lvDumpQty  = matchResult.origQty;
+            parsed._lvRemQty   = matchResult.remQty;
+            parsed._lvStatusCls = matchResult.cls;
 
-            renderLVRow(row);
-            updateLVStats();
-            flashLVStatus(matchResult.status);
+            if (!LV_ROWS[currentMode]) LV_ROWS[currentMode] = [];
+            LV_ROWS[currentMode].unshift(parsed);
+
+            if (!batchMode) {
+                renderLVTable();
+                updateLVStats();
+                // Sound
+                if (parsed._isDup) playBeep('dup');
+                else if (matchResult.status === 'Match') playBeep('ok');
+                else playBeep('error');
+                // Status flash
+                flashLVStatus(matchResult.status);
+            }
         }
 
-        function lvMatchBarcode(parsed) {
+        function _lvMatchAndConsume(parsed) {
+            const dumpMap = LV_DUMP_MAPS[currentMode] || {};
             const matCode = (parsed.matCode || parsed.scanCode || '').trim().toUpperCase();
-            if (!matCode) return { status: 'Not in Dump', qty: '-', cls: 'text-red-600 bg-red-50 border-red-200' };
+            const noMap = { status: 'No Dump Loaded', origQty: '—', remQty: '—', cls: 'text-gray-500 bg-gray-50 border-gray-200' };
+            if (!matCode || !Object.keys(dumpMap).length) return noMap;
 
-            if (!lvDumpMap[matCode]) {
-                // Try without leading zeros
-                const stripped = matCode.replace(/^0+/, '');
-                if (!lvDumpMap[stripped]) {
-                    return { status: 'Not in Dump', qty: '-', cls: 'text-red-600 bg-red-50 border-red-200' };
-                }
-            }
-            const dumpRows = lvDumpMap[matCode] || lvDumpMap[matCode.replace(/^0+/, '')] || [];
+            const dumpRows = dumpMap[matCode] || dumpMap[matCode.replace(/^0+/, '')];
+            if (!dumpRows || !dumpRows.length) return { status: 'Not in Dump', origQty: '—', remQty: '—', cls: 'text-red-600 bg-red-50 border-red-200' };
+
             const scannedBatch = (parsed.batch || '').trim().toUpperCase();
+            let match = scannedBatch ? dumpRows.find(r => r.batch === scannedBatch) : dumpRows[0];
 
-            if (!scannedBatch) {
-                // No batch in scan — just confirm material exists
-                const totalQty = dumpRows.reduce((s, r) => s + (parseFloat(r.qty) || 0), 0);
-                return { status: 'Match', qty: String(totalQty || dumpRows[0]?.qty || '-'), cls: 'text-green-700 bg-green-50 border-green-200' };
-            }
-
-            const batchMatch = dumpRows.find(r => r.batch === scannedBatch || r.batch === '');
-            if (batchMatch) {
-                return { status: 'Match', qty: batchMatch.qty, cls: 'text-green-700 bg-green-50 border-green-200' };
+            if (match) {
+                const origQty = match.qty;
+                match._consumed = (match._consumed || 0) + 1;
+                const remQty = Math.max(0, origQty - match._consumed);
+                return { status: 'Match', origQty: String(origQty), remQty: String(remQty), cls: 'text-green-700 bg-green-50 border-green-200' };
             }
             // Material found but batch mismatch
-            const firstQty = dumpRows[0]?.qty || '-';
-            return { status: 'Batch Mismatch', qty: firstQty, cls: 'text-yellow-700 bg-yellow-50 border-yellow-300' };
+            return { status: 'Batch Mismatch', origQty: String(dumpRows[0].qty), remQty: '—', cls: 'text-yellow-700 bg-yellow-50 border-yellow-300' };
         }
 
-        function renderLVRow(row) {
+        const LV_RENDER_LIMIT = 200;
+
+        function renderLVTable() {
             const tbody = document.getElementById('lvValidateTbody');
             if (!tbody) return;
-            const statusIcons = { 'Match': '✅', 'Batch Mismatch': '⚠️', 'Not in Dump': '❌' };
-            const icon = statusIcons[row.status] || '❓';
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50 transition-colors';
-            tr.innerHTML = `
-                <td class="px-3 py-2 text-center text-gray-500 text-xs">${row.idx}</td>
-                <td class="px-3 py-2 font-mono text-xs font-bold text-gray-800">${row.matCode || '<span class="text-gray-400">—</span>'}</td>
-                <td class="px-3 py-2 text-xs text-gray-700">${row.batch || '—'}</td>
-                <td class="px-3 py-2 text-xs text-gray-500">${row.mfg || '—'}</td>
-                <td class="px-3 py-2 text-xs text-gray-500">${row.exp || '—'}</td>
-                <td class="px-3 py-2"><span class="text-xs font-bold px-2 py-0.5 rounded border ${row.condition === 'Good' ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'}">${row.condition}</span></td>
-                <td class="px-3 py-2 text-xs text-center font-bold text-gray-700">${row.dumpQty}</td>
-                <td class="px-3 py-2"><span class="text-xs font-bold px-2 py-0.5 rounded border ${row.statusClass}">${icon} ${row.status}</span></td>
-                <td class="px-3 py-2 text-[10px] text-gray-400 font-mono max-w-[200px] truncate" title="${row.raw}">${row.raw}</td>
-            `;
-            tbody.insertBefore(tr, tbody.firstChild);
+            const rows = LV_ROWS[currentMode] || [];
+            let display = rows;
+            if (lvCurrentFilter === 'match')    display = rows.filter(r => r._lvStatus === 'Match');
+            if (lvCurrentFilter === 'mismatch') display = rows.filter(r => r._lvStatus === 'Batch Mismatch');
+            if (lvCurrentFilter === 'notfound') display = rows.filter(r => r._lvStatus === 'Not in Dump');
+            if (lvCurrentFilter === 'dup')      display = rows.filter(r => r._isDup);
+            display = display.slice(0, LV_RENDER_LIMIT);
+
+            const statusIcons = { 'Match': '✅', 'Batch Mismatch': '⚠️', 'Not in Dump': '❌', 'No Dump Loaded': '⬜' };
+            tbody.innerHTML = display.map((r, i) => {
+                const matCode = r.matCode || r.scanCode || '';
+                const ico = statusIcons[r._lvStatus] || '❓';
+                const dupBadge = r._isDup ? '<span class="ml-1 text-[9px] bg-orange-100 text-orange-700 border border-orange-300 px-1 rounded font-bold">DUP</span>' : '';
+                return `<tr class="border-b hover:bg-gray-50 transition-colors ${r._isDup ? 'opacity-70' : ''}">
+                    <td class="px-3 py-1.5 text-center text-gray-400 text-xs">${rows.length - i}</td>
+                    <td class="px-3 py-1.5 font-mono text-xs font-bold text-gray-800">${matCode}${dupBadge}</td>
+                    <td class="px-3 py-1.5 text-xs text-gray-700">${r.batch || '—'}</td>
+                    <td class="px-3 py-1.5 text-xs text-gray-500">${r.mfg || '—'}</td>
+                    <td class="px-3 py-1.5 text-xs text-gray-500">${r.exp || '—'}</td>
+                    <td class="px-3 py-1.5"><span class="text-xs font-bold px-1.5 py-0.5 rounded border ${r.condition === 'Good' ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'}">${r.condition}</span></td>
+                    <td class="px-3 py-1.5 text-xs text-center font-bold text-gray-700">${r._lvDumpQty}</td>
+                    <td class="px-3 py-1.5 text-xs text-center font-bold ${r._lvRemQty !== '—' && parseInt(r._lvRemQty) === 0 ? 'text-red-600' : 'text-blue-700'}">${r._lvRemQty}</td>
+                    <td class="px-3 py-1.5"><span class="text-xs font-bold px-1.5 py-0.5 rounded border ${r._lvStatusCls}">${ico} ${r._lvStatus}</span></td>
+                    <td class="px-3 py-1.5 text-[10px] text-gray-400 font-mono max-w-[180px] truncate" title="${r.raw}">${r.raw}</td>
+                    <td class="px-3 py-1.5 text-[10px] text-gray-400">${r._scanTime}</td>
+                </tr>`;
+            }).join('');
         }
 
         function updateLVStats() {
+            const rows = LV_ROWS[currentMode] || [];
+            const match    = rows.filter(r => r._lvStatus === 'Match').length;
+            const mismatch = rows.filter(r => r._lvStatus === 'Batch Mismatch').length;
+            const notfound = rows.filter(r => r._lvStatus === 'Not in Dump').length;
+            const dup      = rows.filter(r => r._isDup).length;
             const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-            s('lvTotal', lvStats.total);
-            s('lvMatch', lvStats.match);
-            s('lvMismatch', lvStats.mismatch);
-            s('lvNotFound', lvStats.notfound);
+            s('lvTotal',    rows.length);
+            s('lvMatch',    match);
+            s('lvMismatch', mismatch);
+            s('lvNotFound', notfound);
+            s('lvDup',      dup);
+        }
+
+        function filterLVTable(type) {
+            lvCurrentFilter = lvCurrentFilter === type ? null : type;
+            renderLVTable();
         }
 
         function flashLVStatus(status) {
             const el = document.getElementById('lvScanStatus');
             if (!el) return;
             const cfg = {
-                'Match': ['✅ Match!', 'text-green-600'],
-                'Batch Mismatch': ['⚠️ Batch Mismatch', 'text-yellow-600'],
-                'Not in Dump': ['❌ Not in Dump', 'text-red-600']
+                'Match':        ['<i class="fas fa-circle text-green-400 mr-1"></i>Match ✅',       'text-green-600'],
+                'Batch Mismatch':['<i class="fas fa-circle text-yellow-400 mr-1"></i>Batch Mismatch ⚠️','text-yellow-600'],
+                'Not in Dump':  ['<i class="fas fa-circle text-red-400 mr-1"></i>Not in Dump ❌',   'text-red-600']
             };
-            const [text, cls] = cfg[status] || ['Scanned', 'text-gray-500'];
-            el.textContent = text;
+            const [html, cls] = cfg[status] || ['Scanned', 'text-gray-500'];
+            el.innerHTML = html;
             el.className = `ml-auto font-bold text-sm bg-white px-3 py-1 rounded-full border shadow-sm ${cls}`;
             setTimeout(() => {
-                el.textContent = '● Ready';
+                el.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready';
                 el.className = 'ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm';
-            }, 2000);
+            }, 1800);
+        }
+
+        function toggleLVPause() {
+            lvPaused = !lvPaused;
+            const btn = document.getElementById('btnLVPause');
+            if (btn) btn.innerHTML = lvPaused
+                ? '<i class="fas fa-play"></i> Resume'
+                : '<i class="fas fa-pause"></i> Pause';
+            const statusEl = document.getElementById('lvScanStatus');
+            if (statusEl) statusEl.innerHTML = lvPaused
+                ? '<i class="fas fa-circle text-yellow-400 mr-1"></i>Paused'
+                : '<i class="fas fa-circle text-green-400 mr-1"></i>Ready';
+        }
+
+        function undoLVScan() {
+            const rows = LV_ROWS[currentMode];
+            if (!rows || !rows.length) return;
+            const last = rows.shift();
+            // Reverse consumption
+            if (last._lvStatus === 'Match') {
+                const dumpMap = LV_DUMP_MAPS[currentMode] || {};
+                const mc = (last.matCode || last.scanCode || '').trim().toUpperCase();
+                const batchStr = (last.batch || '').trim().toUpperCase();
+                const dumpRows = dumpMap[mc] || [];
+                const match = batchStr ? dumpRows.find(r => r.batch === batchStr) : dumpRows[0];
+                if (match) match._consumed = Math.max(0, (match._consumed || 1) - 1);
+            }
+            // Reverse seen key
+            if (last.raw) delete (LV_SEEN[currentMode] || {})[last.raw];
+            renderLVTable();
+            updateLVStats();
+            const statusEl = document.getElementById('lvScanStatus');
+            if (statusEl) {
+                statusEl.innerHTML = '<i class="fas fa-undo text-yellow-500 mr-1"></i>Undo OK';
+                setTimeout(() => { statusEl.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; }, 1500);
+            }
         }
 
         function exportLiveValidate() {
-            if (!lvValidateRows.length) { alert('No data to export.'); return; }
+            const rows = LV_ROWS[currentMode] || [];
+            if (!rows.length) { alert('No data to export.'); return; }
             const wb = XLSX.utils.book_new();
-            const wsData = [['#', 'Scan Code', 'Batch', 'Mfg Date', 'Exp Date', 'Condition', 'Dump Qty', 'Status', 'Raw String']];
-            lvValidateRows.forEach(r => wsData.push([r.idx, r.matCode, r.batch, r.mfg, r.exp, r.condition, r.dumpQty, r.status, r.raw]));
+            const wsData = [['#', 'Scan Code', 'Batch', 'Mfg Date', 'Exp Date', 'Condition', 'Dump Qty', 'Remaining Qty', 'Status', 'Duplicate', 'Scan Time', 'Raw String']];
+            rows.forEach((r, i) => wsData.push([
+                rows.length - i,
+                r.matCode || r.scanCode || '',
+                r.batch || '',
+                r.mfg || '',
+                r.exp || '',
+                r.condition,
+                r._lvDumpQty,
+                r._lvRemQty,
+                r._lvStatus,
+                r._isDup ? 'Yes' : 'No',
+                r._scanTime,
+                r.raw
+            ]));
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, 'Live Validate');
             XLSX.writeFile(wb, `LiveValidate_${currentMode}_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
 
         function clearLiveValidate() {
-            if (!confirm('Clear all Live Validate results?')) return;
-            lvValidateRows = [];
-            lvStats = { total: 0, match: 0, mismatch: 0, notfound: 0 };
-            const tbody = document.getElementById('lvValidateTbody');
-            if (tbody) tbody.innerHTML = '';
+            if (!confirm('Clear all Live Validate results for ' + currentMode + '?')) return;
+            LV_ROWS[currentMode] = [];
+            LV_SEEN[currentMode] = {};
+            // Reset consumption counters in dump
+            const dumpMap = LV_DUMP_MAPS[currentMode] || {};
+            Object.values(dumpMap).forEach(arr => arr.forEach(r => r._consumed = 0));
+            renderLVTable();
             updateLVStats();
             const el = document.getElementById('lvScanStatus');
-            if (el) { el.textContent = '● Ready'; el.className = 'ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm'; }
+            if (el) { el.innerHTML = '<i class="fas fa-circle text-green-400 mr-1"></i>Ready'; el.className = 'ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm'; }
         }
+
     </script>
 
-<!-- ===== SCAN HISTORY MODAL ===== -->
-<div id="scanHistoryModal" class="modal-backdrop hidden">
-    <div class="lm-container flex flex-col relative" style="width: 800px;">
-        <!-- Header -->
-        <div class="bg-indigo-700 text-white px-6 py-4 rounded-t-lg flex justify-between items-center shadow-md">
-            <h2 class="text-xl font-bold flex items-center"><i class="fas fa-history mr-2"></i> Live Scan History (7 Days)</h2>
-            <button onclick="document.getElementById('scanHistoryModal').classList.add('hidden')" class="text-white hover:text-indigo-200 focus:outline-none transition">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-        
-        <!-- Content -->
-        <div class="p-6 flex-1 overflow-y-auto bg-gray-50">
-            <div id="historyLoading" class="text-center py-10 hidden">
-                <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-500 mb-4"></i>
-                <p class="text-gray-600 font-semibold">Loading history from database...</p>
+    <!-- ===== SCAN HISTORY MODAL ===== -->
+    <div id="scanHistoryModal" class="modal-backdrop hidden">
+        <div class="lm-container flex flex-col relative" style="width: 800px;">
+            <!-- Header -->
+            <div class="bg-indigo-700 text-white px-6 py-4 rounded-t-lg flex justify-between items-center shadow-md">
+                <h2 class="text-xl font-bold flex items-center"><i class="fas fa-history mr-2"></i> Live Scan History (7
+                    Days)</h2>
+                <button onclick="document.getElementById('scanHistoryModal').classList.add('hidden')"
+                    class="text-white hover:text-indigo-200 focus:outline-none transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
             </div>
-            <div id="historyEmpty" class="text-center py-10 hidden">
-                <i class="fas fa-folder-open text-4xl text-gray-300 mb-4"></i>
-                <p class="text-gray-500">No scan sessions found in the last 7 days.</p>
-            </div>
-            
-            <div class="w-full">
-                <table class="w-full text-left border-collapse bg-white shadow-sm rounded overflow-hidden hidden" id="historyTableContainer">
-                    <thead class="bg-indigo-50 border-b-2 border-indigo-100">
-                        <tr>
-                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Date & Time</th>
-                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">User</th>
-                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Mode</th>
-                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Total Scans</th>
-                            <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTbody" class="text-sm">
-                        <!-- Populated dynamically -->
-                    </tbody>
-                </table>
+
+            <!-- Content -->
+            <div class="p-6 flex-1 overflow-y-auto bg-gray-50">
+                <div id="historyLoading" class="text-center py-10 hidden">
+                    <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-500 mb-4"></i>
+                    <p class="text-gray-600 font-semibold">Loading history from database...</p>
+                </div>
+                <div id="historyEmpty" class="text-center py-10 hidden">
+                    <i class="fas fa-folder-open text-4xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500">No scan sessions found in the last 7 days.</p>
+                </div>
+
+                <div class="w-full">
+                    <table class="w-full text-left border-collapse bg-white shadow-sm rounded overflow-hidden hidden"
+                        id="historyTableContainer">
+                        <thead class="bg-indigo-50 border-b-2 border-indigo-100">
+                            <tr>
+                                <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Date & Time</th>
+                                <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">User</th>
+                                <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Mode</th>
+                                <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase">Total Scans</th>
+                                <th class="py-3 px-4 text-xs font-bold text-indigo-800 uppercase text-right">Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTbody" class="text-sm">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
-</div>
 </body>
 
 </html>
