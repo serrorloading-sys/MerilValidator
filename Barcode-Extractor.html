@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -3435,7 +3435,8 @@
                     batch:   map.batch   ? String(row[map.batch]   || '').trim().toUpperCase() : '',
                     qty:     map.qty     ? parseFloat(String(row[map.qty]   || '0').replace(/,/g,'')) || 0 : 0,
                     expDate: map.expDate ? String(row[map.expDate]  || '').trim() : '',
-                    _consumed: 0  // track consumption
+                    _consumed: 0,
+                    raw: row
                 });
                 count++;
             });
@@ -3882,7 +3883,12 @@
                 }
 
                 if (cfg.dumpCols.length > 0) {
-                    const dRows = dumpMap[(r.matCode||r.scanCode||'').toUpperCase()] || [];
+                    let searchCode = (r.matCode || r.scanCode || '').toUpperCase();
+                    if (currentMode !== 'MHPL') {
+                       const dbRow = getDbRow(r);
+                       if (dbRow && dbRow.sapCode) searchCode = dbRow.sapCode.toUpperCase();
+                    }
+                    const dRows = dumpMap[searchCode] || dumpMap[searchCode.replace(/^0+/, '')] || [];
                     const batchMatch = (r.batch || '').trim().toUpperCase();
                     let matchRow = dRows.find(dr => dr.batch === batchMatch) || dRows[0];
                     const rawDump = matchRow ? matchRow.raw : {};
