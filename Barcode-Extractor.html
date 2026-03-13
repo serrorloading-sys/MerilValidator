@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1362,7 +1362,26 @@
                 info.status = "Parsed Basic GTIN";
             }
 
-            if (!info.gtin && !info.batch) info.status = "Fail: No AI pattern";
+            // MHPL/Trauma proprietary format (no GS1 indicators, dates as YYYY-MM-DD)
+            // Example: MT-PT6803051RUK24100732024-11-082029-11-07
+            if (!info.status.includes("Parsed") && /\d{4}-\d{2}-\d{2}/.test(rawStr)) {
+                const pmA = rawStr.match(/^(.+?)(K\d{5,12})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
+                if (pmA) {
+                    info.matCode = pmA[1].trim(); info.batch = pmA[2].trim();
+                    info.mfg = pmA[3]; info.exp = pmA[4];
+                    info.status = "Parsed MHPL Proprietary";
+                }
+                if (!info.status.includes("Parsed")) {
+                    const pmB = rawStr.match(/^(.{4,25})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
+                    if (pmB) {
+                        info.matCode = pmB[1].trim(); info.mfg = pmB[2]; info.exp = pmB[3];
+                        info.status = "Parsed MHPL Proprietary (no-batch)";
+                    }
+                }
+            }
+
+            if (!info.gtin && !info.batch && !info.matCode) info.status = "Fail: No AI pattern";
+
 
             info.gtin = info.gtin ? info.gtin.replace(/[\x00-\x1F\x7F]/g, '').trim() : "";
             info.matCode = info.matCode ? info.matCode.replace(/[\x00-\x1F\x7F]/g, '').trim() : "";
