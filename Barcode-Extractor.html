@@ -1060,6 +1060,8 @@
         // --- CORE INITIALIZATION ---
         window.onload = async () => {
             document.getElementById('loadingOverlay').style.display = 'flex';
+            // Alias sbClient → supabaseClient for all in-page Supabase calls
+            if (typeof sbClient !== 'undefined') window.supabaseClient = sbClient;
             try {
                 if (typeof requireAuth === 'function') await requireAuth();
 
