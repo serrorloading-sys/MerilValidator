@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -483,6 +483,10 @@
                 class="px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white">
                 <i class="fas fa-wifi mr-1"></i> Live Scan
             </button>
+            <button id="tabBtnLiveValidate" onclick="switchMainTab('livevalidate')"
+                class="px-4 py-2 rounded text-xs font-bold transition-all text-gray-500 hover:bg-white flex items-center gap-1">
+                <i class="fas fa-clipboard-check mr-1"></i> Live Validate
+            </button>
         </div>
 
         <!-- ===== TAB: EXTRACTOR ===== -->
@@ -755,6 +759,95 @@
             </div>
         </div><!-- end tabLiveScan -->
 
+
+        <!-- ===== TAB: LIVE VALIDATE ===== -->
+        <div id="tabLiveValidate" class="hidden">
+            <!-- Upload Section -->
+            <div class="bg-white rounded shadow border-t-4 border-orange-500 p-5 mb-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <i class="fas fa-cloud-upload-alt text-orange-500 text-xl"></i>
+                    <div>
+                        <div class="font-bold text-gray-700 text-sm">Upload System Dump</div>
+                        <div class="text-[10px] text-gray-400">Upload Excel/CSV with Material Code, Batch, Qty columns</div>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-3 items-center">
+                    <input type="file" id="lvDumpFile" accept=".xlsx,.csv"
+                        class="text-xs border border-gray-300 rounded px-2 py-1.5 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer">
+                    <button onclick="loadLiveValidateDump()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow flex items-center gap-2">
+                        <i class="fas fa-play"></i> Load Dump
+                    </button>
+                    <div id="lvDumpStatus" class="text-xs font-bold text-gray-400 flex items-center gap-2">
+                        <i class="fas fa-database text-gray-300"></i> No dump loaded
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scan Input Section -->
+            <div class="bg-white rounded shadow border-t-4 border-green-500 p-5 mb-4">
+                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                    <div class="flex-1">
+                        <label class="font-bold text-gray-700 text-sm mb-2 block">
+                            <i class="fas fa-clipboard-check mr-2 text-green-600"></i>Live Validate
+                            <span class="text-[10px] font-normal text-gray-400 ml-2">Press Enter after each scan</span>
+                        </label>
+                        <div class="flex justify-center mb-3">
+                            <div class="inline-flex bg-gray-100 rounded-lg p-1 border shadow-sm">
+                                <button id="lvCondGood" onclick="setLVCondition('Good')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2">
+                                    <i class="fas fa-check-circle"></i> Good Condition
+                                </button>
+                                <button id="lvCondDamage" onclick="setLVCondition('Damage')" class="px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                                    <i class="fas fa-exclamation-triangle"></i> Damage Box
+                                </button>
+                            </div>
+                        </div>
+                        <input type="text" id="lvScanInput" placeholder="Scan barcode or paste string and press Enter..."
+                            class="w-full border-2 border-green-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 shadow-inner"
+                            onkeydown="handleLVScanKey(event)">
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="exportLiveValidate()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-file-excel"></i> Export
+                        </button>
+                        <button onclick="clearLiveValidate()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded text-xs font-bold shadow flex items-center gap-1">
+                            <i class="fas fa-trash-alt"></i> Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Row -->
+                <div class="flex flex-wrap items-center gap-6 text-lg font-bold bg-green-50 border-2 border-green-200 shadow-inner rounded px-4 py-3 mt-4">
+                    <span class="text-gray-500 text-sm"><i class="fas fa-chart-bar mr-1"></i> Stats:</span>
+                    <span class="text-gray-700">Total: <span id="lvTotal" class="text-2xl text-gray-900">0</span></span>
+                    <span class="text-green-700">Match: <span id="lvMatch" class="text-2xl text-green-600">0</span></span>
+                    <span class="text-yellow-600">Mismatch: <span id="lvMismatch" class="text-2xl text-yellow-600">0</span></span>
+                    <span class="text-red-600">Not Found: <span id="lvNotFound" class="text-2xl text-red-600">0</span></span>
+                    <span id="lvScanStatus" class="ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm"><i class="fas fa-circle text-green-400 mr-1"></i>Ready</span>
+                </div>
+            </div>
+
+            <!-- Results Table -->
+            <div class="bg-white shadow-sm border rounded">
+                <div class="table-container" style="height: calc(100vh - 430px);">
+                    <table id="lvValidateTable" style="width: max-content; min-width: 100%;">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold">
+                                <th class="px-3 py-2 text-center w-10">#</th>
+                                <th class="px-3 py-2">Scan Code / Material</th>
+                                <th class="px-3 py-2">Batch</th>
+                                <th class="px-3 py-2">Mfg Date</th>
+                                <th class="px-3 py-2">Exp Date</th>
+                                <th class="px-3 py-2">Condition</th>
+                                <th class="px-3 py-2">Dump Qty</th>
+                                <th class="px-3 py-2 w-32">Status</th>
+                                <th class="px-3 py-2">Raw String</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lvValidateTbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div><!-- end tabLiveValidate -->
 
 
     </div>
@@ -2463,9 +2556,9 @@
         // ====================================================================
         // ===== FEATURE: Tab Switching (Main tabs) ===========================
         // ====================================================================
-        const MAIN_TABS = ['extract', 'master', 'livescan'];
-        const TAB_BTN_IDS = { extract: 'tabBtnExtract', master: 'tabBtnMaster', livescan: 'tabBtnLiveScan' };
-        const TAB_DIV_IDS = { extract: 'tabExtract', master: 'tabMaster', livescan: 'tabLiveScan' };
+        const MAIN_TABS = ['extract', 'master', 'livescan', 'livevalidate'];
+        const TAB_BTN_IDS = { extract: 'tabBtnExtract', master: 'tabBtnMaster', livescan: 'tabBtnLiveScan', livevalidate: 'tabBtnLiveValidate' };
+        const TAB_DIV_IDS = { extract: 'tabExtract', master: 'tabMaster', livescan: 'tabLiveScan', livevalidate: 'tabLiveValidate' };
         let activeMainTab = 'extract';
 
         function switchMainTab(tab) {
@@ -2486,6 +2579,9 @@
             });
             if (tab === 'livescan') {
                 setTimeout(() => { const el = document.getElementById('liveScanInput'); if (el) el.focus(); }, 100);
+            }
+            if (tab === 'livevalidate') {
+                setTimeout(() => { const el = document.getElementById('lvScanInput'); if (el) el.focus(); }, 100);
             }
         }
 
@@ -3189,6 +3285,231 @@ function renderLiveScanTable() {
             XLSX.writeFile(wb, 'LiveScan_' + currentMode + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
         }
 
+
+        // ====================================================================
+        // ===== FEATURE: Live Validate Tab ===================================
+        // ====================================================================
+        let lvDumpMap = {};          // { matCodeUpper: [{batch, qty, ...}] }
+        let lvValidateRows = [];     // accumulated scan results
+        let lvCondition = 'Good';   // Good | Damage
+        let lvStats = { total: 0, match: 0, mismatch: 0, notfound: 0 };
+
+        function setLVCondition(cond) {
+            lvCondition = cond;
+            const g = document.getElementById('lvCondGood');
+            const d = document.getElementById('lvCondDamage');
+            if (!g || !d) return;
+            if (cond === 'Good') {
+                g.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-green-500 text-white flex items-center gap-2';
+                d.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2';
+            } else {
+                d.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all shadow bg-red-500 text-white flex items-center gap-2';
+                g.className = 'px-6 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500 hover:text-gray-700 flex items-center gap-2';
+            }
+        }
+
+        function loadLiveValidateDump() {
+            const fileInput = document.getElementById('lvDumpFile');
+            if (!fileInput || !fileInput.files[0]) {
+                alert('Please choose an Excel or CSV file first.');
+                return;
+            }
+            const file = fileInput.files[0];
+            const statusEl = document.getElementById('lvDumpStatus');
+            if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1 text-orange-400"></i> Loading...';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let rows = [];
+                    const name = file.name.toLowerCase();
+                    if (name.endsWith('.csv')) {
+                        // CSV parsing
+                        const text = e.target.result;
+                        const csvLines = text.split(/\r?\n/).filter(l => l.trim());
+                        const headers = csvLines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+                        for (let i = 1; i < csvLines.length; i++) {
+                            const cols = csvLines[i].split(',').map(c => c.replace(/^"|"$/g,'').trim());
+                            let obj = {};
+                            headers.forEach((h, idx) => { obj[h] = cols[idx] || ''; });
+                            rows.push(obj);
+                        }
+                    } else {
+                        // Excel parsing
+                        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                        rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+                    }
+
+                    // Build dump map: key = matCode (uppercase), value = array of rows
+                    lvDumpMap = {};
+                    let count = 0;
+                    rows.forEach(row => {
+                        // Try common column names for material and batch
+                        const matKey = Object.keys(row).find(k => /mat.*code|material|scan.*code|scancode|article/i.test(k));
+                        const batchKey = Object.keys(row).find(k => /batch/i.test(k));
+                        const qtyKey = Object.keys(row).find(k => /qty|quantity|stock|count/i.test(k));
+                        if (!matKey) return;
+                        const matCode = String(row[matKey] || '').trim().toUpperCase();
+                        if (!matCode) return;
+                        if (!lvDumpMap[matCode]) lvDumpMap[matCode] = [];
+                        lvDumpMap[matCode].push({
+                            matCode,
+                            batch: batchKey ? String(row[batchKey] || '').trim().toUpperCase() : '',
+                            qty: qtyKey ? String(row[qtyKey] || '').trim() : '-',
+                            raw: row
+                        });
+                        count++;
+                    });
+
+                    if (statusEl) statusEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> <span class="text-green-700 font-bold">${count.toLocaleString()} rows loaded from dump</span>`;
+                } catch(err) {
+                    if (statusEl) statusEl.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-1"></i> <span class="text-red-600">Error: ${err.message}</span>`;
+                }
+            };
+            if (file.name.toLowerCase().endsWith('.csv')) { reader.readAsText(file); }
+            else { reader.readAsArrayBuffer(file); }
+        }
+
+        function handleLVScanKey(e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const input = document.getElementById('lvScanInput');
+            if (!input) return;
+            const raw = input.value.trim();
+            if (!raw) return;
+            input.value = '';
+
+            // Parse the barcode using the current mode's parser
+            let parsed;
+            if (currentMode === 'MHPL') parsed = parseBarcodeMHPL(raw);
+            else if (currentMode === 'MLSIPL') parsed = parseBarcodeMLSIPL(raw);
+            else if (currentMode === 'CARDIO') parsed = parseBarcodeCARDIO(raw);
+            else if (currentMode === 'MDPL') parsed = parseBarcodeMDPL(raw);
+            else parsed = { matCode: raw, batch: '', status: 'Raw', mfg: '', exp: '' };
+
+            // Match against dump
+            const matchResult = lvMatchBarcode(parsed);
+
+            // Build row object
+            const row = {
+                idx: lvValidateRows.length + 1,
+                raw,
+                matCode: parsed.matCode || parsed.scanCode || '',
+                batch: parsed.batch || '',
+                mfg: parsed.mfg || '',
+                exp: parsed.exp || '',
+                condition: lvCondition,
+                dumpQty: matchResult.qty,
+                status: matchResult.status,
+                statusClass: matchResult.cls
+            };
+
+            lvValidateRows.unshift(row); // newest first
+            lvStats.total++;
+            if (matchResult.status === 'Match') lvStats.match++;
+            else if (matchResult.status === 'Batch Mismatch') lvStats.mismatch++;
+            else lvStats.notfound++;
+
+            renderLVRow(row);
+            updateLVStats();
+            flashLVStatus(matchResult.status);
+        }
+
+        function lvMatchBarcode(parsed) {
+            const matCode = (parsed.matCode || parsed.scanCode || '').trim().toUpperCase();
+            if (!matCode) return { status: 'Not in Dump', qty: '-', cls: 'text-red-600 bg-red-50 border-red-200' };
+
+            if (!lvDumpMap[matCode]) {
+                // Try without leading zeros
+                const stripped = matCode.replace(/^0+/, '');
+                if (!lvDumpMap[stripped]) {
+                    return { status: 'Not in Dump', qty: '-', cls: 'text-red-600 bg-red-50 border-red-200' };
+                }
+            }
+            const dumpRows = lvDumpMap[matCode] || lvDumpMap[matCode.replace(/^0+/, '')] || [];
+            const scannedBatch = (parsed.batch || '').trim().toUpperCase();
+
+            if (!scannedBatch) {
+                // No batch in scan — just confirm material exists
+                const totalQty = dumpRows.reduce((s, r) => s + (parseFloat(r.qty) || 0), 0);
+                return { status: 'Match', qty: String(totalQty || dumpRows[0]?.qty || '-'), cls: 'text-green-700 bg-green-50 border-green-200' };
+            }
+
+            const batchMatch = dumpRows.find(r => r.batch === scannedBatch || r.batch === '');
+            if (batchMatch) {
+                return { status: 'Match', qty: batchMatch.qty, cls: 'text-green-700 bg-green-50 border-green-200' };
+            }
+            // Material found but batch mismatch
+            const firstQty = dumpRows[0]?.qty || '-';
+            return { status: 'Batch Mismatch', qty: firstQty, cls: 'text-yellow-700 bg-yellow-50 border-yellow-300' };
+        }
+
+        function renderLVRow(row) {
+            const tbody = document.getElementById('lvValidateTbody');
+            if (!tbody) return;
+            const statusIcons = { 'Match': '✅', 'Batch Mismatch': '⚠️', 'Not in Dump': '❌' };
+            const icon = statusIcons[row.status] || '❓';
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50 transition-colors';
+            tr.innerHTML = `
+                <td class="px-3 py-2 text-center text-gray-500 text-xs">${row.idx}</td>
+                <td class="px-3 py-2 font-mono text-xs font-bold text-gray-800">${row.matCode || '<span class="text-gray-400">—</span>'}</td>
+                <td class="px-3 py-2 text-xs text-gray-700">${row.batch || '—'}</td>
+                <td class="px-3 py-2 text-xs text-gray-500">${row.mfg || '—'}</td>
+                <td class="px-3 py-2 text-xs text-gray-500">${row.exp || '—'}</td>
+                <td class="px-3 py-2"><span class="text-xs font-bold px-2 py-0.5 rounded border ${row.condition === 'Good' ? 'text-green-700 bg-green-50 border-green-200' : 'text-red-700 bg-red-50 border-red-200'}">${row.condition}</span></td>
+                <td class="px-3 py-2 text-xs text-center font-bold text-gray-700">${row.dumpQty}</td>
+                <td class="px-3 py-2"><span class="text-xs font-bold px-2 py-0.5 rounded border ${row.statusClass}">${icon} ${row.status}</span></td>
+                <td class="px-3 py-2 text-[10px] text-gray-400 font-mono max-w-[200px] truncate" title="${row.raw}">${row.raw}</td>
+            `;
+            tbody.insertBefore(tr, tbody.firstChild);
+        }
+
+        function updateLVStats() {
+            const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            s('lvTotal', lvStats.total);
+            s('lvMatch', lvStats.match);
+            s('lvMismatch', lvStats.mismatch);
+            s('lvNotFound', lvStats.notfound);
+        }
+
+        function flashLVStatus(status) {
+            const el = document.getElementById('lvScanStatus');
+            if (!el) return;
+            const cfg = {
+                'Match': ['✅ Match!', 'text-green-600'],
+                'Batch Mismatch': ['⚠️ Batch Mismatch', 'text-yellow-600'],
+                'Not in Dump': ['❌ Not in Dump', 'text-red-600']
+            };
+            const [text, cls] = cfg[status] || ['Scanned', 'text-gray-500'];
+            el.textContent = text;
+            el.className = `ml-auto font-bold text-sm bg-white px-3 py-1 rounded-full border shadow-sm ${cls}`;
+            setTimeout(() => {
+                el.textContent = '● Ready';
+                el.className = 'ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm';
+            }, 2000);
+        }
+
+        function exportLiveValidate() {
+            if (!lvValidateRows.length) { alert('No data to export.'); return; }
+            const wb = XLSX.utils.book_new();
+            const wsData = [['#', 'Scan Code', 'Batch', 'Mfg Date', 'Exp Date', 'Condition', 'Dump Qty', 'Status', 'Raw String']];
+            lvValidateRows.forEach(r => wsData.push([r.idx, r.matCode, r.batch, r.mfg, r.exp, r.condition, r.dumpQty, r.status, r.raw]));
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Live Validate');
+            XLSX.writeFile(wb, `LiveValidate_${currentMode}_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function clearLiveValidate() {
+            if (!confirm('Clear all Live Validate results?')) return;
+            lvValidateRows = [];
+            lvStats = { total: 0, match: 0, mismatch: 0, notfound: 0 };
+            const tbody = document.getElementById('lvValidateTbody');
+            if (tbody) tbody.innerHTML = '';
+            updateLVStats();
+            const el = document.getElementById('lvScanStatus');
+            if (el) { el.textContent = '● Ready'; el.className = 'ml-auto text-green-600 font-bold text-sm bg-white px-3 py-1 rounded-full border border-green-100 shadow-sm'; }
+        }
     </script>
 
 <!-- ===== SCAN HISTORY MODAL ===== -->
