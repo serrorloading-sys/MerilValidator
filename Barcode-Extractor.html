@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1378,22 +1378,36 @@
             }
 
             // MHPL/Trauma proprietary format (no GS1 indicators, dates as YYYY-MM-DD)
-            // Example: MT-PT6803051RUK24100732024-11-082029-11-07
+            // Handles: with/without spaces, batch prefix K or L (any uppercase letter)
+            // Examples:
+            //   MT-PT6803051RUK24100732024-11-082029-11-07   (no spaces, K batch)
+            //   MT-PT7002047RU K2409259 2024-10-25 2029-10-24 (spaces, K batch)
+            //   MT-ST2445056U L2409207 2024-10-25 2029-10-24  (spaces, L batch)
+            //   MT-ST2345046UL24092272024-11-082029-11-07     (no spaces, L batch)
             if (!info.status.includes("Parsed") && /\d{4}-\d{2}-\d{2}/.test(rawStr)) {
-                const pmA = rawStr.match(/^(.+?)(K\d{5,12})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
+                // Normalize: strip spaces to allow space-separated fields
+                const stripped = rawStr.replace(/\s/g, '');
+                // Variant A: has Batch = uppercase letter + 5-12 digits
+                const pmA = stripped.match(/^(.+?)([A-Z]\d{5,12})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
                 if (pmA) {
-                    info.matCode = pmA[1].trim(); info.batch = pmA[2].trim();
-                    info.mfg = pmA[3]; info.exp = pmA[4];
-                    info.status = "Parsed MHPL Proprietary";
+                    // Check that scan code looks like a material code (not all digits)
+                    const sc = pmA[1].trim();
+                    if (!/^\d+$/.test(sc)) {
+                        info.matCode = sc; info.batch = pmA[2].trim();
+                        info.mfg = pmA[3]; info.exp = pmA[4];
+                        info.status = "Parsed MHPL Proprietary";
+                    }
                 }
+                // Variant B: no batch — just ScanCode + two dates
                 if (!info.status.includes("Parsed")) {
-                    const pmB = rawStr.match(/^(.{4,25})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
-                    if (pmB) {
+                    const pmB = stripped.match(/^(.{4,25})(\d{4}-\d{2}-\d{2})(\d{4}-\d{2}-\d{2})$/);
+                    if (pmB && !/^\d+$/.test(pmB[1])) {
                         info.matCode = pmB[1].trim(); info.mfg = pmB[2]; info.exp = pmB[3];
                         info.status = "Parsed MHPL Proprietary (no-batch)";
                     }
                 }
             }
+
 
             if (!info.gtin && !info.batch && !info.matCode) info.status = "Fail: No AI pattern";
 
