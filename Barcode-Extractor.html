@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1410,6 +1410,9 @@
 
             // [LIVE VALIDATE] Refresh UI to show isolating data for the new mode
             if (typeof LV_ROWS !== 'undefined') {
+                LV_ROWS[currentMode] = [];
+                LV_SEEN[currentMode] = {};
+                loadLVData(); // Restore autosaved session for this mode
                 renderLVTable();
                 updateLVStats();
                 const statusEl = document.getElementById('lvDumpStatus');
@@ -3670,6 +3673,7 @@
 
             if (!LV_ROWS[currentMode]) LV_ROWS[currentMode] = [];
             LV_ROWS[currentMode].unshift(parsed);
+            saveLVData();
 
             if (!batchMode) {
                 renderLVTable();
@@ -3910,7 +3914,7 @@
                     let searchCode = (r.matCode || r.scanCode || '').toUpperCase();
                     if (currentMode !== 'MHPL') {
                        const dbRow = getDbRow(r);
-                       if (dbRow && dbRow.sapCode) searchCode = dbRow.sapCode.toUpperCase();
+                       if (dbRow && dbRow[MASTER_HEADERS[0]]) searchCode = dbRow[MASTER_HEADERS[0]].toUpperCase();
                     }
                     const dRows = dumpMap[searchCode] || dumpMap[searchCode.replace(/^0+/, '')] || [];
                     const batchMatch = (r.batch || '').trim().toUpperCase();
