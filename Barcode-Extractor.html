@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -714,9 +714,18 @@
                                 </button>
                             </div>
                         </div>
-                        <input type="text" id="liveScanInput" placeholder="Scan or type a barcode and press Enter..."
-                            class="w-full border-2 border-cyan-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 shadow-inner"
-                            onkeydown="handleLiveScanKey(event)" onpaste="handleLiveScanPaste(event)">
+                        <div class="flex gap-2 w-full">
+                            <div class="w-1/4">
+                                <label class="text-xs font-bold text-gray-400 mb-1 block">Box No (Optional)</label>
+                                <input type="text" id="lsBoxInput" placeholder="Box #" class="w-full border-2 border-cyan-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white">
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs font-bold text-gray-400 mb-1 block">Scan Barcode</label>
+                                <input type="text" id="liveScanInput" placeholder="Scan or type a barcode and press Enter..."
+                                    class="w-full border-2 border-cyan-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 shadow-inner"
+                                    onkeydown="handleLiveScanKey(event)" onpaste="handleLiveScanPaste(event)">
+                            </div>
+                        </div>
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="undoLastLiveScan()" title="Undo Last Scan"
@@ -829,10 +838,19 @@
                                 </button>
                             </div>
                         </div>
-                        <input type="text" id="lvScanInput"
-                            placeholder="Scan barcode or paste strings and press Enter..."
-                            class="w-full border-2 border-green-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 shadow-inner"
-                            onkeydown="handleLVScanKey(event)" onpaste="handleLVPaste(event)">
+                        <div class="flex gap-2 w-full">
+                            <div class="w-1/4">
+                                <label class="text-xs font-bold text-gray-400 mb-1 block">Box No (Optional)</label>
+                                <input type="text" id="lvBoxInput" placeholder="Box #" class="w-full border-2 border-green-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs font-bold text-gray-400 mb-1 block">Scan Barcode</label>
+                                <input type="text" id="lvScanInput"
+                                    placeholder="Scan barcode or paste strings and press Enter..."
+                                    class="w-full border-2 border-green-300 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 shadow-inner"
+                                    onkeydown="handleLVScanKey(event)" onpaste="handleLVPaste(event)">
+                            </div>
+                        </div>
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="undoLVScan()" title="Undo Last Scan"
@@ -2955,6 +2973,7 @@
 
             // Map data
             const mapped = dataToExport.map(r => ({
+                "Box Number": r.boxNo || '',
                 "Date": r._scanDate || '',
                 "Time": r._scanTime || '',
                 "GTIN / SAP Code": r.gtin || r.sapCode || '',
@@ -3063,6 +3082,8 @@
             const d = new Date();
             res._scanTime = d.toLocaleTimeString();
             res._scanDate = d.toLocaleDateString('en-GB'); // DD/MM/YYYY
+            const boxInp = document.getElementById('lsBoxInput');
+            res.boxNo = boxInp ? boxInp.value.trim() : '';
             res.condition = typeof currentLiveCondition !== 'undefined' ? currentLiveCondition : 'Good';
             const dbRow = getDbRow(res);
             res._dbFound = !!dbRow;
@@ -3630,6 +3651,8 @@
             const d = new Date();
             parsed._scanTime = d.toLocaleTimeString();
             parsed._scanDate = d.toLocaleDateString('en-GB');
+            const boxInp = document.getElementById('lvBoxInput');
+            parsed.boxNo = boxInp ? boxInp.value.trim() : '';
             parsed.condition = lvCurrentCondition;
 
             // Per-user dedup using per-tool seenKeys
@@ -3691,7 +3714,7 @@
             let html = `
                 <tr class="bg-gray-100 text-gray-600 text-[10px] uppercase font-bold sticky top-0 z-10">
                     <th class="px-3 py-2 text-center w-10">#</th>
-                    <th class="px-3 py-2">Scan Code</th>
+                    <th class="px-3 py-2 text-cyan-700">Box No</th><th class="px-3 py-2">Scan Code</th>
             `;
             if (cfg.enableSerial) html += `<th class="px-3 py-2">Serial</th>`;
             html += `
@@ -3736,7 +3759,7 @@
                 
                 let trHtml = `<tr class="border-b hover:bg-gray-50 transition-colors ${r._isDup ? 'opacity-70' : ''}">
                     <td class="px-3 py-1.5 text-center text-gray-400 text-xs">${rows.length - i}</td>
-                    <td class="px-3 py-1.5 font-mono text-xs font-bold text-gray-800">${matCode}${dupBadge}</td>`;
+                    <td class="px-3 py-1.5 font-mono text-xs font-bold text-cyan-800">${r.boxNo || '—'}</td><td class="px-3 py-1.5 font-mono text-xs font-bold text-gray-800">${matCode}${dupBadge}</td>`;
                 
                 if (cfg.enableSerial) trHtml += `<td class="px-3 py-1.5 font-mono text-xs text-purple-700">${r.serial || '—'}</td>`;
 
@@ -3857,7 +3880,7 @@
             const wb = XLSX.utils.book_new();
             
             // Build Headers
-            let headersList = ['#', 'Scan Code'];
+            let headersList = ['#', 'Box Number', 'Scan Code'];
             if (cfg.enableSerial) headersList.push('Serial Number');
             headersList.push('Batch', 'Mfg Date', 'Exp Date', 'Condition', 'Dump Qty', 'Remaining Qty', 'Status');
             cfg.masterCols.forEach(c => headersList.push(`[DB] ${c}`));
@@ -3869,6 +3892,7 @@
             rows.forEach((r, i) => {
                 let rowData = [
                     rows.length - i,
+                    r.boxNo || '',
                     r.matCode || r.scanCode || ''
                 ];
                 if (cfg.enableSerial) rowData.push(r.serial || '');
