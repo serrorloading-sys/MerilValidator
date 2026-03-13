@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1285,23 +1285,38 @@
             reader.readAsArrayBuffer(file);
         }
 
+        // -- Perf: debounce helper --
+        function _debounce(fn, ms) {
+            let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+        }
+        const _debouncedRender = _debounce(() => applyFiltersAndRender(), 120);
+
         function extractList(lines) {
-            for (let str of lines) {
-                if (!str) continue;
-                let res;
-
-                if (currentMode === 'MHPL') res = parseBarcodeMHPL(str);
-                else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(str);
-                else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(str);
-                else if (currentMode === 'MDPL') res = parseBarcodeMDPL(str);
-                // Note: TRAUMA is part of MHPL â€” uses MHPL parser
-
-                res.raw = str;
-                extractedDataStore[currentMode].push(res);
+            const CHUNK = 250;
+            let i = 0;
+            function processChunk() {
+                const end = Math.min(i + CHUNK, lines.length);
+                for (; i < end; i++) {
+                    const str = lines[i]; if (!str) continue;
+                    let res;
+                    if (currentMode === 'MHPL') res = parseBarcodeMHPL(str);
+                    else if (currentMode === 'MLSIPL') res = parseBarcodeMLSIPL(str);
+                    else if (currentMode === 'CARDIO') res = parseBarcodeCARDIO(str);
+                    else if (currentMode === 'MDPL') res = parseBarcodeMDPL(str);
+                    res.raw = str;
+                    extractedDataStore[currentMode].push(res);
+                }
+                globalExtracted = extractedDataStore[currentMode];
+                if (i < lines.length) {
+                    applyFiltersAndRender();
+                    setTimeout(processChunk, 0);
+                } else {
+                    applyFiltersAndRender();
+                    setTimeout(checkMissingSaps, 350);
+                }
             }
-            globalExtracted = extractedDataStore[currentMode];
-            applyFiltersAndRender();
-            checkMissingSaps();
+            processChunk();
+        }
         }
 
         // --- ENGINES ---
@@ -2286,11 +2301,14 @@
         function checkMissingSaps() {
             if (!window.currentUser || window.currentUser.role !== 'admin') return;
             if (isPromptingAdmin) return;
+            // Use set for O(1) lookup to avoid iterating missingSapsQueue repeatedly
+            const queueSet = new Set(missingSapsQueue);
             for (let item of globalExtracted) {
-                let pCode = (currentMode === 'MHPL') ? item.gtin : item.sapCode;
+                let pCode = (currentMode === 'MHPL') ? (item.matCode || item.gtin) : item.sapCode;
                 if (pCode && pCode.length > 4) {
-                    if (!getDbRow(item) && !missingSapsQueue.includes(pCode)) {
+                    if (!getDbRow(item) && !queueSet.has(pCode)) {
                         missingSapsQueue.push(pCode);
+                        queueSet.add(pCode);
                     }
                 }
             }
