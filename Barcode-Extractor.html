@@ -1603,6 +1603,8 @@
         }
 
         function parseBarcodeMLSIPL(rawStr) {
+            // Remove empty spaces that sometimes appear in MLSIPL scanner output
+            rawStr = (rawStr || '').replace(/\s+/g, '');
             let info = parseUniversalGS1(rawStr, "MLSIPL");
             // MLSIPL-specific fix: In MLSIPL barcodes, AI(21) contains the
             // material scan code (e.g. LPSXA111-K), NOT just a serial number.
@@ -3390,6 +3392,27 @@
         let lvPaused = false;
         let lvCurrentCondition = 'Good';
         let lvCurrentFilter = null; // 'match'|'mismatch'|'notfound'|null
+
+        function getLVDataKey() { return `lv_data_${currentMode}`; }
+        function saveLVData() {
+            try {
+                const data = {
+                    rows: LV_ROWS[currentMode] || [],
+                    seen: LV_SEEN[currentMode] || {}
+                };
+                localStorage.setItem(getLVDataKey(), JSON.stringify(data));
+            } catch(e) { console.error('LV Autosave failed', e); }
+        }
+        function loadLVData() {
+            try {
+                const str = localStorage.getItem(getLVDataKey());
+                if (str) {
+                    const data = JSON.parse(str);
+                    LV_ROWS[currentMode] = data.rows || [];
+                    LV_SEEN[currentMode] = data.seen || {};
+                }
+            } catch(e) {}
+        }
 
         // ---- Column Header Mapper ----------------------------------------
         // Saved per-tool in localStorage so user never remaps again
