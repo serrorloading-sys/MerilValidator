@@ -3711,8 +3711,26 @@
         }
 
         function _lvMatchAndConsume(parsed) {
+        console.log("=== LV MATCH DEBUG ===");
+        console.log("Parsed:", parsed);
+        const mapKeys = LV_DUMP_MAPS[currentMode] ? Object.keys(LV_DUMP_MAPS[currentMode]).slice(0, 5) : [];
+        console.log("Sample Map Keys:", mapKeys);
+        if (currentMode !== 'MHPL') {
+             const dbRow = getDbRow(parsed);
+             console.log("DB Row Found:", !!dbRow);
+             if (dbRow && MASTER_HEADERS.length > 0) {
+                 console.log("DB Row SAP (Header 0):", dbRow[MASTER_HEADERS[0]]);
+             }
+        }
+
             const dumpMap = LV_DUMP_MAPS[currentMode] || {};
-            const matCode = (parsed.matCode || parsed.scanCode || '').trim().toUpperCase();
+            let matCode = (parsed.matCode || parsed.scanCode || '').trim().toUpperCase();
+
+            // CRUCIAL: For MLSIPL / CARDIO resolving map via Master DB sapCode first
+            if (currentMode !== 'MHPL' && parsed.sapCode) {
+                matCode = parsed.sapCode.trim().toUpperCase();
+            }
+
             const noMap = { status: 'No Dump Loaded', origQty: '—', remQty: '—', cls: 'text-gray-500 bg-gray-50 border-gray-200' };
             if (!matCode || !Object.keys(dumpMap).length) return noMap;
 
@@ -3935,9 +3953,8 @@
 
                 if (cfg.dumpCols.length > 0) {
                     let searchCode = (r.matCode || r.scanCode || '').toUpperCase();
-                    if (currentMode !== 'MHPL') {
-                       const dbRow = getDbRow(r);
-                       if (dbRow && dbRow[MASTER_HEADERS[0]]) searchCode = dbRow[MASTER_HEADERS[0]].toUpperCase();
+                    if (currentMode !== 'MHPL' && r.sapCode) {
+                        searchCode = r.sapCode.toUpperCase();
                     }
                     const dRows = dumpMap[searchCode] || dumpMap[searchCode.replace(/^0+/, '')] || [];
                     const batchMatch = (r.batch || '').trim().toUpperCase();
