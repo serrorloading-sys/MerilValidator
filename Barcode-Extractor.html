@@ -3518,9 +3518,12 @@
                         rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
                         headers = Object.keys(rows[0] || {});
                     }
+                    // Clean headers of whitespace before matching
+                    headers = headers.map(h => typeof h === 'string' ? h.trim() : h);
+                    
                     // Check if we have a saved column map for this mode
                     const saved = lvLoadColMap();
-                    if (saved && saved.matCode && headers.includes(saved.matCode)) {
+                    if (saved && saved.matCode && headers.includes(saved.matCode.trim())) {
                         // Auto-apply saved map
                         lvBuildDumpFromRows(rows, saved);
                     } else {
